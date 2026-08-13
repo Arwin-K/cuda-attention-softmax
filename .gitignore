@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+
+# Native-extension build products
+build/
+dist/
+*.egg-info/
+*.so
+*.dylib
+
+# Generated research artifacts; tracked .gitkeep files preserve directories.
+results/raw/*.csv
+results/summary/*.csv
+figures/*
+!figures/.gitkeep
+
+# Local tooling
+.DS_Store
+.ipynb_checkpoints/
+

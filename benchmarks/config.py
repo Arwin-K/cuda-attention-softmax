@@ -1,0 +1,2 @@
+"""Future benchmark-shape registry."""
+

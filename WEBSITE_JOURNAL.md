@@ -1,0 +1,146 @@
+# CUDA Attention Softmax — Website Journal
+
+This is a publication-ready **planned** journal for the 112-commit investigation. Each entry states the question I am taking into the commit, not a claim that it has already succeeded. After completing a commit, I will replace its planned wording only with evidence from its diff, tests, measurements, and experiment log. Personal reflections remain my own words.
+
+## Day 1 — A trustworthy CPU foundation
+
+001. Completed — `scaffold research-oriented CUDA project`: I created the repository scaffold, verified its required paths and placeholder Python syntax, and made no ML, CUDA, benchmark, or profiler claim.
+002. I then made the project honest about where it is running, so my Mac can support learning and CPU checks without pretending it is a CUDA machine.
+003. Before optimizing anything, I wrote down the research question and hypotheses so later measurements have something falsifiable to answer.
+004. I built the conceptual foundation: attention, softmax, CUDA execution, memory, reductions, and warps.
+005. I created journals that keep observations separate from interpretations and leave personal reflections for me to fill in.
+006. I implemented stable softmax by subtracting the maximum, establishing the numerical reference every CUDA result must match.
+007. I added the causal rule to flattened attention rows, making future-token probabilities vanish by construction.
+008. I combined scaling, masking, and stable softmax into one trusted PyTorch reference path.
+009. I turned probability invariants into tests so a seemingly plausible softmax cannot silently be wrong.
+010. I tested causal boundaries directly, especially the first and last query positions.
+011. I challenged the reference with extreme logits to demonstrate why numerical stability is a correctness requirement.
+012. I tested awkward sequence lengths early, because GPU kernels often fail at boundaries rather than round numbers.
+013. I made attention explicit—QKᵀ, causal scaled softmax, then PV—so the softmax kernel has an understandable place in the whole model.
+014. I validated attention shapes and probability behavior before treating the reference as trustworthy.
+015. I compared my explicit attention path with PyTorch's behavior, checking semantics rather than performance.
+016. I added deterministic tensor and seed helpers so future experiments can be repeated, then recorded the first-day checkpoint.
+
+## Day 2 — Learning material and the Python-to-GPU boundary
+
+017. I used a notebook to make softmax and its numerical-stability trick visible and interactive.
+018. I used a second notebook to make Q, K, V, scaling, and causal masking inspectable on small examples.
+019. I documented what the CPU reference phase established and, equally important, what it did not measure.
+020. I stabilized the CPU reference suite and recorded unresolved questions for the GPU phase.
+021. I prepared the C++/CUDA extension infrastructure while preserving a usable CPU-only project.
+022. I defined the C++ binding boundary that will carry validated PyTorch tensors into the CUDA implementation.
+023. I created the one CUDA source file and its launch interface, making host and device roles concrete without duplicating versions.
+024. I guarded optional CUDA features so unsupported machines fail gracefully rather than blocking all learning.
+025. I added environment and build scripts to make the future NVIDIA workflow explicit and repeatable.
+026. I traced one call from Python through PyTorch and C++ to a CUDA launch, turning an opaque stack into a map.
+027. I introduced the first GPU mapping: one thread owns one complete softmax row, a simple correctness-first baseline.
+028. I added the row maximum scan, the first half of stable GPU softmax.
+029. I fused attention scaling and causal masking into the kernel, avoiding separate intermediate work.
+030. I completed the exponential sum and normalization so the row-serial kernel produces probabilities.
+031. I made invalid inputs and CUDA launch failures visible instead of allowing them to become mysterious wrong results.
+032. I compared CUDA results with the PyTorch reference across the core correctness cases and recorded the second-day checkpoint.
+
+## Day 3 — CUDA robustness, measurement, and block-reduction foundations
+
+033. I stressed the CUDA path with extreme values, looking for finite, explainable behavior.
+034. I tested irregular sequence lengths on GPU rather than assuming the simple mapping only works at convenient sizes.
+035. I centralized benchmark shapes and controls so every comparison asks the same question.
+036. I used CUDA events and synchronization to measure GPU work rather than Python dispatch overhead.
+037. I established a fair PyTorch eager baseline for the same scale-mask-softmax work.
+038. I added the custom-kernel route to the same benchmark harness, keeping inputs and timed boundaries comparable.
+039. I attached hardware, software, and commit metadata to every result so numbers can be traced back to code.
+040. I ran the initial GPU baseline only when NVIDIA hardware was available, recording observation separately from explanation.
+041. I used the baseline evidence to state why one serial thread per row might be the limiting design.
+042. I reassigned work so one CUDA block owns one softmax row, preserving the math while changing the collaboration model.
+043. I spread columns across threads in strides, exposing intra-row parallelism and adjacent initial memory access.
+044. I gave each thread a register-local maximum over the columns it owns.
+045. I combined those local maxima with a shared-memory block reduction.
+046. I added and explained the barriers that make shared reduction communication race-free.
+047. I computed stable exponentials and denominator partial sums locally after the block maximum is known.
+048. I reduced those partial sums into the one denominator for the row and recorded the third-day checkpoint.
+
+## Day 4 — Validating block parallelism and introducing warp communication
+
+049. I let threads write their own normalized probabilities in parallel while retaining exact causal masking.
+050. I treated complete PyTorch comparison as a gate before any performance conclusion about the block design.
+051. I tested whether changed reduction order remains numerically stable at large magnitudes.
+052. I tested whether partial work assignment remains correct for odd widths.
+053. I measured the block-parallel design against the recorded row-serial baseline under the same protocol.
+054. I added median, quartiles, and throughput so performance means more than one timing number.
+055. I built plotting utilities that derive figures from stored CSV data.
+056. I generated the first historical comparison figure only from real baseline and block-parallel measurements.
+057. I audited whether the thread-to-column mapping supports coalesced global-memory access, without overstating its effect.
+058. I hardened the implementation for arbitrary sequence lengths rather than relying on power-of-two assumptions.
+059. I documented the block-reduction design as a chain from evidence to hypothesis to measured outcome.
+060. I stabilized the block-parallel state as a reproducible Git milestone.
+061. I introduced the vocabulary and helpers for reasoning about warps, lanes, and warp IDs.
+062. I reduced maxima within each warp using shuffle instructions and register exchange.
+063. I combined one maximum per warp through a compact shared-memory bridge.
+064. I applied the same warp-level idea to the softmax denominator and recorded the fourth-day checkpoint.
+
+## Day 5 — Completing warp reductions and tuning the fused kernel
+
+065. I combined warp sums into the final denominator with only a small shared array.
+066. I removed the old full shared-memory reduction path, letting Git history preserve it while the source stays singular.
+067. I re-ran full correctness validation after the warp-reduction rewrite.
+068. I tested partial final warps, where lane participation is easy to get subtly wrong.
+069. I verified that scaling and causal masking are still fused inside the kernel after the reduction changes.
+070. I measured the warp-reduction kernel against the prior block-reduction milestone.
+071. I made block size a controlled experimental variable rather than a hidden launch constant.
+072. I measured the 128-thread configuration under the shared protocol.
+073. I measured the 256-thread configuration under the shared protocol.
+074. I measured the 512-thread configuration under the shared protocol.
+075. I selected the default launch configuration from results, documenting any shape-dependent tradeoff.
+076. I added torch.compile as a stronger framework baseline for the same operation.
+077. I separated compilation warmup from steady-state timing so startup cost does not distort latency.
+078. I compared eager PyTorch, compiled PyTorch, and the custom CUDA route on equal work.
+079. I documented the launch-tuning and framework results with their source artifacts and limitations.
+080. I stabilized the tuned kernel and captured the fifth-day checkpoint.
+
+## Day 6 — Does the microkernel change attention?
+
+081. I placed the custom softmax only in the intended middle of explicit attention: QKᵀ, softmax, then PV.
+082. I added end-to-end tests so a correct-looking kernel cannot hide an incorrect attention result.
+083. I added PyTorch SDPA as a production-oriented full-attention baseline.
+084. I checked custom attention against SDPA, paying attention to causal semantics and justified tolerances.
+085. I built a harness that measures whole attention paths fairly, not just the softmax microkernel.
+086. I benchmarked custom attention across sequence lengths only on actual NVIDIA hardware.
+087. I compared kernel-level and end-to-end speedups to test the Amdahl's Law lesson in this system.
+088. I instrumented representative softmax and attention runs with PyTorch Profiler.
+089. I exported profile traces and summary timings as inspectable artifacts.
+090. I added an optional Nsight Compute workflow without claiming it ran where it was unavailable.
+091. I recorded profiler observations in measured, interpretation, and next-experiment sections.
+092. I generated final latency, throughput, and historical speedup figures from stored measurements.
+093. I generated a figure that directly contrasts kernel speedup with attention speedup.
+094. I generated paper-ready tables from CSVs rather than transcribing numbers by hand.
+095. I wrote results and discussion only to the extent the experiment artifacts support them.
+096. I wrote limitations, future work, and conclusions that keep the project's scope honest, then recorded the sixth-day checkpoint.
+
+## Day 7 — Making the work auditable and shareable
+
+097. I assembled a LaTeX-ready paper outline whose figures, tables, and references remain traceable.
+098. I translated the work into a technical blog and recruiter-facing README without turning hypotheses into marketing claims.
+099. I prepared interview and project-defense questions tied to real implementation choices.
+100. I checked the publication material for coherence before the final reproducibility pass.
+101. I audited benchmark schemas so every performance record either has its required provenance or a visible gap.
+102. I linked figures back to source CSV files and commits, making visual claims reproducible.
+103. I verified the CPU-only workflow on Apple Silicon, including what must deliberately skip without CUDA.
+104. I wrote an NVIDIA handoff checklist for rebuilding, testing, benchmarking, and profiling remotely.
+105. I documented the kernel's evolution through Git milestones, keeping one implementation file and a readable history.
+106. I shaped the research journey into a website-ready narrative for readers outside the repository.
+107. I completed this per-commit journal index so each of the 112 steps has a public learning context.
+108. I audited public-facing prose against artifacts so plans and interpretations cannot masquerade as measurements.
+109. I collected reproducibility commands with clear platform requirements and expected outputs.
+110. I reviewed CUDA comments to ensure they teach the reasoning behind reductions, synchronization, and memory access.
+111. I performed a final evidence and scope audit, retaining TODOs wherever proof is absent.
+112. I finished with a seven-day checkpoint that verifies coherence among code, tests, results, and the public narrative.
+
+## Completion template
+
+For each completed entry, append only evidence you can support:
+
+- **What changed:** files and the intent of the diff.
+- **What I checked:** exact commands and pass/skip/fail outcomes.
+- **What I observed:** links to CSVs, traces, or figures where relevant.
+- **What I learned:** `TODO(student)` in my own words.
+- **What remains:** limitations, failures, and the next question.
