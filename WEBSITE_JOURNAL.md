@@ -18,7 +18,7 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 012. Completed — `add odd and non-power-of-two shape tests`: I validated every planned correctness width from 31 through 1023, including values adjacent to warp and power-of-two boundaries, for equivalence, causal zeros, row sums, finiteness, shape, and dtype.
 013. Completed — `implement explicit scaled dot-product attention reference`: I implemented and inspected `QK^T`, flattening, `1/sqrt(d)` causal stable softmax, reshaping, and `PV`, returning both output and probabilities so the future custom-kernel boundary stays visible.
 014. Completed — `add attention shape and probability validation tests`: I tested several batch/head/sequence/head-dimension layouts, output and probability contracts, normalization, causal zeros, finiteness, and clear failures for invalid ranks, shapes, and dtypes.
-015. I compared my explicit attention path with PyTorch's behavior, checking semantics rather than performance.
+015. Completed — `compare explicit attention against PyTorch reference behavior`: I compared probabilities and outputs against an independent PyTorch mask/`torch.softmax` composition across shapes and dtypes, and verified a future-value change cannot affect the first causal output.
 016. I added deterministic tensor and seed helpers so future experiments can be repeated, then recorded the first-day checkpoint.
 
 ## Day 2 — Learning material and the Python-to-GPU boundary
