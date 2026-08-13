@@ -1,2 +1,1 @@
-# Development dependencies will be introduced alongside the test suite.
-
+pytest>=7

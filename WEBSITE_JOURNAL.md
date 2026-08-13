@@ -6,20 +6,20 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 
 001. Completed — `scaffold research-oriented CUDA project`: I created the repository scaffold, verified its required paths and placeholder Python syntax, and made no ML, CUDA, benchmark, or profiler claim.
 002. Completed — `add environment detection and platform-aware imports`: I added import-safe host/PyTorch/CUDA capability detection, verified this Apple Silicon Mac reports no PyTorch and no CUDA, and documented that MPS is not a CUDA substitute.
-003. Before optimizing anything, I wrote down the research question and hypotheses so later measurements have something falsifiable to answer.
-004. I built the conceptual foundation: attention, softmax, CUDA execution, memory, reductions, and warps.
-005. I created journals that keep observations separate from interpretations and leave personal reflections for me to fill in.
-006. I implemented stable softmax by subtracting the maximum, establishing the numerical reference every CUDA result must match.
-007. I added the causal rule to flattened attention rows, making future-token probabilities vanish by construction.
-008. I combined scaling, masking, and stable softmax into one trusted PyTorch reference path.
-009. I turned probability invariants into tests so a seemingly plausible softmax cannot silently be wrong.
-010. I tested causal boundaries directly, especially the first and last query positions.
-011. I challenged the reference with extreme logits to demonstrate why numerical stability is a correctness requirement.
-012. I tested awkward sequence lengths early, because GPU kernels often fail at boundaries rather than round numbers.
-013. I made attention explicit—QKᵀ, causal scaled softmax, then PV—so the softmax kernel has an understandable place in the whole model.
-014. I validated attention shapes and probability behavior before treating the reference as trustworthy.
-015. I compared my explicit attention path with PyTorch's behavior, checking semantics rather than performance.
-016. I added deterministic tensor and seed helpers so future experiments can be repeated, then recorded the first-day checkpoint.
+003. Completed — `document research question and initial hypotheses`: I defined the implementation, performance, and control variables; wrote five falsifiable predictions; and recorded that no CUDA performance evidence exists yet.
+004. Completed — `add CUDA and transformer background notes`: I documented attention shapes, causal masking, stable softmax, CUDA execution and memory, block synchronization, reductions, warps, and the planned fusion boundary without claiming measurements.
+005. Completed — `add learning journal and experiment log templates`: I added reusable concept, experiment, and day-checkpoint templates that separate hypotheses, measurements, interpretations, and next experiments while reserving personal reflection for `TODO(student)`.
+006. Completed — `implement stable softmax reference in PyTorch`: I implemented explicit maximum subtraction, exponentiation, denominator reduction, and normalization; checked small and large logits against `torch.softmax`; and preserved shape and dtype.
+007. Completed — `add causal mask construction to reference operator`: I constructed an explicitly named boolean allowed-position mask using `row_index % sequence_length` and verified first, middle, last, and wrapped query rows by hand.
+008. Completed — `combine scaling masking and softmax reference path`: I composed scaling, causal `-inf` masking, and manual stable softmax in the correct order, then checked row sums and exact future-position zeros against PyTorch.
+009. Completed — `add basic reference softmax correctness tests`: I added CPU regression tests for uniform values, seeded FP32/FP64 inputs, alternate reduction dimensions, probability invariants, and rejected invalid rows.
+010. Completed — `add causal masking correctness tests`: I tested first, middle, last, and wrapped query rows; confirmed future probabilities are exactly zero; and confirmed allowed rows remain normalized.
+011. Completed — `add numerical stability stress tests`: I tested random logits scaled by 10, 100, and 1000 plus zeros, equal logits, and dominant values; all stable results stayed finite and matched PyTorch while naïve exponentials overflowed in the controlled example.
+012. Completed — `add odd and non-power-of-two shape tests`: I validated every planned correctness width from 31 through 1023, including values adjacent to warp and power-of-two boundaries, for equivalence, causal zeros, row sums, finiteness, shape, and dtype.
+013. Completed — `implement explicit scaled dot-product attention reference`: I implemented and inspected `QK^T`, flattening, `1/sqrt(d)` causal stable softmax, reshaping, and `PV`, returning both output and probabilities so the future custom-kernel boundary stays visible.
+014. Completed — `add attention shape and probability validation tests`: I tested several batch/head/sequence/head-dimension layouts, output and probability contracts, normalization, causal zeros, finiteness, and clear failures for invalid ranks, shapes, and dtypes.
+015. Completed — `compare explicit attention against PyTorch reference behavior`: I compared probabilities and outputs against an independent PyTorch mask/`torch.softmax` composition across shapes and dtypes, and verified a future-value change cannot affect the first causal output.
+016. Completed — `add reusable tensor and seed helpers for experiments`: I added validated Python/PyTorch seeding and local-generator score/Q/K/V factories, proved same-seed repeatability and different-seed variation, ran the complete CPU suite, and recorded an evidence-bounded Day 1 checkpoint.
 
 ## Day 2 — Learning material and the Python-to-GPU boundary
 

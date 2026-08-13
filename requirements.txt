@@ -1,2 +1,1 @@
-# Runtime dependencies will be introduced with the CPU reference implementation.
-
+torch>=2.0
