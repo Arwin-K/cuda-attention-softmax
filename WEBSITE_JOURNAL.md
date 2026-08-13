@@ -7,7 +7,7 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 001. Completed — `scaffold research-oriented CUDA project`: I created the repository scaffold, verified its required paths and placeholder Python syntax, and made no ML, CUDA, benchmark, or profiler claim.
 002. Completed — `add environment detection and platform-aware imports`: I added import-safe host/PyTorch/CUDA capability detection, verified this Apple Silicon Mac reports no PyTorch and no CUDA, and documented that MPS is not a CUDA substitute.
 003. Completed — `document research question and initial hypotheses`: I defined the implementation, performance, and control variables; wrote five falsifiable predictions; and recorded that no CUDA performance evidence exists yet.
-004. I built the conceptual foundation: attention, softmax, CUDA execution, memory, reductions, and warps.
+004. Completed — `add CUDA and transformer background notes`: I documented attention shapes, causal masking, stable softmax, CUDA execution and memory, block synchronization, reductions, warps, and the planned fusion boundary without claiming measurements.
 005. I created journals that keep observations separate from interpretations and leave personal reflections for me to fill in.
 006. I implemented stable softmax by subtracting the maximum, establishing the numerical reference every CUDA result must match.
 007. I added the causal rule to flattened attention rows, making future-token probabilities vanish by construction.
