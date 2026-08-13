@@ -6,6 +6,43 @@ import torch
 from torch import Tensor
 
 
+def causal_allowed_mask(
+    rows: int,
+    sequence_length: int,
+    *,
+    device: torch.device | str | None = None,
+) -> Tensor:
+    """Return the allowed positions for flattened causal-attention score rows.
+
+    A score tensor originally shaped ``[batch, heads, S, S]`` is flattened to
+    ``[rows, S]``. Every group of ``S`` rows repeats query positions
+    ``0, ..., S - 1``, so ``row_index % S`` recovers the query position. A
+    boolean ``True`` means the column is visible to that query.
+
+    Args:
+        rows: Number of flattened score rows.
+        sequence_length: Number of score columns and query positions.
+        device: Device on which to construct the boolean mask.
+
+    Returns:
+        Boolean tensor shaped ``[rows, sequence_length]``.
+    """
+
+    if not isinstance(rows, int) or isinstance(rows, bool) or rows <= 0:
+        raise ValueError("rows must be a positive integer")
+    if (
+        not isinstance(sequence_length, int)
+        or isinstance(sequence_length, bool)
+        or sequence_length <= 0
+    ):
+        raise ValueError("sequence_length must be a positive integer")
+
+    row_indices = torch.arange(rows, device=device)
+    query_positions = (row_indices % sequence_length).unsqueeze(1)
+    column_indices = torch.arange(sequence_length, device=device).unsqueeze(0)
+    return column_indices <= query_positions
+
+
 def stable_softmax(values: Tensor, dim: int = -1) -> Tensor:
     """Compute softmax explicitly with the subtract-maximum stability trick.
 

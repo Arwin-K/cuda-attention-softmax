@@ -7,8 +7,8 @@ history; it does not maintain parallel kernel versions.
 ## Current status
 
 The project scaffold, environment detection, research framing, background, and
-manual stable-softmax reference are present. No CUDA extension, kernel,
-benchmark result, or profiler result exists yet.
+initial stable-softmax/causal-mask reference primitives are present. No CUDA
+extension, kernel, benchmark result, or profiler result exists yet.
 
 ## Development platforms
 
