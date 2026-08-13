@@ -11,7 +11,7 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 005. Completed — `add learning journal and experiment log templates`: I added reusable concept, experiment, and day-checkpoint templates that separate hypotheses, measurements, interpretations, and next experiments while reserving personal reflection for `TODO(student)`.
 006. Completed — `implement stable softmax reference in PyTorch`: I implemented explicit maximum subtraction, exponentiation, denominator reduction, and normalization; checked small and large logits against `torch.softmax`; and preserved shape and dtype.
 007. Completed — `add causal mask construction to reference operator`: I constructed an explicitly named boolean allowed-position mask using `row_index % sequence_length` and verified first, middle, last, and wrapped query rows by hand.
-008. I combined scaling, masking, and stable softmax into one trusted PyTorch reference path.
+008. Completed — `combine scaling masking and softmax reference path`: I composed scaling, causal `-inf` masking, and manual stable softmax in the correct order, then checked row sums and exact future-position zeros against PyTorch.
 009. I turned probability invariants into tests so a seemingly plausible softmax cannot silently be wrong.
 010. I tested causal boundaries directly, especially the first and last query positions.
 011. I challenged the reference with extreme logits to demonstrate why numerical stability is a correctness requirement.

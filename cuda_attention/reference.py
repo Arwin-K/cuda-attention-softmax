@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import math
+from numbers import Real
+
 import torch
 from torch import Tensor
 
@@ -83,3 +86,36 @@ def stable_softmax(values: Tensor, dim: int = -1) -> Tensor:
     exponentials = torch.exp(shifted)
     denominator = torch.sum(exponentials, dim=dim, keepdim=True)
     return exponentials / denominator
+
+
+def causal_scaled_softmax(scores: Tensor, scale: float) -> Tensor:
+    """Apply scaling, causal masking, and stable row-wise softmax.
+
+    Args:
+        scores: Floating-point tensor shaped ``[rows, sequence_length]``.
+        scale: Finite positive multiplier, normally ``1 / sqrt(head_dimension)``.
+
+    Returns:
+        Causal probabilities with the same shape, dtype, and device as
+        ``scores``. Positions after each flattened row's query position are
+        exactly zero.
+    """
+
+    if not isinstance(scores, Tensor):
+        raise TypeError("scores must be a torch.Tensor")
+    if not scores.is_floating_point():
+        raise TypeError("causal_scaled_softmax requires floating-point scores")
+    if scores.ndim != 2:
+        raise ValueError("scores must have shape [rows, sequence_length]")
+    if scores.shape[0] == 0 or scores.shape[1] == 0:
+        raise ValueError("scores must contain at least one row and column")
+    if not isinstance(scale, Real) or isinstance(scale, bool):
+        raise TypeError("scale must be a real number")
+    if not math.isfinite(float(scale)) or scale <= 0:
+        raise ValueError("scale must be finite and positive")
+
+    rows, sequence_length = scores.shape
+    allowed = causal_allowed_mask(rows, sequence_length, device=scores.device)
+    scaled_scores = scores * scale
+    masked_scores = scaled_scores.masked_fill(~allowed, -torch.inf)
+    return stable_softmax(masked_scores, dim=-1)
