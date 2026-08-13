@@ -9,7 +9,7 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 003. Completed — `document research question and initial hypotheses`: I defined the implementation, performance, and control variables; wrote five falsifiable predictions; and recorded that no CUDA performance evidence exists yet.
 004. Completed — `add CUDA and transformer background notes`: I documented attention shapes, causal masking, stable softmax, CUDA execution and memory, block synchronization, reductions, warps, and the planned fusion boundary without claiming measurements.
 005. Completed — `add learning journal and experiment log templates`: I added reusable concept, experiment, and day-checkpoint templates that separate hypotheses, measurements, interpretations, and next experiments while reserving personal reflection for `TODO(student)`.
-006. I implemented stable softmax by subtracting the maximum, establishing the numerical reference every CUDA result must match.
+006. Completed — `implement stable softmax reference in PyTorch`: I implemented explicit maximum subtraction, exponentiation, denominator reduction, and normalization; checked small and large logits against `torch.softmax`; and preserved shape and dtype.
 007. I added the causal rule to flattened attention rows, making future-token probabilities vanish by construction.
 008. I combined scaling, masking, and stable softmax into one trusted PyTorch reference path.
 009. I turned probability invariants into tests so a seemingly plausible softmax cannot silently be wrong.

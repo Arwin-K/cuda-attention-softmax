@@ -7,7 +7,7 @@ name = "cuda-attention-softmax"
 version = "0.0.0"
 description = "Educational research project for fused causal softmax"
 requires-python = ">=3.10"
+dependencies = ["torch>=2.0"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-
