@@ -6,9 +6,9 @@ history; it does not maintain parallel kernel versions.
 
 ## Current status
 
-The project scaffold and platform-aware environment detection are present. No
-PyTorch reference, CUDA extension, kernel, benchmark result, or profiler result
-exists yet.
+The project scaffold, platform-aware environment detection, research question,
+and initial falsifiable hypotheses are present. No PyTorch reference, CUDA
+extension, kernel, benchmark result, or profiler result exists yet.
 
 ## Development platforms
 
