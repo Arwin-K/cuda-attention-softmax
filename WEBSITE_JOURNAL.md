@@ -13,7 +13,7 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 007. Completed — `add causal mask construction to reference operator`: I constructed an explicitly named boolean allowed-position mask using `row_index % sequence_length` and verified first, middle, last, and wrapped query rows by hand.
 008. Completed — `combine scaling masking and softmax reference path`: I composed scaling, causal `-inf` masking, and manual stable softmax in the correct order, then checked row sums and exact future-position zeros against PyTorch.
 009. Completed — `add basic reference softmax correctness tests`: I added CPU regression tests for uniform values, seeded FP32/FP64 inputs, alternate reduction dimensions, probability invariants, and rejected invalid rows.
-010. I tested causal boundaries directly, especially the first and last query positions.
+010. Completed — `add causal masking correctness tests`: I tested first, middle, last, and wrapped query rows; confirmed future probabilities are exactly zero; and confirmed allowed rows remain normalized.
 011. I challenged the reference with extreme logits to demonstrate why numerical stability is a correctness requirement.
 012. I tested awkward sequence lengths early, because GPU kernels often fail at boundaries rather than round numbers.
 013. I made attention explicit—QKᵀ, causal scaled softmax, then PV—so the softmax kernel has an understandable place in the whole model.
