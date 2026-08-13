@@ -6,12 +6,29 @@ history; it does not maintain parallel kernel versions.
 
 ## Current status
 
-Commit 001 establishes project structure only. No PyTorch reference, CUDA
-extension, kernel, benchmark result, or profiler result exists yet.
+The project scaffold and platform-aware environment detection are present. No
+PyTorch reference, CUDA extension, kernel, benchmark result, or profiler result
+exists yet.
+
+## Development platforms
+
+Apple Silicon macOS is the local learning, documentation, CPU-reference, test,
+and results-analysis environment. Importing `cuda_attention` does not require
+PyTorch or CUDA, and the project never treats Apple's MPS backend as CUDA.
+
+CUDA compilation, CUDA correctness tests, GPU benchmarks, and NVIDIA profiling
+belong on Linux with an NVIDIA GPU and the CUDA toolkit. They are optional
+capabilities rather than package-import requirements. Inspect the current host
+without compiling anything:
+
+```bash
+python3 scripts/check_environment.py
+```
 
 ## Layout
 
-- `cuda_attention/`: future Python package and CPU-friendly reference paths.
+- `cuda_attention/`: Python package, environment detection, and future
+  CPU-friendly reference paths.
 - `csrc/`: the future C++/CUDA extension boundary and single CUDA source file.
 - `tests/`: correctness tests, written before performance claims.
 - `benchmarks/`, `profiling/`, `results/`, and `figures/`: reproducible
@@ -20,4 +37,3 @@ extension, kernel, benchmark result, or profiler result exists yet.
 
 See `PROJECT_PLAN.md` for the ordered research plan and `AGENTS.md` for the
 engineering, platform, and research-integrity constraints.
-

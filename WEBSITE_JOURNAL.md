@@ -5,7 +5,7 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 ## Day 1 — A trustworthy CPU foundation
 
 001. Completed — `scaffold research-oriented CUDA project`: I created the repository scaffold, verified its required paths and placeholder Python syntax, and made no ML, CUDA, benchmark, or profiler claim.
-002. I then made the project honest about where it is running, so my Mac can support learning and CPU checks without pretending it is a CUDA machine.
+002. Completed — `add environment detection and platform-aware imports`: I added import-safe host/PyTorch/CUDA capability detection, verified this Apple Silicon Mac reports no PyTorch and no CUDA, and documented that MPS is not a CUDA substitute.
 003. Before optimizing anything, I wrote down the research question and hypotheses so later measurements have something falsifiable to answer.
 004. I built the conceptual foundation: attention, softmax, CUDA execution, memory, reductions, and warps.
 005. I created journals that keep observations separate from interpretations and leave personal reflections for me to fill in.
