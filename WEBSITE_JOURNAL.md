@@ -17,7 +17,7 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 011. Completed — `add numerical stability stress tests`: I tested random logits scaled by 10, 100, and 1000 plus zeros, equal logits, and dominant values; all stable results stayed finite and matched PyTorch while naïve exponentials overflowed in the controlled example.
 012. Completed — `add odd and non-power-of-two shape tests`: I validated every planned correctness width from 31 through 1023, including values adjacent to warp and power-of-two boundaries, for equivalence, causal zeros, row sums, finiteness, shape, and dtype.
 013. Completed — `implement explicit scaled dot-product attention reference`: I implemented and inspected `QK^T`, flattening, `1/sqrt(d)` causal stable softmax, reshaping, and `PV`, returning both output and probabilities so the future custom-kernel boundary stays visible.
-014. I validated attention shapes and probability behavior before treating the reference as trustworthy.
+014. Completed — `add attention shape and probability validation tests`: I tested several batch/head/sequence/head-dimension layouts, output and probability contracts, normalization, causal zeros, finiteness, and clear failures for invalid ranks, shapes, and dtypes.
 015. I compared my explicit attention path with PyTorch's behavior, checking semantics rather than performance.
 016. I added deterministic tensor and seed helpers so future experiments can be repeated, then recorded the first-day checkpoint.
 
