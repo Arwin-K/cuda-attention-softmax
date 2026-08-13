@@ -12,7 +12,7 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 006. Completed — `implement stable softmax reference in PyTorch`: I implemented explicit maximum subtraction, exponentiation, denominator reduction, and normalization; checked small and large logits against `torch.softmax`; and preserved shape and dtype.
 007. Completed — `add causal mask construction to reference operator`: I constructed an explicitly named boolean allowed-position mask using `row_index % sequence_length` and verified first, middle, last, and wrapped query rows by hand.
 008. Completed — `combine scaling masking and softmax reference path`: I composed scaling, causal `-inf` masking, and manual stable softmax in the correct order, then checked row sums and exact future-position zeros against PyTorch.
-009. I turned probability invariants into tests so a seemingly plausible softmax cannot silently be wrong.
+009. Completed — `add basic reference softmax correctness tests`: I added CPU regression tests for uniform values, seeded FP32/FP64 inputs, alternate reduction dimensions, probability invariants, and rejected invalid rows.
 010. I tested causal boundaries directly, especially the first and last query positions.
 011. I challenged the reference with extreme logits to demonstrate why numerical stability is a correctness requirement.
 012. I tested awkward sequence lengths early, because GPU kernels often fail at boundaries rather than round numbers.
