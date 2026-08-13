@@ -7,9 +7,9 @@ history; it does not maintain parallel kernel versions.
 ## Current status
 
 The project scaffold, environment detection, research framing, background, and
-complete PyTorch scaling/masking/stable-softmax reference and explicit
-`QK^T -> softmax -> PV` attention path are present. No CUDA extension, kernel,
-benchmark result, or profiler result exists yet.
+Day 1 is complete: the project has an explicit CPU reference, causal attention
+path, correctness/stability/edge tests, and reproducible tensor helpers. No CUDA
+extension, kernel, benchmark result, or profiler result exists yet.
 
 ## Development platforms
 

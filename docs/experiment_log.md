@@ -50,3 +50,24 @@ Use this template at commits 016, 032, 048, 064, 080, 096, and 112.
 ## Current evidence status
 
 No performance or profiling experiment has been recorded yet.
+
+## Day 1 checkpoint — Commit 016
+
+- **What was implemented:** Repository organization; platform-aware optional
+  imports; the research question and hypotheses; CUDA/attention background;
+  learning and experiment templates; explicit stable softmax; flattened-row
+  causal masking; scaling/masking/softmax composition; explicit `QK^T -> P ->
+  PV` attention; CPU correctness/stability/edge tests; and reproducible seed,
+  score, and Q/K/V tensor helpers.
+- **What was actually measured:** No performance was measured. The CPU test
+  suite was run on Apple Silicon macOS with Python 3.11 and PyTorch 2.13.0. The
+  exact final test count and outcome are recorded in the Commit 016 handoff.
+- **What I learned:** `TODO(student): Write this in your own words.`
+- **What surprised me:** `TODO(student): Write this in your own words.`
+- **Unresolved questions:** How the reference tolerances transfer to CUDA
+  reduction order; how expensive the row-serial kernel will be; and which
+  NVIDIA environment will produce the first build and measurement evidence.
+- **Next day:** Add executable learning notebooks, the C++/CUDA extension
+  boundary, guarded Mac behavior, and the first correctness-first row-serial
+  CUDA implementation through Commit 032. GPU-only claims remain pending until
+  those commands run on Linux with NVIDIA hardware.
