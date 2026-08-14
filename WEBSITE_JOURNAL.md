@@ -23,7 +23,7 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 
 ## Day 2 — Learning material and the Python-to-GPU boundary
 
-017. I used a notebook to make softmax and its numerical-stability trick visible and interactive.
+017. Completed — `add notebook lesson on softmax and numerical stability`: I added an executable CPU notebook that exposes tensor shapes, naïve FP32 exponential overflow, maximum subtraction, stable-softmax equivalence, assertions, exercises, and untouched `TODO(student)` reflection prompts.
 018. I used a second notebook to make Q, K, V, scaling, and causal masking inspectable on small examples.
 019. I documented what the CPU reference phase established and, equally important, what it did not measure.
 020. I stabilized the CPU reference suite and recorded unresolved questions for the GPU phase.
