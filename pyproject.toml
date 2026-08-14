@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=68", "torch>=2.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -11,3 +11,6 @@ dependencies = ["torch>=2.0"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.setuptools.packages.find]
+include = ["cuda_attention*"]

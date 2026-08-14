@@ -8,8 +8,9 @@ history; it does not maintain parallel kernel versions.
 
 Day 1 is complete: the project has environment detection, research framing, an
 explicit CPU reference, a causal attention path, correctness/stability/edge
-tests, and reproducible tensor helpers. No CUDA extension, kernel, benchmark
-result, or profiler result exists yet.
+tests, reproducible tensor helpers, and opt-in extension build infrastructure.
+No compiled CUDA extension, completed kernel, benchmark result, or profiler
+result exists yet.
 
 ## Development platforms
 
