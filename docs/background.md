@@ -155,3 +155,60 @@ must be included when measuring complete attention.
 No CUDA implementation or GPU measurement exists after Commit 004. Statements
 about coalescing, shared memory, reductions, and warp shuffles above are design
 principles to test later, not explanations of observed project performance.
+
+## Python-to-CUDA execution path
+
+The custom operator crosses several boundaries. Each layer has a different
+responsibility:
+
+```text
+Python caller
+  -> cuda_attention.operator.fused_causal_softmax
+  -> import optional cuda_attention._C extension
+  -> pybind11 function in csrc/bindings.cpp
+  -> host launcher in csrc/fused_causal_softmax.cu
+  -> CUDA kernel launch
+  -> GPU threads read scores and write probabilities
+  -> PyTorch output tensor returns through C++ and Python
+```
+
+### Build time
+
+`setup.py` describes a native module named `cuda_attention._C`. When
+`CUDA_ATTENTION_BUILD_CUDA=1`, PyTorch's extension machinery compiles
+`bindings.cpp` with a host C++ compiler, compiles the `.cu` translation unit
+with `nvcc`, and links both objects into one Python-loadable library. Headers
+such as `common.cuh` keep declarations consistent across translation units.
+
+Compilation happens on the host and produces code that can later request GPU
+work. It is not kernel execution, and a successful compile alone does not prove
+correct results.
+
+### Runtime
+
+1. Python calls the guarded operator with a PyTorch tensor and scale.
+2. The guard imports `_C`; an absent binary raises a specific optional-
+   capability error rather than triggering a build.
+3. Pybind11 converts Python arguments to the C++ function signature.
+4. The binding calls `fused_causal_softmax_cuda` on the host.
+5. The launcher validates inputs, allocates output, chooses grid/block sizes,
+   and launches the `__global__` kernel.
+6. CUDA schedules blocks and threads on the GPU. Device work is asynchronous
+   with respect to the CPU unless an operation requires synchronization.
+7. Launch/runtime errors must be surfaced before results are trusted.
+8. The output remains a PyTorch tensor whose storage is owned and tracked by
+   PyTorch.
+
+### Host versus device code
+
+The Python function, pybind11 binding, and launcher execute on the CPU. The
+function marked `__global__` executes on the NVIDIA device. `blockIdx`,
+`threadIdx`, and `blockDim` have meaning only in device code; Python does not
+directly schedule individual GPU threads.
+
+### Current implementation boundary
+
+After Commit 026, the optional build path, binding signature, CUDA translation
+unit, runtime guard, and handoff scripts exist. The launcher still fails
+explicitly and the device skeleton performs no math. CUDA compilation and
+execution have not been tested on this Apple Silicon host.

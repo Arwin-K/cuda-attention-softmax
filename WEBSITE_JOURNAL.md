@@ -32,7 +32,7 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 023. Completed — `add CUDA source skeleton and launch interface`: I connected the shared host declaration to the single `.cu` translation unit, introduced an educational `__global__` device skeleton, and made its unimplemented launcher fail explicitly instead of returning false results.
 024. Completed — `add CUDA availability guards and graceful Mac fallback`: I added discoverability checks and an actionable `CudaExtensionUnavailableError`, verified CPU imports/tests remain usable without `_C`, and prohibited silent compilation or MPS substitution.
 025. Completed — `add extension build and environment verification scripts`: I added command/toolkit readiness fields, a strict `--require-cuda` mode, and an opt-in Linux build script that reports and skips on macOS instead of invoking a CUDA compiler.
-026. I traced one call from Python through PyTorch and C++ to a CUDA launch, turning an opaque stack into a map.
+026. Completed — `document Python C++ CUDA execution path`: I mapped build time and runtime from guarded Python dispatch through pybind11 and the host launcher to asynchronous GPU threads and a PyTorch-owned output, while marking compilation, correctness, and performance as unverified.
 027. I introduced the first GPU mapping: one thread owns one complete softmax row, a simple correctness-first baseline.
 028. I added the row maximum scan, the first half of stable GPU softmax.
 029. I fused attention scaling and causal masking into the kernel, avoiding separate intermediate work.
