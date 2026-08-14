@@ -35,7 +35,7 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 026. Completed — `document Python C++ CUDA execution path`: I mapped build time and runtime from guarded Python dispatch through pybind11 and the host launcher to asynchronous GPU threads and a PyTorch-owned output, while marking compilation, correctness, and performance as unverified.
 027. Completed — `implement initial row-serial fused causal softmax kernel`: I mapped one global CUDA thread to one flattened row with an out-of-range guard, documented serial intra-row work as an unmeasured limitation, and kept the public launcher disabled until the math is complete.
 028. Completed — `add stable maximum scan to CUDA kernel`: I added a serial `fmaxf` reduction from negative infinity into a thread-local row maximum, explaining why a register-local maximum requires no synchronization in the one-thread-per-row baseline.
-029. I fused attention scaling and causal masking into the kernel, avoiding separate intermediate work.
+029. Completed — `add causal masking and scaling inside CUDA kernel`: I recovered query position with row modulo, scaled values inside the allowed-column maximum scan, excluded future columns from reductions, and assigned exact zero to masked output slots without intermediate tensors.
 030. I completed the exponential sum and normalization so the row-serial kernel produces probabilities.
 031. I made invalid inputs and CUDA launch failures visible instead of allowing them to become mysterious wrong results.
 032. I compared CUDA results with the PyTorch reference across the core correctness cases and recorded the second-day checkpoint.

@@ -24,21 +24,27 @@ __global__ void fused_causal_softmax_kernel(
     return;
   }
 
-  // This serial scan is a reduction even though only one thread participates:
-  // many row values become one maximum held in a thread-local register. The
-  // maximum will shift exponent inputs into a safe numerical range.
+  // Flattening removes the explicit query dimension, but query positions repeat
+  // every sequence_length rows. The modulo restores that position so future
+  // keys can be excluded without allocating a separate mask tensor.
+  const int64_t query_position = row % sequence_length;
   const int64_t row_offset = row * sequence_length;
+
+  // Scaling happens before both reductions, matching scaled dot-product
+  // attention. Only causally allowed columns may influence the row maximum.
   float row_maximum = -CUDART_INF_F;
-  for (int64_t column = 0; column < sequence_length; ++column) {
-    row_maximum = fmaxf(row_maximum, scores[row_offset + column]);
+  for (int64_t column = 0; column <= query_position; ++column) {
+    const float scaled_value = scores[row_offset + column] * scale;
+    row_maximum = fmaxf(row_maximum, scaled_value);
   }
 
-  // Causal bounds/scaling and the uses of row_maximum arrive next; keeping the
-  // launcher disabled prevents this intermediate reduction from being exposed
-  // as a complete operator.
+  // Masked probabilities are exactly zero. Allowed probabilities are written
+  // after the exponential denominator is added in Commit 030.
+  for (int64_t column = query_position + 1; column < sequence_length; ++column) {
+    probabilities[row_offset + column] = 0.0f;
+  }
+
   (void)row_maximum;
-  (void)probabilities;
-  (void)scale;
 }
 
 }  // namespace
