@@ -24,7 +24,7 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 ## Day 2 — Learning material and the Python-to-GPU boundary
 
 017. Completed — `add notebook lesson on softmax and numerical stability`: I added an executable CPU notebook that exposes tensor shapes, naïve FP32 exponential overflow, maximum subtraction, stable-softmax equivalence, assertions, exercises, and untouched `TODO(student)` reflection prompts.
-018. I used a second notebook to make Q, K, V, scaling, and causal masking inspectable on small examples.
+018. Completed — `add notebook lesson on transformer attention and causal masking`: I added an executable `[1,1,3,2]` CPU lesson exposing Q/K/V, `QK^T`, scaling, lower-triangular masking, probabilities, `PV`, reference equivalence, exercises, and student-owned explanations.
 019. I documented what the CPU reference phase established and, equally important, what it did not measure.
 020. I stabilized the CPU reference suite and recorded unresolved questions for the GPU phase.
 021. I prepared the C++/CUDA extension infrastructure while preserving a usable CPU-only project.
