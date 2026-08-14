@@ -24,11 +24,20 @@ __global__ void fused_causal_softmax_kernel(
     return;
   }
 
-  // Commit 027 establishes ownership only. Maximum, masking/scaling, and
-  // normalization arrive in Commits 028-030 before the launcher is enabled.
-  (void)scores;
+  // This serial scan is a reduction even though only one thread participates:
+  // many row values become one maximum held in a thread-local register. The
+  // maximum will shift exponent inputs into a safe numerical range.
+  const int64_t row_offset = row * sequence_length;
+  float row_maximum = -CUDART_INF_F;
+  for (int64_t column = 0; column < sequence_length; ++column) {
+    row_maximum = fmaxf(row_maximum, scores[row_offset + column]);
+  }
+
+  // Causal bounds/scaling and the uses of row_maximum arrive next; keeping the
+  // launcher disabled prevents this intermediate reduction from being exposed
+  // as a complete operator.
+  (void)row_maximum;
   (void)probabilities;
-  (void)sequence_length;
   (void)scale;
 }
 
