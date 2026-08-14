@@ -71,3 +71,32 @@ No performance or profiling experiment has been recorded yet.
   boundary, guarded Mac behavior, and the first correctness-first row-serial
   CUDA implementation through Commit 032. GPU-only claims remain pending until
   those commands run on Linux with NVIDIA hardware.
+
+## CPU reference and notebook validation — Commit 019
+
+- **Date/time:** 2026-08-14, America/Toronto
+- **Git commit:** Commit 019 — `document CPU reference methodology and learning notes`
+- **Hardware:** Apple Silicon arm64 CPU; no NVIDIA GPU available
+- **Software:** Darwin, Python 3.11.15, PyTorch 2.13.0, no PyTorch CUDA build
+- **Research question:** Does the CPU reference provide a reproducible semantic
+  and numerical oracle for future CUDA comparisons?
+- **HYPOTHESIS:** The stable reference, explicit attention composition, and
+  educational examples will satisfy their existing assertions on CPU.
+- **Independent variable:** None; this is a validation run, not a comparative
+  performance experiment.
+- **Controlled variables:** Repository state through Commit 018, project virtual
+  environment, deterministic test seeds, CPU execution
+- **Metrics:** pytest pass/fail count; notebook code-path completion
+- **Command/script:** `.venv/bin/python -m pytest -q tests` plus sequential
+  execution of code cells from notebooks 01 and 02
+- **Raw result file:** None; console validation only
+- **MEASUREMENT:** 47 tests passed in 1.02 seconds; two notebook code paths
+  executed without assertion failure.
+- **INTERPRETATION:** The current CPU reference and lessons are internally
+  consistent enough to serve as the next implementation oracle. This says
+  nothing about CUDA correctness or performance.
+- **Limitations:** No CUDA compiler, NVIDIA GPU, extension, kernel, benchmark,
+  or profiler was involved. The pytest duration is not a benchmark result.
+- **NEXT EXPERIMENT:** Re-run reference comparisons through the guarded custom
+  operator after the CUDA extension becomes available on NVIDIA Linux.
+- **Student reflection:** `TODO(student): What changed in your understanding?`

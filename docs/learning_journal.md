@@ -53,3 +53,93 @@ personal learning, surprises, and remaining questions must stay as
 - Link measurements to raw artifacts and the implementation Git commit.
 - Do not turn a hypothesis into an observed result.
 - Do not write first-person reflection on the student's behalf.
+
+## Stable softmax
+
+### Concept
+
+Maximum subtraction for numerically stable row-wise softmax.
+
+#### What I thought before
+
+`TODO(student): Describe your prior mental model in your own words.`
+
+#### What I learned
+
+`TODO(student): Explain what changed in your understanding.`
+
+#### Why it matters
+
+Direct FP32 exponentiation can overflow for large positive logits. Subtracting
+the row maximum bounds the largest exponential at one without changing the
+mathematical probability.
+
+#### Mental model
+
+Shift every competitor by the same amount before comparing them; their relative
+differences remain unchanged, but the numerical range becomes safer.
+
+#### Where it appears in code
+
+`cuda_attention/reference.py::stable_softmax`, introduced in Commit 006.
+
+#### Experiment demonstrating it
+
+`tests/test_numerical_stability.py` compares large inputs with PyTorch and
+demonstrates overflow in a deliberately naïve exponential.
+
+#### Evidence/result
+
+The applicable CPU tests passed; no CUDA behavior has been measured.
+
+#### Explain it in my own words
+
+`TODO(student): Explain this concept without copying the generated notes.`
+
+#### Questions still open
+
+`TODO(student): List what you still want to understand or test.`
+
+## Flattened causal rows
+
+### Concept
+
+Recovering query position after flattening attention score rows.
+
+#### What I thought before
+
+`TODO(student): Describe your prior mental model in your own words.`
+
+#### What I learned
+
+`TODO(student): Explain what changed in your understanding.`
+
+#### Why it matters
+
+The custom operator sees `[rows, sequence_length]`, not explicit batch, head,
+and query axes. It must still exclude every future key correctly.
+
+#### Mental model
+
+Each group of `sequence_length` rows counts query positions from zero again, so
+the remainder of `row_index / sequence_length` identifies the query.
+
+#### Where it appears in code
+
+`cuda_attention/reference.py::causal_allowed_mask`, introduced in Commit 007.
+
+#### Experiment demonstrating it
+
+`tests/test_causal_mask.py` checks first, middle, last, and wrapped rows by hand.
+
+#### Evidence/result
+
+CPU tests confirmed exact zeros in masked positions; CUDA remains unimplemented.
+
+#### Explain it in my own words
+
+`TODO(student): Explain this concept without copying the generated notes.`
+
+#### Questions still open
+
+`TODO(student): List what you still want to understand or test.`
