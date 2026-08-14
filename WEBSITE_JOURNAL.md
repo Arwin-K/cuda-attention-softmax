@@ -23,22 +23,22 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 
 ## Day 2 — Learning material and the Python-to-GPU boundary
 
-017. I used a notebook to make softmax and its numerical-stability trick visible and interactive.
-018. I used a second notebook to make Q, K, V, scaling, and causal masking inspectable on small examples.
-019. I documented what the CPU reference phase established and, equally important, what it did not measure.
-020. I stabilized the CPU reference suite and recorded unresolved questions for the GPU phase.
-021. I prepared the C++/CUDA extension infrastructure while preserving a usable CPU-only project.
-022. I defined the C++ binding boundary that will carry validated PyTorch tensors into the CUDA implementation.
-023. I created the one CUDA source file and its launch interface, making host and device roles concrete without duplicating versions.
-024. I guarded optional CUDA features so unsupported machines fail gracefully rather than blocking all learning.
-025. I added environment and build scripts to make the future NVIDIA workflow explicit and repeatable.
-026. I traced one call from Python through PyTorch and C++ to a CUDA launch, turning an opaque stack into a map.
-027. I introduced the first GPU mapping: one thread owns one complete softmax row, a simple correctness-first baseline.
-028. I added the row maximum scan, the first half of stable GPU softmax.
-029. I fused attention scaling and causal masking into the kernel, avoiding separate intermediate work.
-030. I completed the exponential sum and normalization so the row-serial kernel produces probabilities.
-031. I made invalid inputs and CUDA launch failures visible instead of allowing them to become mysterious wrong results.
-032. I compared CUDA results with the PyTorch reference across the core correctness cases and recorded the second-day checkpoint.
+017. Completed — `add notebook lesson on softmax and numerical stability`: I added an executable CPU notebook that exposes tensor shapes, naïve FP32 exponential overflow, maximum subtraction, stable-softmax equivalence, assertions, exercises, and untouched `TODO(student)` reflection prompts.
+018. Completed — `add notebook lesson on transformer attention and causal masking`: I added an executable `[1,1,3,2]` CPU lesson exposing Q/K/V, `QK^T`, scaling, lower-triangular masking, probabilities, `PV`, reference equivalence, exercises, and student-owned explanations.
+019. Completed — `document CPU reference methodology and learning notes`: I documented the operation contract, independent PyTorch oracles, correctness axes, fixed tolerances, stress shapes, reproducibility, platform boundary, two concept entries, and an actual 47-test/two-notebook CPU validation without treating duration as performance.
+020. Completed — `stabilize CPU reference test suite`: I added a source-checkout test runner and automated optional-environment tests, ran the complete CPU suite, and recorded CUDA absence as an expected Mac capability boundary rather than a project failure.
+021. Completed — `add PyTorch C++ extension build infrastructure`: I registered the future `cuda_attention._C` extension and its single bindings/CUDA source pair behind an explicit build flag, while verifying ordinary package metadata and CPU workflows do not initialize CUDA tooling.
+022. Completed — `add C++ bindings for fused causal softmax operator`: I defined the pybind11 `fused_causal_softmax(scores, scale)` boundary and its C++-to-CUDA launcher declaration, while leaving device math and full validation to their planned commits.
+023. Completed — `add CUDA source skeleton and launch interface`: I connected the shared host declaration to the single `.cu` translation unit, introduced an educational `__global__` device skeleton, and made its unimplemented launcher fail explicitly instead of returning false results.
+024. Completed — `add CUDA availability guards and graceful Mac fallback`: I added discoverability checks and an actionable `CudaExtensionUnavailableError`, verified CPU imports/tests remain usable without `_C`, and prohibited silent compilation or MPS substitution.
+025. Completed — `add extension build and environment verification scripts`: I added command/toolkit readiness fields, a strict `--require-cuda` mode, and an opt-in Linux build script that reports and skips on macOS instead of invoking a CUDA compiler.
+026. Completed — `document Python C++ CUDA execution path`: I mapped build time and runtime from guarded Python dispatch through pybind11 and the host launcher to asynchronous GPU threads and a PyTorch-owned output, while marking compilation, correctness, and performance as unverified.
+027. Completed — `implement initial row-serial fused causal softmax kernel`: I mapped one global CUDA thread to one flattened row with an out-of-range guard, documented serial intra-row work as an unmeasured limitation, and kept the public launcher disabled until the math is complete.
+028. Completed — `add stable maximum scan to CUDA kernel`: I added a serial `fmaxf` reduction from negative infinity into a thread-local row maximum, explaining why a register-local maximum requires no synchronization in the one-thread-per-row baseline.
+029. Completed — `add causal masking and scaling inside CUDA kernel`: I recovered query position with row modulo, scaled values inside the allowed-column maximum scan, excluded future columns from reductions, and assigned exact zero to masked output slots without intermediate tensors.
+030. Completed — `add exponential sum and normalization to CUDA kernel`: I wrote stable exponentials into output storage, accumulated the allowed denominator, normalized in place, preserved causal zeros, and enabled the current-stream launcher while marking CUDA compile/run evidence unavailable.
+031. Completed — `add CUDA launch validation and error checks`: I made the native contract explicit for CUDA device, dense contiguous FP32 layout, nonempty 2D shape, and finite positive scale; guarded the input device, used its current PyTorch stream, bounded the grid, and checked immediate launch errors, while noting that these paths still require NVIDIA execution.
+032. Completed — `add CUDA versus PyTorch correctness tests`: I added fixed-tolerance CUDA comparisons at core power-of-two widths, probability and causal invariants, and selected negative-contract cases. On Apple Silicon all ten CUDA cases skipped for the explicit NVIDIA-device reason while 53 CPU tests passed; actual kernel correctness remains unverified until this suite runs with the compiled extension on NVIDIA Linux.
 
 ## Day 3 — CUDA robustness, measurement, and block-reduction foundations
 

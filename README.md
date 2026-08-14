@@ -6,10 +6,19 @@ history; it does not maintain parallel kernel versions.
 
 ## Current status
 
-The project scaffold, environment detection, research framing, background, and
-Day 1 is complete: the project has an explicit CPU reference, causal attention
-path, correctness/stability/edge tests, and reproducible tensor helpers. No CUDA
-extension, kernel, benchmark result, or profiler result exists yet.
+Day 2 is complete: the project has environment detection, research framing, an
+explicit CPU reference, a causal attention path, correctness/stability/edge
+tests, reproducible tensor helpers, opt-in extension infrastructure, and a
+logically complete row-serial CUDA baseline. The kernel has not been compiled or
+run on NVIDIA hardware. Its native boundary now rejects unsupported device,
+layout, dtype, shape, contiguity, and scale inputs and checks launch errors, but
+no CUDA correctness, benchmark, or profiler result exists yet.
+
+`tests/test_cuda_operator.py` is the first device correctness gate. It compares
+normal FP32 inputs at sequence lengths 32, 64, and 128 with the PyTorch
+reference using fixed tolerances, checks probability invariants, and exercises
+selected invalid-input paths. These tests skip visibly unless both an NVIDIA
+CUDA device and the compiled extension are available.
 
 ## Development platforms
 
@@ -26,11 +35,31 @@ without compiling anything:
 python3 scripts/check_environment.py
 ```
 
+Run the complete CPU-safe validation suite from a source checkout:
+
+```bash
+./scripts/run_tests.sh
+```
+
+Calling the custom operator without a compiled extension raises
+`CudaExtensionUnavailableError`; it does not compile automatically or redirect
+CUDA work to MPS. The trusted CPU functions remain available from
+`cuda_attention.reference` and `cuda_attention.attention`.
+
+On the NVIDIA Linux host, verify prerequisites and request the opt-in build:
+
+```bash
+python3 scripts/check_environment.py --require-cuda
+./scripts/build_extension.sh
+```
+
+On macOS the build script reports `SKIP` and exits without invoking a compiler.
+
 ## Layout
 
 - `cuda_attention/`: Python package, environment detection, and future
   CPU-friendly reference paths.
-- `csrc/`: the future C++/CUDA extension boundary and single CUDA source file.
+- `csrc/`: the C++/CUDA extension boundary and single evolving CUDA source file.
 - `tests/`: correctness tests, written before performance claims.
 - `benchmarks/`, `profiling/`, `results/`, and `figures/`: reproducible
   measurement inputs and outputs.
