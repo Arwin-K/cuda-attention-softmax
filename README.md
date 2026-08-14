@@ -10,8 +10,9 @@ Day 1 is complete: the project has environment detection, research framing, an
 explicit CPU reference, a causal attention path, correctness/stability/edge
 tests, reproducible tensor helpers, opt-in extension infrastructure, and a
 logically complete row-serial CUDA baseline. The kernel has not been compiled or
-run on NVIDIA hardware, so no CUDA correctness, benchmark, or profiler result
-exists yet.
+run on NVIDIA hardware. Its native boundary now rejects unsupported device,
+layout, dtype, shape, contiguity, and scale inputs and checks launch errors, but
+no CUDA correctness, benchmark, or profiler result exists yet.
 
 ## Development platforms
 

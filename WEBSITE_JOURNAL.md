@@ -37,7 +37,7 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 028. Completed — `add stable maximum scan to CUDA kernel`: I added a serial `fmaxf` reduction from negative infinity into a thread-local row maximum, explaining why a register-local maximum requires no synchronization in the one-thread-per-row baseline.
 029. Completed — `add causal masking and scaling inside CUDA kernel`: I recovered query position with row modulo, scaled values inside the allowed-column maximum scan, excluded future columns from reductions, and assigned exact zero to masked output slots without intermediate tensors.
 030. Completed — `add exponential sum and normalization to CUDA kernel`: I wrote stable exponentials into output storage, accumulated the allowed denominator, normalized in place, preserved causal zeros, and enabled the current-stream launcher while marking CUDA compile/run evidence unavailable.
-031. I made invalid inputs and CUDA launch failures visible instead of allowing them to become mysterious wrong results.
+031. Completed — `add CUDA launch validation and error checks`: I made the native contract explicit for CUDA device, dense contiguous FP32 layout, nonempty 2D shape, and finite positive scale; guarded the input device, used its current PyTorch stream, bounded the grid, and checked immediate launch errors, while noting that these paths still require NVIDIA execution.
 032. I compared CUDA results with the PyTorch reference across the core correctness cases and recorded the second-day checkpoint.
 
 ## Day 3 — CUDA robustness, measurement, and block-reduction foundations
