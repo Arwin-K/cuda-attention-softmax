@@ -38,6 +38,15 @@ Calling the custom operator without a compiled extension raises
 CUDA work to MPS. The trusted CPU functions remain available from
 `cuda_attention.reference` and `cuda_attention.attention`.
 
+On the NVIDIA Linux host, verify prerequisites and request the opt-in build:
+
+```bash
+python3 scripts/check_environment.py --require-cuda
+./scripts/build_extension.sh
+```
+
+On macOS the build script reports `SKIP` and exits without invoking a compiler.
+
 ## Layout
 
 - `cuda_attention/`: Python package, environment detection, and future
