@@ -6,16 +6,30 @@
 
 namespace {
 
-// A CUDA kernel is device code launched across a grid of thread blocks. The
-// mapping from block/thread coordinates to softmax rows is deliberately left
-// for Commit 027 so this commit establishes only the compilation boundary.
+constexpr int kThreadsPerBlock = 256;
+
+// A CUDA kernel is device code launched across a grid of thread blocks. This
+// first mapping assigns one entire softmax row to one global CUDA thread. It is
+// intentionally simple: no threads cooperate within a row yet, which makes the
+// correctness path easy to trace but leaves the row's column work serial.
 __global__ void fused_causal_softmax_kernel(
     const float* scores,
     float* probabilities,
     int64_t rows,
     int64_t sequence_length,
     float scale) {
-  // TODO(Commit 027): assign one complete row to each global CUDA thread.
+  const int64_t row =
+      static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+  if (row >= rows) {
+    return;
+  }
+
+  // Commit 027 establishes ownership only. Maximum, masking/scaling, and
+  // normalization arrive in Commits 028-030 before the launcher is enabled.
+  (void)scores;
+  (void)probabilities;
+  (void)sequence_length;
+  (void)scale;
 }
 
 }  // namespace
@@ -28,5 +42,6 @@ torch::Tensor fused_causal_softmax_cuda(
   // uninitialized tensor while the implementation is structurally incomplete.
   TORCH_CHECK(
       false,
-      "fused_causal_softmax CUDA launcher is not implemented until Commit 027");
+      "row-serial CUDA math is incomplete until Commit 030");
+  return torch::Tensor();
 }

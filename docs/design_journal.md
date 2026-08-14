@@ -52,3 +52,52 @@ CUDA correctness shapes?
 ### Git commit
 
 Commit 026 — `document Python C++ CUDA execution path`
+
+## Row-serial work decomposition
+
+### Problem
+
+A correctness-first kernel needs an unambiguous mapping from CUDA execution
+coordinates to flattened softmax rows.
+
+### Existing evidence
+
+CPU tests define row semantics. No CUDA compilation or measurement exists.
+
+### Hypothesis
+
+One global CUDA thread per row will be straightforward to validate, although
+serial column scans are expected to limit performance at larger sequence
+lengths.
+
+### Proposed change
+
+Map `blockIdx.x * blockDim.x + threadIdx.x` to one row and guard threads whose
+global index exceeds `rows`.
+
+### Implementation
+
+`csrc/fused_causal_softmax.cu` now contains the row mapping and a fixed
+256-thread block constant. The public launcher remains disabled until all
+softmax math exists in Commit 030.
+
+### Correctness result
+
+Static source checks and the CPU suite pass. CUDA behavior is not tested.
+
+### Performance result
+
+Not measured.
+
+### Interpretation
+
+The mapping makes ownership explicit but does not expose intra-row parallelism.
+That limitation is a future optimization question, not a measured bottleneck.
+
+### Next question
+
+Can the owning thread compute a stable maximum over its allowed columns?
+
+### Git commit
+
+Commit 027 — `implement initial row-serial fused causal softmax kernel`
