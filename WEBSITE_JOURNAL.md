@@ -38,7 +38,7 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 029. Completed — `add causal masking and scaling inside CUDA kernel`: I recovered query position with row modulo, scaled values inside the allowed-column maximum scan, excluded future columns from reductions, and assigned exact zero to masked output slots without intermediate tensors.
 030. Completed — `add exponential sum and normalization to CUDA kernel`: I wrote stable exponentials into output storage, accumulated the allowed denominator, normalized in place, preserved causal zeros, and enabled the current-stream launcher while marking CUDA compile/run evidence unavailable.
 031. Completed — `add CUDA launch validation and error checks`: I made the native contract explicit for CUDA device, dense contiguous FP32 layout, nonempty 2D shape, and finite positive scale; guarded the input device, used its current PyTorch stream, bounded the grid, and checked immediate launch errors, while noting that these paths still require NVIDIA execution.
-032. I compared CUDA results with the PyTorch reference across the core correctness cases and recorded the second-day checkpoint.
+032. Completed — `add CUDA versus PyTorch correctness tests`: I added fixed-tolerance CUDA comparisons at core power-of-two widths, probability and causal invariants, and selected negative-contract cases. On Apple Silicon all ten CUDA cases skipped for the explicit NVIDIA-device reason while 53 CPU tests passed; actual kernel correctness remains unverified until this suite runs with the compiled extension on NVIDIA Linux.
 
 ## Day 3 — CUDA robustness, measurement, and block-reduction foundations
 

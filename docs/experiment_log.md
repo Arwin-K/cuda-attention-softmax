@@ -128,3 +128,37 @@ No performance or profiling experiment has been recorded yet.
 - **NEXT EXPERIMENT:** Perform static Mac checks on extension infrastructure,
   then compile and run it on NVIDIA Linux when available.
 - **Student reflection:** `TODO(student): Record your own checkpoint response.`
+
+## Day 2 checkpoint — Commit 032
+
+- **What was implemented:** Two executable CPU learning notebooks; documented
+  CPU-reference methodology; a stable CPU regression command; opt-in PyTorch
+  C++/CUDA extension configuration; pybind11 and launcher boundaries; guarded
+  Python loading; Mac-safe environment/build scripts; and the first row-serial
+  fused causal scaled-softmax kernel. The kernel maps one global thread to one
+  row, performs a stable allowed-column maximum, computes scaled shifted
+  exponentials and their sum, normalizes allowed entries, and writes exact
+  zeros for future positions. Host checks now cover device, dense contiguous
+  FP32 layout, nonempty 2D shape, scale, grid bounds, device selection, current
+  stream use, and immediate launch errors. CUDA-vs-PyTorch tests cover normal
+  inputs at sequence lengths 32, 64, and 128 plus selected invalid calls.
+- **What was actually measured:** No GPU performance, profiler data, CUDA
+  compilation, or CUDA numerical result was measured. On Apple Silicon macOS,
+  `./scripts/run_tests.sh` reported 53 passed and 10 CUDA-only tests skipped in
+  0.94 seconds. Both notebook code paths executed without assertion failures.
+  `scripts/check_environment.py` reported arm64 Darwin, Python 3.11.15,
+  PyTorch 2.13.0, no PyTorch CUDA build, no CUDA device, no `nvcc`, and no
+  `nvidia-smi`. `scripts/build_extension.sh` returned its expected unsupported-
+  platform `SKIP`. Pytest duration is validation metadata, not a benchmark.
+- **What I learned:** `TODO(student): Explain in your own words how Python,
+  pybind11, a host launcher, a CUDA kernel, and a PyTorch tensor connect.`
+- **What surprised me:** `TODO(student): Record your own observation; no
+  personal reflection has been inferred.`
+- **Unresolved questions:** Whether the extension compiles against the remote
+  CUDA/PyTorch toolchain; whether the row-serial output passes fixed-tolerance
+  comparisons; how extreme and irregular inputs behave on GPU; and where the
+  first measured bottleneck appears.
+- **Next day:** Run CUDA numerical and odd-width correctness gates when NVIDIA
+  hardware is available; centralize benchmark controls; add CUDA-event timing,
+  eager/custom paths, and provenance metadata; collect a baseline only from a
+  real GPU; then begin the one-block-per-row shared-reduction design.

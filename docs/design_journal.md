@@ -150,3 +150,54 @@ Does the compiled row-serial operator match the PyTorch reference on CUDA?
 ### Git commit
 
 Commit 031 — `add CUDA launch validation and error checks`
+
+## First CUDA-to-reference correctness gate
+
+### Problem
+
+Completing the kernel source does not demonstrate that it compiles or matches
+the trusted PyTorch semantics across the Python/C++/CUDA boundary.
+
+### Existing evidence
+
+The CPU reference suite passes. The current Apple Silicon host has neither a
+CUDA-enabled PyTorch build nor an NVIDIA device, so it cannot execute the
+custom operator.
+
+### Hypothesis
+
+On a supported host, comparing identical CUDA-resident FP32 inputs at core
+sequence lengths will expose mistakes in scaling, flattened-row masking,
+normalization, output metadata, or launch handling.
+
+### Change
+
+`tests/test_cuda_operator.py` compares sequence lengths 32, 64, and 128 using
+fixed `rtol=1e-5` and `atol=1e-6`. It also checks row sums, finite outputs,
+exact causal zeros, shape, dtype, device, and selected invalid-input paths. A
+single prerequisite rule makes every case skip visibly if CUDA or the compiled
+extension is unavailable.
+
+### Correctness result
+
+On Apple Silicon, 53 CPU tests passed and all 10 CUDA-only cases skipped because
+an NVIDIA CUDA device was unavailable. This validates collection and skip
+behavior, not the CUDA implementation.
+
+### Performance result
+
+Not measured. Correctness tests are not benchmarks.
+
+### Interpretation
+
+The repository now contains a reproducible GPU correctness command, but the
+core hypothesis remains open until the suite passes after an NVIDIA build.
+
+### Next question
+
+How does the CUDA path behave under extreme magnitudes and irregular sequence
+lengths once NVIDIA execution is available?
+
+### Git commit
+
+Commit 032 — `add CUDA versus PyTorch correctness tests`
