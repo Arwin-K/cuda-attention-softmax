@@ -1,12 +1,6 @@
 #include <torch/extension.h>
 
-// The implementation lives in the single evolving .cu file. Keeping this
-// declaration at the binding boundary makes the host call path explicit:
-// Python enters C++, then C++ asks the CUDA translation unit to launch device
-// work and return a PyTorch tensor.
-torch::Tensor fused_causal_softmax_cuda(
-    const torch::Tensor& scores,
-    double scale);
+#include "common.cuh"
 
 torch::Tensor fused_causal_softmax(
     const torch::Tensor& scores,
