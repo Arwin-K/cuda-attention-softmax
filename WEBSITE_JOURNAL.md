@@ -30,7 +30,7 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 021. Completed — `add PyTorch C++ extension build infrastructure`: I registered the future `cuda_attention._C` extension and its single bindings/CUDA source pair behind an explicit build flag, while verifying ordinary package metadata and CPU workflows do not initialize CUDA tooling.
 022. Completed — `add C++ bindings for fused causal softmax operator`: I defined the pybind11 `fused_causal_softmax(scores, scale)` boundary and its C++-to-CUDA launcher declaration, while leaving device math and full validation to their planned commits.
 023. Completed — `add CUDA source skeleton and launch interface`: I connected the shared host declaration to the single `.cu` translation unit, introduced an educational `__global__` device skeleton, and made its unimplemented launcher fail explicitly instead of returning false results.
-024. I guarded optional CUDA features so unsupported machines fail gracefully rather than blocking all learning.
+024. Completed — `add CUDA availability guards and graceful Mac fallback`: I added discoverability checks and an actionable `CudaExtensionUnavailableError`, verified CPU imports/tests remain usable without `_C`, and prohibited silent compilation or MPS substitution.
 025. I added environment and build scripts to make the future NVIDIA workflow explicit and repeatable.
 026. I traced one call from Python through PyTorch and C++ to a CUDA launch, turning an opaque stack into a map.
 027. I introduced the first GPU mapping: one thread owns one complete softmax row, a simple correctness-first baseline.

@@ -33,6 +33,11 @@ Run the complete CPU-safe validation suite from a source checkout:
 ./scripts/run_tests.sh
 ```
 
+Calling the custom operator without a compiled extension raises
+`CudaExtensionUnavailableError`; it does not compile automatically or redirect
+CUDA work to MPS. The trusted CPU functions remain available from
+`cuda_attention.reference` and `cuda_attention.attention`.
+
 ## Layout
 
 - `cuda_attention/`: Python package, environment detection, and future

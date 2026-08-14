@@ -4,6 +4,11 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from cuda_attention.environment import detect_environment
+from cuda_attention.operator import (
+    CudaExtensionUnavailableError,
+    cuda_extension_available,
+    fused_causal_softmax,
+)
 
 
 def test_environment_snapshot_is_serializable_plain_data() -> None:
@@ -72,3 +77,21 @@ def test_apple_silicon_is_not_reported_as_cuda() -> None:
     assert snapshot.is_apple_silicon
     assert not snapshot.cuda_available
     assert snapshot.pytorch_cuda_version is None
+
+
+def test_unbuilt_cuda_extension_is_reported_as_optional() -> None:
+    assert not cuda_extension_available()
+
+
+def test_custom_operator_fails_clearly_without_compiled_extension() -> None:
+    with patch(
+        "cuda_attention.operator.importlib.import_module",
+        side_effect=ModuleNotFoundError("simulated missing extension"),
+    ):
+        try:
+            fused_causal_softmax(None, 1.0)  # type: ignore[arg-type]
+        except CudaExtensionUnavailableError as error:
+            assert "Linux with an NVIDIA GPU" in str(error)
+            assert "MPS is not a substitute" in str(error)
+        else:
+            raise AssertionError("missing extension did not raise a clear error")
