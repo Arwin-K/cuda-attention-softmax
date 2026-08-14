@@ -100,3 +100,31 @@ No performance or profiling experiment has been recorded yet.
 - **NEXT EXPERIMENT:** Re-run reference comparisons through the guarded custom
   operator after the CUDA extension becomes available on NVIDIA Linux.
 - **Student reflection:** `TODO(student): What changed in your understanding?`
+
+## CPU regression stabilization — Commit 020
+
+- **Date/time:** 2026-08-14, America/Toronto
+- **Git commit:** Commit 020 — `stabilize CPU reference test suite`
+- **Hardware:** Apple Silicon arm64 CPU; no NVIDIA GPU available
+- **Software:** Darwin, Python 3.11.15, PyTorch 2.13.0, pytest 9.1.1
+- **Research question:** Does the complete CPU-safe regression suite pass through
+  one reproducible source-checkout command before native extension work begins?
+- **HYPOTHESIS:** Existing reference tests plus automated environment-capability
+  cases will pass without treating unavailable CUDA as a failure.
+- **Independent variable:** Added environment-detection regression coverage
+- **Controlled variables:** CPU device, project virtual environment, repository
+  state through Commit 020, deterministic test inputs
+- **Metrics:** pytest pass/fail count
+- **Command/script:** `./scripts/run_tests.sh`
+- **Raw result file:** None; console validation only
+- **MEASUREMENT:** 51 tests passed in 1.13 seconds. The real environment reported
+  no available CUDA device; simulated tests covered missing PyTorch and a
+  CUDA-capable PyTorch runtime.
+- **INTERPRETATION:** The CPU reference and optional-capability boundary are
+  stable enough to begin extension scaffolding. This does not validate C++ or
+  CUDA compilation.
+- **Limitations:** No Linux, NVIDIA GPU, CUDA toolkit, extension binary, or
+  device execution was involved. Test duration is not a benchmark.
+- **NEXT EXPERIMENT:** Perform static Mac checks on extension infrastructure,
+  then compile and run it on NVIDIA Linux when available.
+- **Student reflection:** `TODO(student): Record your own checkpoint response.`
