@@ -1,3 +1,4 @@
+#include <ATen/cuda/CUDAContext.h>
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <torch/extension.h>
@@ -38,13 +39,28 @@ __global__ void fused_causal_softmax_kernel(
     row_maximum = fmaxf(row_maximum, scaled_value);
   }
 
-  // Masked probabilities are exactly zero. Allowed probabilities are written
-  // after the exponential denominator is added in Commit 030.
+  // Writing exponentials into the final output storage avoids allocating an
+  // intermediate tensor. Maximum subtraction bounds the largest exponential
+  // at one while preserving the mathematical softmax result.
+  float exponential_sum = 0.0f;
+  for (int64_t column = 0; column <= query_position; ++column) {
+    const int64_t index = row_offset + column;
+    const float shifted_value = scores[index] * scale - row_maximum;
+    const float exponential = expf(shifted_value);
+    probabilities[index] = exponential;
+    exponential_sum += exponential;
+  }
+
+  // The same owning thread normalizes every allowed entry. No block-level
+  // synchronization is needed because no other thread reads or writes this row.
+  for (int64_t column = 0; column <= query_position; ++column) {
+    probabilities[row_offset + column] /= exponential_sum;
+  }
+
+  // Masked probabilities are exactly zero and never enter either reduction.
   for (int64_t column = query_position + 1; column < sequence_length; ++column) {
     probabilities[row_offset + column] = 0.0f;
   }
-
-  (void)row_maximum;
 }
 
 }  // namespace
@@ -52,11 +68,18 @@ __global__ void fused_causal_softmax_kernel(
 torch::Tensor fused_causal_softmax_cuda(
     const torch::Tensor& scores,
     double scale) {
-  // This host function will allocate output, select grid/block dimensions, and
-  // launch the device kernel. Failing explicitly is safer than returning an
-  // uninitialized tensor while the implementation is structurally incomplete.
-  TORCH_CHECK(
-      false,
-      "row-serial CUDA math is incomplete until Commit 030");
-  return torch::Tensor();
+  const int64_t rows = scores.size(0);
+  const int64_t sequence_length = scores.size(1);
+  auto probabilities = torch::empty_like(scores);
+
+  const int blocks = static_cast<int>(
+      (rows + kThreadsPerBlock - 1) / kThreadsPerBlock);
+  cudaStream_t stream = at::cuda::getCurrentCUDAStream();
+  fused_causal_softmax_kernel<<<blocks, kThreadsPerBlock, 0, stream>>>(
+      scores.data_ptr<float>(),
+      probabilities.data_ptr<float>(),
+      rows,
+      sequence_length,
+      static_cast<float>(scale));
+  return probabilities;
 }

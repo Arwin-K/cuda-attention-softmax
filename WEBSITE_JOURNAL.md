@@ -36,7 +36,7 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 027. Completed — `implement initial row-serial fused causal softmax kernel`: I mapped one global CUDA thread to one flattened row with an out-of-range guard, documented serial intra-row work as an unmeasured limitation, and kept the public launcher disabled until the math is complete.
 028. Completed — `add stable maximum scan to CUDA kernel`: I added a serial `fmaxf` reduction from negative infinity into a thread-local row maximum, explaining why a register-local maximum requires no synchronization in the one-thread-per-row baseline.
 029. Completed — `add causal masking and scaling inside CUDA kernel`: I recovered query position with row modulo, scaled values inside the allowed-column maximum scan, excluded future columns from reductions, and assigned exact zero to masked output slots without intermediate tensors.
-030. I completed the exponential sum and normalization so the row-serial kernel produces probabilities.
+030. Completed — `add exponential sum and normalization to CUDA kernel`: I wrote stable exponentials into output storage, accumulated the allowed denominator, normalized in place, preserved causal zeros, and enabled the current-stream launcher while marking CUDA compile/run evidence unavailable.
 031. I made invalid inputs and CUDA launch failures visible instead of allowing them to become mysterious wrong results.
 032. I compared CUDA results with the PyTorch reference across the core correctness cases and recorded the second-day checkpoint.
 
