@@ -42,7 +42,7 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 
 ## Day 3 — CUDA robustness, measurement, and block-reduction foundations
 
-033. I stressed the CUDA path with extreme values, looking for finite, explainable behavior.
+033. Completed — `add CUDA numerical stress tests`: I added fixed-tolerance CUDA comparisons for random logits scaled by 10, 100, and 1000 plus zeros, equal values, and dominant positive/negative cases. All seven new cases skip on this Mac because no NVIDIA CUDA device is present, so numerical GPU behavior remains unmeasured.
 034. I tested irregular sequence lengths on GPU rather than assuming the simple mapping only works at convenient sizes.
 035. I centralized benchmark shapes and controls so every comparison asks the same question.
 036. I used CUDA events and synchronization to measure GPU work rather than Python dispatch overhead.
