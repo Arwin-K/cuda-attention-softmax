@@ -252,3 +252,52 @@ how does their latency crossover vary with sequence length?
 ### Git commit
 
 Commit 041 — `document baseline bottleneck hypothesis from initial measurements`
+
+## One-block-per-row ownership transition
+
+### Problem
+
+The global-thread mapping gives no natural group of threads that can cooperate
+on one row's maximum and denominator reductions.
+
+### Existing evidence
+
+The kernel source contains three serial allowed-column loops. No GPU timing or
+correctness measurement is available.
+
+### Hypothesis
+
+Making a block the unit of row ownership will provide a synchronization and
+shared-memory scope for later intra-row reductions.
+
+### Proposed change
+
+Launch one block per row and use `blockIdx.x` as the row index. Keep thread 0 on
+the existing serial mathematics in this commit so work decomposition changes
+separately from reduction behavior.
+
+### Implementation
+
+The grid now contains `rows` blocks of 256 threads. Each block owns one row;
+only `threadIdx.x == 0` is active until column distribution is introduced.
+
+### Correctness result
+
+CPU-safe tests pass and static inspection confirms the mapping. CUDA compilation
+and execution are unavailable, so mathematical preservation is not measured.
+
+### Performance result
+
+Not measured. Most threads are deliberately idle in this transitional state.
+
+### Interpretation
+
+Block ownership is infrastructure for cooperation, not evidence of speedup.
+
+### Next question
+
+How can the block cover every allowed and masked column exactly once?
+
+### Git commit
+
+Commit 042 — `rewrite kernel mapping to one CUDA block per softmax row`

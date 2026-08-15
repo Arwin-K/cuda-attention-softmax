@@ -12,19 +12,22 @@ namespace {
 
 constexpr int kThreadsPerBlock = 256;
 
-// A CUDA kernel is device code launched across a grid of thread blocks. This
-// first mapping assigns one entire softmax row to one global CUDA thread. It is
-// intentionally simple: no threads cooperate within a row yet, which makes the
-// correctness path easy to trace but leaves the row's column work serial.
+// A CUDA kernel is device code launched across a grid of thread blocks. The
+// grid now contains one block for each softmax row, so blockIdx.x identifies
+// row ownership and threadIdx.x identifies a worker within that row. This
+// transitional commit keeps the mathematics on thread 0; later commits give
+// the remaining block threads useful column and reduction work.
 __global__ void fused_causal_softmax_kernel(
     const float* scores,
     float* probabilities,
     int64_t rows,
     int64_t sequence_length,
     float scale) {
-  const int64_t row =
-      static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+  const int64_t row = static_cast<int64_t>(blockIdx.x);
   if (row >= rows) {
+    return;
+  }
+  if (threadIdx.x != 0) {
     return;
   }
 
@@ -54,8 +57,8 @@ __global__ void fused_causal_softmax_kernel(
     exponential_sum += exponential;
   }
 
-  // The same owning thread normalizes every allowed entry. No block-level
-  // synchronization is needed because no other thread reads or writes this row.
+  // Thread 0 still normalizes every allowed entry during this mapping-only
+  // transition. The remaining threads begin cooperating in the next commits.
   for (int64_t column = 0; column <= query_position; ++column) {
     probabilities[row_offset + column] /= exponential_sum;
   }
@@ -74,8 +77,7 @@ torch::Tensor fused_causal_softmax_cuda(
   const int64_t rows = scores.size(0);
   const int64_t sequence_length = scores.size(1);
   TORCH_CHECK(
-      rows <= static_cast<int64_t>(std::numeric_limits<int>::max()) *
-          kThreadsPerBlock,
+      rows <= static_cast<int64_t>(std::numeric_limits<int>::max()),
       "scores has too many rows for the one-dimensional CUDA grid");
 
   // A guard makes the input tensor's GPU current for this host thread. This is
@@ -84,8 +86,7 @@ torch::Tensor fused_causal_softmax_cuda(
   const c10::cuda::CUDAGuard device_guard(scores.device());
   auto probabilities = torch::empty_like(scores);
 
-  const int blocks = static_cast<int>(
-      (rows + kThreadsPerBlock - 1) / kThreadsPerBlock);
+  const int blocks = static_cast<int>(rows);
   const cudaStream_t stream =
       c10::cuda::getCurrentCUDAStream(scores.get_device());
   fused_causal_softmax_kernel<<<blocks, kThreadsPerBlock, 0, stream>>>(
