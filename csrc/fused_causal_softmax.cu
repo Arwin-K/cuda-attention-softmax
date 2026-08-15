@@ -103,17 +103,21 @@ __global__ void fused_causal_softmax_kernel(
     thread_exponential_sum += exponential;
   }
 
-  // Publish one partial sum per thread. Thread 0 combines these values serially
-  // in this intermediate commit; the next commit replaces that scan with the
-  // shared-memory sum tree.
+  // Publish one partial sum per thread, then apply the same halving tree with
+  // addition as the combining operation. Zero is the sum identity, so threads
+  // without assigned columns participate without changing the denominator.
   shared_values[threadIdx.x] = thread_exponential_sum;
   __syncthreads();
+  for (unsigned int stride = blockDim.x / 2; stride > 0; stride >>= 1) {
+    if (threadIdx.x < stride) {
+      shared_values[threadIdx.x] += shared_values[threadIdx.x + stride];
+    }
+    __syncthreads();
+  }
+
+  const float exponential_sum = shared_values[0];
   if (threadIdx.x != 0) {
     return;
-  }
-  float exponential_sum = 0.0f;
-  for (int thread = 0; thread < blockDim.x; ++thread) {
-    exponential_sum += shared_values[thread];
   }
 
   // Thread 0 still normalizes every allowed entry. Parallel normalization is

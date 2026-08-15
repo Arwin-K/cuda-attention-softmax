@@ -57,7 +57,7 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 045. Completed — `implement shared-memory maximum reduction`: I replaced thread 0's serial partial scan with a 256-to-1 shared-memory tree reduction. Negative-infinity identity values let threads without allowed columns participate safely; the required barrier reasoning is documented in the next commit.
 046. Completed — `add synchronization for block maximum reduction`: I documented the publication and per-stage barriers, then added a handoff barrier so every thread captures the row maximum before shared scratch is reused. The journal explains the race or participation failure caused by removing each boundary.
 047. Completed — `add per-thread exponential partial sums`: after the block maximum handoff, each thread now computes stable exponentials for its strided columns and accumulates a register-local denominator partial. Thread 0 temporarily combines partials and normalizes serially, preserving a focused next step.
-048. I reduced those partial sums into the one denominator for the row and recorded the third-day checkpoint.
+048. Completed — `implement shared-memory sum reduction`: I replaced the serial denominator scan with a synchronized 256-to-1 shared-memory addition tree. Maximum and sum reductions now use block cooperation, while thread 0 intentionally retains final normalization until Commit 049; CUDA runtime evidence remains unavailable.
 
 ## Day 4 — Validating block parallelism and introducing warp communication
 

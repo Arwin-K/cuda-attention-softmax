@@ -6,13 +6,15 @@ history; it does not maintain parallel kernel versions.
 
 ## Current status
 
-Day 2 is complete: the project has environment detection, research framing, an
+Day 3 is complete: the project has environment detection, research framing, an
 explicit CPU reference, a causal attention path, correctness/stability/edge
-tests, reproducible tensor helpers, opt-in extension infrastructure, and a
-logically complete row-serial CUDA baseline. The kernel has not been compiled or
-run on NVIDIA hardware. Its native boundary now rejects unsupported device,
-layout, dtype, shape, contiguity, and scale inputs and checks launch errors, but
-no CUDA correctness, benchmark, or profiler result exists yet.
+tests, reproducible tensor helpers, opt-in extension infrastructure, a
+provenance-aware benchmark harness, and the shared-memory reduction foundations
+of a one-block-per-row CUDA design. The kernel source now distributes column
+work and reduces maxima and denominator partials across a block, while final
+normalization remains serial until Commit 049. It has not been compiled or run
+on NVIDIA hardware, so no CUDA correctness, latency, throughput, or profiler
+result exists yet.
 
 `tests/test_cuda_operator.py` is the first device correctness gate. It compares
 normal FP32 inputs at sequence lengths 32, 64, and 128 with the PyTorch

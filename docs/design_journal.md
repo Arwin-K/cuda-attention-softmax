@@ -357,3 +357,57 @@ maximum handoff?
 ### Git commit
 
 Commit 046 — `add synchronization for block maximum reduction`
+
+## Shared-memory denominator reduction
+
+### Problem
+
+After the block maximum is known, every thread produces a partial exponential
+sum. A serial scan of those partials leaves denominator combination on one
+thread and does not complete the planned cooperative reduction foundation.
+
+### Existing evidence
+
+Source inspection confirms per-thread strided exponentials and partial sums.
+No CUDA correctness or performance measurement exists.
+
+### Hypothesis
+
+The same synchronized halving tree used for maximum can combine denominator
+partials with addition, using zero as the identity for threads without work.
+
+### Proposed change
+
+Reuse the shared array for sum partials after the maximum handoff, reduce
+256 partials to `shared_values[0]`, and keep thread 0 normalization unchanged so
+parallel writeback remains a separate experiment.
+
+### Implementation
+
+Every thread publishes `thread_exponential_sum`; each tree stage adds a partner
+at the current stride and synchronizes before the next stage. All threads read
+the final denominator, then only thread 0 divides the allowed probabilities.
+
+### Correctness result
+
+Static source checks, Python compilation, shell checks, and 68 CPU-safe tests
+pass; 26 CUDA-only cases skip. The kernel has not compiled or executed locally.
+
+### Performance result
+
+Not measured. The initial baseline attempt and current block state have no CUDA
+timing artifacts.
+
+### Interpretation
+
+Both mathematical reductions are structurally cooperative, but the whole
+kernel is not yet block-parallel because normalization remains serial.
+
+### Next question
+
+Does parallel normalization complete a correct block-owned implementation on
+the NVIDIA correctness suite?
+
+### Git commit
+
+Commit 048 — `implement shared-memory sum reduction`
