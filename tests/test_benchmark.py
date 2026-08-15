@@ -8,7 +8,9 @@ from benchmarks.config import (
     SoftmaxBenchmarkConfig,
     softmax_benchmark_registry,
 )
+from benchmarks.benchmark_softmax import pytorch_eager_causal_softmax
 from cuda_attention.benchmark import time_cuda_callable
+from cuda_attention.reference import causal_allowed_mask, causal_scaled_softmax
 
 
 def test_softmax_registry_contains_required_shapes_in_order() -> None:
@@ -70,3 +72,14 @@ def test_cuda_timer_returns_one_positive_sample_per_iteration() -> None:
 
     assert len(samples) == 3
     assert all(sample > 0.0 for sample in samples)
+
+
+def test_eager_benchmark_operation_matches_reference_on_cpu() -> None:
+    generator = torch.Generator().manual_seed(37)
+    scores = torch.randn(12, 6, generator=generator)
+    allowed = causal_allowed_mask(12, 6)
+
+    actual = pytorch_eager_causal_softmax(scores, scale=0.125, allowed=allowed)
+    expected = causal_scaled_softmax(scores, scale=0.125)
+
+    torch.testing.assert_close(actual, expected, rtol=1e-5, atol=1e-6)
