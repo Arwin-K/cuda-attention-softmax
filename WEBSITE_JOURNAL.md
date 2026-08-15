@@ -47,7 +47,7 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 035. Completed — `add benchmark configuration and shape registry`: I centralized the seven required sequence lengths, FP32 dtype, eight batch-head groups, seed, warmups, iterations, and derived row/column counts in a validated immutable configuration shared by future benchmark paths.
 036. Completed — `add CUDA event timing utilities`: I added warmup-aware per-iteration CUDA event timing in microseconds, synchronizing each ending event so samples represent completed stream work rather than Python dispatch. CPU-safe tests cover validation and no-fallback behavior; the CUDA timing smoke test skips locally.
 037. Completed — `add PyTorch eager softmax benchmark baseline`: I defined eager PyTorch as scale plus a prebuilt flattened causal mask plus row-wise softmax, kept input/mask construction outside CUDA-event timing, and added a CPU semantic comparison with the trusted reference. No latency was collected locally.
-038. I added the custom-kernel route to the same benchmark harness, keeping inputs and timed boundaries comparable.
+038. Completed — `add custom CUDA softmax benchmark path`: I added the fused operator beside eager PyTorch under the same shape, seed, scale, warmup, and timing controls, with an untimed PyTorch correctness precheck. An unavailable extension now fails explicitly instead of changing the workload or backend.
 039. I attached hardware, software, and commit metadata to every result so numbers can be traced back to code.
 040. I ran the initial GPU baseline only when NVIDIA hardware was available, recording observation separately from explanation.
 041. I used the baseline evidence to state why one serial thread per row might be the limiting design.

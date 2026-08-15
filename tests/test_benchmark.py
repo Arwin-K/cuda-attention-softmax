@@ -1,5 +1,7 @@
 """CPU-safe checks for benchmark controls and derived shapes."""
 
+from unittest.mock import patch
+
 import pytest
 import torch
 
@@ -8,8 +10,12 @@ from benchmarks.config import (
     SoftmaxBenchmarkConfig,
     softmax_benchmark_registry,
 )
-from benchmarks.benchmark_softmax import pytorch_eager_causal_softmax
+from benchmarks.benchmark_softmax import (
+    prepare_custom_case,
+    pytorch_eager_causal_softmax,
+)
 from cuda_attention.benchmark import time_cuda_callable
+from cuda_attention.operator import CudaExtensionUnavailableError
 from cuda_attention.reference import causal_allowed_mask, causal_scaled_softmax
 
 
@@ -83,3 +89,13 @@ def test_eager_benchmark_operation_matches_reference_on_cpu() -> None:
     expected = causal_scaled_softmax(scores, scale=0.125)
 
     torch.testing.assert_close(actual, expected, rtol=1e-5, atol=1e-6)
+
+
+def test_custom_benchmark_never_substitutes_an_unbuilt_extension() -> None:
+    config = SoftmaxBenchmarkConfig(sequence_length=128)
+
+    with (
+        patch("benchmarks.benchmark_softmax.cuda_extension_available", return_value=False),
+        pytest.raises(CudaExtensionUnavailableError, match="compiled"),
+    ):
+        prepare_custom_case(config)

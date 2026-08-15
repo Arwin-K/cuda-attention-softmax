@@ -18,7 +18,12 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from benchmarks.config import SoftmaxBenchmarkConfig, softmax_benchmark_registry
 from cuda_attention.benchmark import make_score_tensor, time_cuda_callable
-from cuda_attention.reference import causal_allowed_mask
+from cuda_attention.operator import (
+    CudaExtensionUnavailableError,
+    cuda_extension_available,
+    fused_causal_softmax,
+)
+from cuda_attention.reference import causal_allowed_mask, causal_scaled_softmax
 
 
 def pytorch_eager_causal_softmax(
@@ -63,11 +68,52 @@ def run_eager_case(config: SoftmaxBenchmarkConfig) -> list[float]:
     )
 
 
+def prepare_custom_case(
+    config: SoftmaxBenchmarkConfig,
+) -> tuple[torch.Tensor, Callable[[], torch.Tensor]]:
+    """Allocate the same controlled scores for the fused custom operation."""
+
+    if not cuda_extension_available():
+        raise CudaExtensionUnavailableError(
+            "custom benchmark requires the compiled cuda_attention._C extension"
+        )
+    scores = make_score_tensor(
+        config.sequence_length,
+        batch_heads=config.batch_heads,
+        seed=config.seed,
+        dtype=torch.float32,
+        device="cuda",
+    )
+    scale = 1.0 / math.sqrt(64)
+    return scores, lambda: fused_causal_softmax(scores, scale)
+
+
+def run_custom_case(config: SoftmaxBenchmarkConfig) -> list[float]:
+    """Validate once, then measure only the fused custom operation."""
+
+    scores, operation = prepare_custom_case(config)
+    scale = 1.0 / math.sqrt(64)
+    actual = operation()
+    expected = causal_scaled_softmax(scores, scale)
+    torch.testing.assert_close(actual, expected, rtol=1e-5, atol=1e-6)
+    torch.cuda.synchronize()
+    return time_cuda_callable(
+        operation,
+        warmups=config.warmups,
+        iterations=config.iterations,
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--sequence-length", type=int)
     parser.add_argument("--warmups", type=int)
     parser.add_argument("--iterations", type=int)
+    parser.add_argument(
+        "--implementation",
+        choices=("eager", "custom", "both"),
+        default="both",
+    )
     arguments = parser.parse_args()
 
     if not torch.cuda.is_available():
@@ -84,19 +130,32 @@ def main() -> int:
             ),
         )
 
-    for config in registry:
-        samples_us = run_eager_case(config)
-        print(
-            json.dumps(
-                {
-                    "implementation": "pytorch_eager",
-                    "sequence_length": config.sequence_length,
-                    "rows": config.rows,
-                    "columns": config.columns,
-                    "samples_us": samples_us,
-                }
-            )
-        )
+    implementations = {
+        "eager": (("pytorch_eager", run_eager_case),),
+        "custom": (("custom_cuda", run_custom_case),),
+        "both": (
+            ("pytorch_eager", run_eager_case),
+            ("custom_cuda", run_custom_case),
+        ),
+    }
+    try:
+        for config in registry:
+            for name, runner in implementations[arguments.implementation]:
+                samples_us = runner(config)
+                print(
+                    json.dumps(
+                        {
+                            "implementation": name,
+                            "sequence_length": config.sequence_length,
+                            "rows": config.rows,
+                            "columns": config.columns,
+                            "samples_us": samples_us,
+                        }
+                    )
+                )
+    except CudaExtensionUnavailableError as error:
+        print(str(error), file=sys.stderr)
+        return 2
     return 0
 
 
