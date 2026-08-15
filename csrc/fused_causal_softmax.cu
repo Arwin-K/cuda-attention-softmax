@@ -61,19 +61,26 @@ __global__ void fused_causal_softmax_kernel(
         fmaxf(thread_maximum, probabilities[row_offset + column]);
   }
 
-  // Dynamic shared memory is visible to every thread in this block. This
-  // commit stores partials there but lets thread 0 combine them serially; the
-  // next commit replaces that scan with a parallel tree reduction.
+  // Dynamic shared memory is visible to every thread in this block. A tree
+  // reduction halves the number of candidates at every stage until element 0
+  // holds the maximum for the full row. Threads without assigned columns begin
+  // at negative infinity, the identity value for maximum.
   extern __shared__ float shared_values[];
   shared_values[threadIdx.x] = thread_maximum;
   __syncthreads();
+  for (unsigned int stride = blockDim.x / 2; stride > 0; stride >>= 1) {
+    if (threadIdx.x < stride) {
+      shared_values[threadIdx.x] = fmaxf(
+          shared_values[threadIdx.x],
+          shared_values[threadIdx.x + stride]);
+    }
+    __syncthreads();
+  }
+
   if (threadIdx.x != 0) {
     return;
   }
-  float row_maximum = -CUDART_INF_F;
-  for (int thread = 0; thread < blockDim.x; ++thread) {
-    row_maximum = fmaxf(row_maximum, shared_values[thread]);
-  }
+  const float row_maximum = shared_values[0];
 
   // Writing exponentials into the final output storage avoids allocating an
   // intermediate tensor. Maximum subtraction bounds the largest exponential

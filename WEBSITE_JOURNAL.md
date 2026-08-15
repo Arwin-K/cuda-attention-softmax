@@ -54,7 +54,7 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 042. Completed — `rewrite kernel mapping to one CUDA block per softmax row`: I changed row ownership from a global thread index to `blockIdx.x` and launched one 256-thread block per row. Thread 0 temporarily retains the serial math, making this a collaboration-scope transition rather than a measured optimization.
 043. Completed — `distribute row elements with thread-strided access`: I assigned allowed and masked columns in `blockDim.x` strides, so every column has one owner and neighboring threads begin at neighboring addresses. Thread 0 still finishes the softmax after a staging barrier; runtime coalescing and correctness remain unmeasured.
 044. Completed — `add per-thread local maximum accumulation`: I gave every block thread a register-local maximum over its strided allowed columns, stored the 256 partials in dynamic shared memory, and temporarily let thread 0 combine them serially. The parallel shared-memory tree comes next.
-045. I combined those local maxima with a shared-memory block reduction.
+045. Completed — `implement shared-memory maximum reduction`: I replaced thread 0's serial partial scan with a 256-to-1 shared-memory tree reduction. Negative-infinity identity values let threads without allowed columns participate safely; the required barrier reasoning is documented in the next commit.
 046. I added and explained the barriers that make shared reduction communication race-free.
 047. I computed stable exponentials and denominator partial sums locally after the block maximum is known.
 048. I reduced those partial sums into the one denominator for the row and recorded the third-day checkpoint.
