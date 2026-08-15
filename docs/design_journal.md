@@ -301,3 +301,59 @@ How can the block cover every allowed and masked column exactly once?
 ### Git commit
 
 Commit 042 — `rewrite kernel mapping to one CUDA block per softmax row`
+
+## Shared-memory maximum synchronization contract
+
+### Problem
+
+The maximum tree has producer/consumer dependencies between shared-memory
+publication, successive reduction stages, and later scratch reuse.
+
+### Existing evidence
+
+Source inspection shows that each stage reads values written by other threads.
+No CUDA execution or race-checking evidence exists.
+
+### Hypothesis
+
+Block-wide barriers at dependency boundaries make those reads ordered and
+visible, provided every thread reaches every barrier.
+
+### Proposed change
+
+Document the publication and per-stage barriers, then add a handoff barrier
+after all threads capture the row maximum and before denominator partials reuse
+the shared array.
+
+### Implementation
+
+- Without the publication barrier, a thread can read a partner before that
+  partner writes its local maximum.
+- Without each tree-stage barrier, the next stride can consume an incomplete
+  result from the previous stride.
+- Without the handoff barrier, one thread can overwrite shared scratch before
+  another has captured `shared_values[0]`.
+- Returning or branching around a barrier is unsafe because all block threads
+  must participate.
+
+### Correctness result
+
+Static dependency review and CPU-safe tests pass. CUDA behavior is unverified.
+
+### Performance result
+
+Not measured. Barrier cost remains an experimental question.
+
+### Interpretation
+
+Synchronization is part of the reduction algorithm's correctness, not an
+optional performance annotation.
+
+### Next question
+
+Can the same shared array safely carry per-thread exponential sums after the
+maximum handoff?
+
+### Git commit
+
+Commit 046 — `add synchronization for block maximum reduction`

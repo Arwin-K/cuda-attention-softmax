@@ -67,6 +67,9 @@ __global__ void fused_causal_softmax_kernel(
   // at negative infinity, the identity value for maximum.
   extern __shared__ float shared_values[];
   shared_values[threadIdx.x] = thread_maximum;
+
+  // Every partial must be visible before any thread reads its partner. Without
+  // this barrier, early threads could reduce stale or uninitialized values.
   __syncthreads();
   for (unsigned int stride = blockDim.x / 2; stride > 0; stride >>= 1) {
     if (threadIdx.x < stride) {
@@ -74,13 +77,20 @@ __global__ void fused_causal_softmax_kernel(
           shared_values[threadIdx.x],
           shared_values[threadIdx.x + stride]);
     }
+
+    // The next stage consumes values written by the current stage. A block-wide
+    // barrier prevents those reads from racing ahead of their producers.
     __syncthreads();
   }
 
+  // Every thread captures the completed maximum before shared_values is reused
+  // for denominator partials in the next commit. This handoff barrier would be
+  // unsafe after an early return because all block threads must participate.
+  const float row_maximum = shared_values[0];
+  __syncthreads();
   if (threadIdx.x != 0) {
     return;
   }
-  const float row_maximum = shared_values[0];
 
   // Writing exponentials into the final output storage avoids allocating an
   // intermediate tensor. Maximum subtraction bounds the largest exponential
