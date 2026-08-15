@@ -43,7 +43,7 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 ## Day 3 — CUDA robustness, measurement, and block-reduction foundations
 
 033. Completed — `add CUDA numerical stress tests`: I added fixed-tolerance CUDA comparisons for random logits scaled by 10, 100, and 1000 plus zeros, equal values, and dominant positive/negative cases. All seven new cases skip on this Mac because no NVIDIA CUDA device is present, so numerical GPU behavior remains unmeasured.
-034. I tested irregular sequence lengths on GPU rather than assuming the simple mapping only works at convenient sizes.
+034. Completed — `add CUDA odd sequence-length tests`: I added CUDA reference comparisons for 31, 33, 63, 127, 255, 511, 768, and 1023 columns, complementing the existing 32/64/128 cases. They collect and skip cleanly without NVIDIA hardware; arbitrary-width kernel correctness is still pending a real CUDA run.
 035. I centralized benchmark shapes and controls so every comparison asks the same question.
 036. I used CUDA events and synchronization to measure GPU work rather than Python dispatch overhead.
 037. I established a fair PyTorch eager baseline for the same scale-mask-softmax work.

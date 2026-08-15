@@ -17,6 +17,7 @@ from cuda_attention.reference import causal_allowed_mask, causal_scaled_softmax
 RTOL = 1e-5
 ATOL = 1e-6
 CORE_SEQUENCE_LENGTHS = (32, 64, 128)
+IRREGULAR_SEQUENCE_LENGTHS = (31, 33, 63, 127, 255, 511, 768, 1023)
 STRESS_MAGNITUDES = (10.0, 100.0, 1000.0)
 
 
@@ -104,6 +105,21 @@ def test_cuda_operator_matches_structured_stress_cases(case: str) -> None:
         scores[:, 0] = -1000.0
 
     _assert_cuda_matches_reference(scores)
+
+
+@pytest.mark.parametrize("sequence_length", IRREGULAR_SEQUENCE_LENGTHS)
+def test_cuda_operator_supports_irregular_sequence_lengths(
+    sequence_length: int,
+) -> None:
+    generator = torch.Generator(device="cuda").manual_seed(sequence_length)
+    scores = torch.randn(
+        sequence_length,
+        sequence_length,
+        generator=generator,
+        device="cuda",
+    )
+
+    _assert_cuda_matches_reference(scores, scale=0.125)
 
 
 def test_cuda_operator_rejects_cpu_scores() -> None:
