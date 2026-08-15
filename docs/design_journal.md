@@ -201,3 +201,54 @@ lengths once NVIDIA execution is available?
 ### Git commit
 
 Commit 032 — `add CUDA versus PyTorch correctness tests`
+
+## Row-serial bottleneck hypothesis before block cooperation
+
+### Problem
+
+The first implementation assigns a complete row to one CUDA thread. Its three
+allowed-column loops are serial inside that thread, so increasing sequence
+length increases work that cannot be shared within the row.
+
+### Existing evidence
+
+Source inspection establishes the work mapping and serial loops. The initial
+benchmark attempt exited before timing because no NVIDIA GPU was available;
+there are no baseline latency, throughput, occupancy, or profiler measurements.
+
+### Hypothesis
+
+The row-serial mapping will underuse available parallelism for longer rows.
+Giving a block ownership of one row and distributing columns across its threads
+should reduce the serial work per participating thread, although reductions and
+synchronization will add overhead.
+
+### Proposed change
+
+First map one block to one row without changing the mathematics. Then introduce
+thread-strided columns, register-local partials, shared-memory combination, and
+explicit synchronization as separate reviewable commits.
+
+### Correctness result
+
+Not applicable yet. The mapping change begins in Commit 042, and NVIDIA
+correctness remains unverified.
+
+### Performance result
+
+Not measured. Commit 040 produced no timing data or CSV.
+
+### Interpretation
+
+This is a falsifiable prediction derived from the code structure, not a
+diagnosed GPU bottleneck. The block design could lose at short rows if
+coordination costs exceed the saved serial work.
+
+### Next question
+
+After both implementations have valid NVIDIA results under identical controls,
+how does their latency crossover vary with sequence length?
+
+### Git commit
+
+Commit 041 — `document baseline bottleneck hypothesis from initial measurements`
