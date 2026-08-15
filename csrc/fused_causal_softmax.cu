@@ -47,19 +47,32 @@ __global__ void fused_causal_softmax_kernel(
     probabilities[row_offset + column] = 0.0f;
   }
 
-  // Thread 0 cannot read values staged by its peers until every peer has
-  // finished writing. Reduction-specific synchronization is introduced later.
+  // No thread may consume staged values until every peer has finished writing;
+  // this barrier separates global-memory staging from local accumulation.
+  __syncthreads();
+
+  // A thread-local variable normally lives in a register, the GPU's fastest
+  // per-thread storage. Each thread reduces only its strided subset, producing
+  // one partial maximum that is ready for block-wide combination.
+  float thread_maximum = -CUDART_INF_F;
+  for (int64_t column = threadIdx.x; column <= query_position;
+       column += blockDim.x) {
+    thread_maximum =
+        fmaxf(thread_maximum, probabilities[row_offset + column]);
+  }
+
+  // Dynamic shared memory is visible to every thread in this block. This
+  // commit stores partials there but lets thread 0 combine them serially; the
+  // next commit replaces that scan with a parallel tree reduction.
+  extern __shared__ float shared_values[];
+  shared_values[threadIdx.x] = thread_maximum;
   __syncthreads();
   if (threadIdx.x != 0) {
     return;
   }
-
-  // Scaling happens before both reductions, matching scaled dot-product
-  // attention. Only causally allowed columns may influence the row maximum.
   float row_maximum = -CUDART_INF_F;
-  for (int64_t column = 0; column <= query_position; ++column) {
-    const float scaled_value = probabilities[row_offset + column];
-    row_maximum = fmaxf(row_maximum, scaled_value);
+  for (int thread = 0; thread < blockDim.x; ++thread) {
+    row_maximum = fmaxf(row_maximum, shared_values[thread]);
   }
 
   // Writing exponentials into the final output storage avoids allocating an
@@ -102,9 +115,15 @@ torch::Tensor fused_causal_softmax_cuda(
   auto probabilities = torch::empty_like(scores);
 
   const int blocks = static_cast<int>(rows);
+  const size_t shared_memory_bytes =
+      static_cast<size_t>(kThreadsPerBlock) * sizeof(float);
   const cudaStream_t stream =
       c10::cuda::getCurrentCUDAStream(scores.get_device());
-  fused_causal_softmax_kernel<<<blocks, kThreadsPerBlock, 0, stream>>>(
+  fused_causal_softmax_kernel<<<
+      blocks,
+      kThreadsPerBlock,
+      shared_memory_bytes,
+      stream>>>(
       scores.data_ptr<float>(),
       probabilities.data_ptr<float>(),
       rows,

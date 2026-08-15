@@ -53,7 +53,7 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 041. Completed with limited evidence — `document baseline bottleneck hypothesis from initial measurements`: because the baseline attempt produced no GPU timing, I framed serial intra-row work as a falsifiable source-derived hypothesis rather than a measured bottleneck, including reduction overhead and short-row crossover as possible counterevidence.
 042. Completed — `rewrite kernel mapping to one CUDA block per softmax row`: I changed row ownership from a global thread index to `blockIdx.x` and launched one 256-thread block per row. Thread 0 temporarily retains the serial math, making this a collaboration-scope transition rather than a measured optimization.
 043. Completed — `distribute row elements with thread-strided access`: I assigned allowed and masked columns in `blockDim.x` strides, so every column has one owner and neighboring threads begin at neighboring addresses. Thread 0 still finishes the softmax after a staging barrier; runtime coalescing and correctness remain unmeasured.
-044. I gave each thread a register-local maximum over the columns it owns.
+044. Completed — `add per-thread local maximum accumulation`: I gave every block thread a register-local maximum over its strided allowed columns, stored the 256 partials in dynamic shared memory, and temporarily let thread 0 combine them serially. The parallel shared-memory tree comes next.
 045. I combined those local maxima with a shared-memory block reduction.
 046. I added and explained the barriers that make shared reduction communication race-free.
 047. I computed stable exponentials and denominator partial sums locally after the block maximum is known.
