@@ -95,6 +95,16 @@ MPS as a CUDA substitute. CUDA compilation, custom-operator correctness,
 benchmarking, and NVIDIA profiling require Linux, an NVIDIA GPU, and a CUDA
 toolkit.
 
+## CUDA timing boundary
+
+GPU kernels launch asynchronously, so Python wall-clock time around a function
+call can measure dispatch rather than completed device work. The benchmark
+utility records CUDA events immediately before and after the operation on the
+current stream, synchronizes the ending event, and converts CUDA's millisecond
+duration to microseconds. Inputs are prepared outside this interval, and
+untimed warmups precede every sample set. This method is available only with an
+NVIDIA CUDA runtime; it never substitutes CPU or MPS timings.
+
 ## Evidence after Commit 019
 
 On 2026-08-14, the CPU suite reported 47 passing tests in 1.02 seconds and both

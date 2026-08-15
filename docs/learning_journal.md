@@ -143,3 +143,99 @@ CPU tests confirmed exact zeros in masked positions; CUDA remains unimplemented.
 #### Questions still open
 
 `TODO(student): List what you still want to understand or test.`
+
+## Thread-strided row access
+
+### Concept
+
+Distributing row columns across the threads of one CUDA block.
+
+#### What I thought before
+
+`TODO(student): Describe your prior mental model in your own words.`
+
+#### What I learned
+
+`TODO(student): Explain what changed in your understanding.`
+
+#### Why it matters
+
+A block cannot reduce a row in parallel until each thread owns a disjoint part
+of that row. Striding by `blockDim.x` covers arbitrary widths without assuming
+that the number of columns equals the block size.
+
+#### Mental model
+
+Thread `t` handles columns `t`, `t + blockDim.x`, `t + 2*blockDim.x`, and so on.
+The first pass places neighboring threads on neighboring addresses.
+
+#### Where it appears in code
+
+`csrc/fused_causal_softmax.cu`, introduced in Commit 043.
+
+#### Experiment demonstrating it
+
+CUDA correctness cases for power-of-two and irregular widths are prepared but
+have not run without an NVIDIA GPU.
+
+#### Evidence/result
+
+Static inspection confirms the disjoint indexing formula. Runtime correctness
+and memory-transaction behavior are not measured.
+
+#### Explain it in my own words
+
+`TODO(student): Explain this concept without copying the generated notes.`
+
+#### Questions still open
+
+`TODO(student): List what you still want to understand or test.`
+
+## Block synchronization
+
+### Concept
+
+Using `__syncthreads()` to create visibility and ordering among block threads.
+
+#### What I thought before
+
+`TODO(student): Describe your prior mental model in your own words.`
+
+#### What I learned
+
+`TODO(student): Explain what changed in your understanding.`
+
+#### Why it matters
+
+Shared memory is common storage, but writes do not become safely consumable in
+the required order merely because all threads execute the same source code.
+Every reduction stage depends on values produced by the preceding stage.
+
+#### Mental model
+
+A barrier is a checkpoint: no thread leaves until every block thread arrives,
+and shared-memory work before the checkpoint is visible afterward.
+
+#### Where it appears in code
+
+`csrc/fused_causal_softmax.cu` around staging, partial publication, each maximum
+tree stage, and the shared-scratch handoff in Commit 046.
+
+#### Experiment demonstrating it
+
+No NVIDIA race-checking or correctness experiment has run. The dependency can
+be established from the producer/consumer relationships in the source.
+
+#### Evidence/result
+
+CPU-safe regression tests pass; CUDA synchronization behavior is unmeasured.
+
+#### Explain it in my own words
+
+`TODO(student): Explain why a barrier inside a branch taken by only some block
+threads can deadlock or become undefined.`
+
+#### Questions still open
+
+`TODO(student): Which barriers can later disappear when warp shuffles replace
+parts of the block-wide shared-memory tree?`

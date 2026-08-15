@@ -4,12 +4,157 @@ from __future__ import annotations
 
 import math
 import random
+import csv
+from collections.abc import Callable
+from datetime import datetime, timezone
+from pathlib import Path
+import subprocess
+from typing import Mapping, Sequence
 
 import torch
 from torch import Tensor
 
 
 DEFAULT_SEED = 0
+
+RAW_BENCHMARK_FIELDS = (
+    "git_commit",
+    "implementation_description",
+    "sequence_length",
+    "rows",
+    "columns",
+    "dtype",
+    "warmups",
+    "iterations",
+    "sample_index",
+    "sample_us",
+    "gpu_name",
+    "compute_capability",
+    "pytorch_version",
+    "cuda_version",
+    "timestamp",
+)
+
+
+def current_git_commit(repository_root: Path) -> str:
+    """Return the exact implementation revision attached to a measurement."""
+
+    result = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repository_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return result.stdout.strip()
+
+
+def collect_cuda_run_metadata(repository_root: Path) -> dict[str, str]:
+    """Capture immutable run provenance from the active CUDA environment."""
+
+    if not torch.cuda.is_available():
+        raise RuntimeError("CUDA benchmark metadata requires an NVIDIA GPU")
+    device_index = torch.cuda.current_device()
+    major, minor = torch.cuda.get_device_capability(device_index)
+    return {
+        "git_commit": current_git_commit(repository_root),
+        "gpu_name": torch.cuda.get_device_name(device_index),
+        "compute_capability": f"{major}.{minor}",
+        "pytorch_version": str(torch.__version__),
+        "cuda_version": str(torch.version.cuda),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+def raw_benchmark_records(
+    *,
+    metadata: Mapping[str, str],
+    implementation_description: str,
+    sequence_length: int,
+    rows: int,
+    columns: int,
+    dtype: str,
+    warmups: int,
+    iterations: int,
+    samples_us: Sequence[float],
+) -> list[dict[str, object]]:
+    """Combine raw samples with enough context to reproduce their workload."""
+
+    if len(samples_us) != iterations:
+        raise ValueError("sample count must equal configured iterations")
+    records: list[dict[str, object]] = []
+    for sample_index, sample_us in enumerate(samples_us):
+        records.append(
+            {
+                **metadata,
+                "implementation_description": implementation_description,
+                "sequence_length": sequence_length,
+                "rows": rows,
+                "columns": columns,
+                "dtype": dtype,
+                "warmups": warmups,
+                "iterations": iterations,
+                "sample_index": sample_index,
+                "sample_us": float(sample_us),
+            }
+        )
+    return records
+
+
+def write_raw_benchmark_csv(
+    output_path: Path,
+    records: Sequence[Mapping[str, object]],
+) -> None:
+    """Write raw records with a stable, reviewable column order."""
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with output_path.open("w", newline="", encoding="utf-8") as output_file:
+        writer = csv.DictWriter(output_file, fieldnames=RAW_BENCHMARK_FIELDS)
+        writer.writeheader()
+        writer.writerows(records)
+
+
+def _validate_timing_count(name: str, value: int) -> None:
+    if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+        raise ValueError(f"{name} must be a positive integer")
+
+
+def time_cuda_callable(
+    operation: Callable[[], object],
+    *,
+    warmups: int,
+    iterations: int,
+) -> list[float]:
+    """Return per-iteration CUDA-event durations in microseconds.
+
+    CUDA launches are asynchronous with respect to Python. Events are recorded
+    on the current CUDA stream around only ``operation``; synchronizing the end
+    event waits for that measured work without including input construction in
+    the interval. Warmups happen first so one-time initialization does not
+    become a steady-state sample.
+    """
+
+    if not callable(operation):
+        raise TypeError("operation must be callable")
+    _validate_timing_count("warmups", warmups)
+    _validate_timing_count("iterations", iterations)
+    if not torch.cuda.is_available():
+        raise RuntimeError("CUDA event timing requires an available NVIDIA GPU")
+
+    for _ in range(warmups):
+        operation()
+    torch.cuda.synchronize()
+
+    start = torch.cuda.Event(enable_timing=True)
+    end = torch.cuda.Event(enable_timing=True)
+    samples_us: list[float] = []
+    for _ in range(iterations):
+        start.record()
+        operation()
+        end.record()
+        end.synchronize()
+        samples_us.append(float(start.elapsed_time(end)) * 1000.0)
+    return samples_us
 
 
 def _validate_seed(seed: int) -> None:

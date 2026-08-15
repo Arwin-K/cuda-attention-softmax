@@ -201,3 +201,213 @@ lengths once NVIDIA execution is available?
 ### Git commit
 
 Commit 032 — `add CUDA versus PyTorch correctness tests`
+
+## Row-serial bottleneck hypothesis before block cooperation
+
+### Problem
+
+The first implementation assigns a complete row to one CUDA thread. Its three
+allowed-column loops are serial inside that thread, so increasing sequence
+length increases work that cannot be shared within the row.
+
+### Existing evidence
+
+Source inspection establishes the work mapping and serial loops. The initial
+benchmark attempt exited before timing because no NVIDIA GPU was available;
+there are no baseline latency, throughput, occupancy, or profiler measurements.
+
+### Hypothesis
+
+The row-serial mapping will underuse available parallelism for longer rows.
+Giving a block ownership of one row and distributing columns across its threads
+should reduce the serial work per participating thread, although reductions and
+synchronization will add overhead.
+
+### Proposed change
+
+First map one block to one row without changing the mathematics. Then introduce
+thread-strided columns, register-local partials, shared-memory combination, and
+explicit synchronization as separate reviewable commits.
+
+### Correctness result
+
+Not applicable yet. The mapping change begins in Commit 042, and NVIDIA
+correctness remains unverified.
+
+### Performance result
+
+Not measured. Commit 040 produced no timing data or CSV.
+
+### Interpretation
+
+This is a falsifiable prediction derived from the code structure, not a
+diagnosed GPU bottleneck. The block design could lose at short rows if
+coordination costs exceed the saved serial work.
+
+### Next question
+
+After both implementations have valid NVIDIA results under identical controls,
+how does their latency crossover vary with sequence length?
+
+### Git commit
+
+Commit 041 — `document baseline bottleneck hypothesis from initial measurements`
+
+## One-block-per-row ownership transition
+
+### Problem
+
+The global-thread mapping gives no natural group of threads that can cooperate
+on one row's maximum and denominator reductions.
+
+### Existing evidence
+
+The kernel source contains three serial allowed-column loops. No GPU timing or
+correctness measurement is available.
+
+### Hypothesis
+
+Making a block the unit of row ownership will provide a synchronization and
+shared-memory scope for later intra-row reductions.
+
+### Proposed change
+
+Launch one block per row and use `blockIdx.x` as the row index. Keep thread 0 on
+the existing serial mathematics in this commit so work decomposition changes
+separately from reduction behavior.
+
+### Implementation
+
+The grid now contains `rows` blocks of 256 threads. Each block owns one row;
+only `threadIdx.x == 0` is active until column distribution is introduced.
+
+### Correctness result
+
+CPU-safe tests pass and static inspection confirms the mapping. CUDA compilation
+and execution are unavailable, so mathematical preservation is not measured.
+
+### Performance result
+
+Not measured. Most threads are deliberately idle in this transitional state.
+
+### Interpretation
+
+Block ownership is infrastructure for cooperation, not evidence of speedup.
+
+### Next question
+
+How can the block cover every allowed and masked column exactly once?
+
+### Git commit
+
+Commit 042 — `rewrite kernel mapping to one CUDA block per softmax row`
+
+## Shared-memory maximum synchronization contract
+
+### Problem
+
+The maximum tree has producer/consumer dependencies between shared-memory
+publication, successive reduction stages, and later scratch reuse.
+
+### Existing evidence
+
+Source inspection shows that each stage reads values written by other threads.
+No CUDA execution or race-checking evidence exists.
+
+### Hypothesis
+
+Block-wide barriers at dependency boundaries make those reads ordered and
+visible, provided every thread reaches every barrier.
+
+### Proposed change
+
+Document the publication and per-stage barriers, then add a handoff barrier
+after all threads capture the row maximum and before denominator partials reuse
+the shared array.
+
+### Implementation
+
+- Without the publication barrier, a thread can read a partner before that
+  partner writes its local maximum.
+- Without each tree-stage barrier, the next stride can consume an incomplete
+  result from the previous stride.
+- Without the handoff barrier, one thread can overwrite shared scratch before
+  another has captured `shared_values[0]`.
+- Returning or branching around a barrier is unsafe because all block threads
+  must participate.
+
+### Correctness result
+
+Static dependency review and CPU-safe tests pass. CUDA behavior is unverified.
+
+### Performance result
+
+Not measured. Barrier cost remains an experimental question.
+
+### Interpretation
+
+Synchronization is part of the reduction algorithm's correctness, not an
+optional performance annotation.
+
+### Next question
+
+Can the same shared array safely carry per-thread exponential sums after the
+maximum handoff?
+
+### Git commit
+
+Commit 046 — `add synchronization for block maximum reduction`
+
+## Shared-memory denominator reduction
+
+### Problem
+
+After the block maximum is known, every thread produces a partial exponential
+sum. A serial scan of those partials leaves denominator combination on one
+thread and does not complete the planned cooperative reduction foundation.
+
+### Existing evidence
+
+Source inspection confirms per-thread strided exponentials and partial sums.
+No CUDA correctness or performance measurement exists.
+
+### Hypothesis
+
+The same synchronized halving tree used for maximum can combine denominator
+partials with addition, using zero as the identity for threads without work.
+
+### Proposed change
+
+Reuse the shared array for sum partials after the maximum handoff, reduce
+256 partials to `shared_values[0]`, and keep thread 0 normalization unchanged so
+parallel writeback remains a separate experiment.
+
+### Implementation
+
+Every thread publishes `thread_exponential_sum`; each tree stage adds a partner
+at the current stride and synchronizes before the next stage. All threads read
+the final denominator, then only thread 0 divides the allowed probabilities.
+
+### Correctness result
+
+Static source checks, Python compilation, shell checks, and 68 CPU-safe tests
+pass; 26 CUDA-only cases skip. The kernel has not compiled or executed locally.
+
+### Performance result
+
+Not measured. The initial baseline attempt and current block state have no CUDA
+timing artifacts.
+
+### Interpretation
+
+Both mathematical reductions are structurally cooperative, but the whole
+kernel is not yet block-parallel because normalization remains serial.
+
+### Next question
+
+Does parallel normalization complete a correct block-owned implementation on
+the NVIDIA correctness suite?
+
+### Git commit
+
+Commit 048 — `implement shared-memory sum reduction`

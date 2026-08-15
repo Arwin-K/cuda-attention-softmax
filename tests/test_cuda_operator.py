@@ -17,6 +17,8 @@ from cuda_attention.reference import causal_allowed_mask, causal_scaled_softmax
 RTOL = 1e-5
 ATOL = 1e-6
 CORE_SEQUENCE_LENGTHS = (32, 64, 128)
+IRREGULAR_SEQUENCE_LENGTHS = (31, 33, 63, 127, 255, 511, 768, 1023)
+STRESS_MAGNITUDES = (10.0, 100.0, 1000.0)
 
 
 def _cuda_test_unavailable_reason() -> str | None:
@@ -65,6 +67,59 @@ def test_cuda_operator_matches_pytorch_reference(sequence_length: int) -> None:
     assert actual.device == scores.device
     assert torch.isfinite(actual).all()
     assert torch.count_nonzero(actual.masked_select(~allowed)) == 0
+
+
+def _assert_cuda_matches_reference(scores: torch.Tensor, scale: float = 1.0) -> None:
+    actual = fused_causal_softmax(scores, scale)
+    expected = causal_scaled_softmax(scores, scale)
+
+    torch.testing.assert_close(actual, expected, rtol=RTOL, atol=ATOL)
+    torch.testing.assert_close(
+        actual.sum(dim=-1),
+        torch.ones(scores.shape[0], device=scores.device),
+        rtol=RTOL,
+        atol=ATOL,
+    )
+    assert torch.isfinite(actual).all()
+
+
+@pytest.mark.parametrize("magnitude", STRESS_MAGNITUDES)
+def test_cuda_operator_is_stable_for_large_random_logits(magnitude: float) -> None:
+    generator = torch.Generator(device="cuda").manual_seed(330)
+    scores = torch.randn(128, 64, generator=generator, device="cuda") * magnitude
+
+    _assert_cuda_matches_reference(scores)
+
+
+@pytest.mark.parametrize(
+    "case",
+    ["zeros", "equal", "dominant-positive", "dominant-negative"],
+)
+def test_cuda_operator_matches_structured_stress_cases(case: str) -> None:
+    scores = torch.zeros(128, 64, device="cuda")
+    if case == "equal":
+        scores.fill_(1000.0)
+    elif case == "dominant-positive":
+        scores[:, 0] = 1000.0
+    elif case == "dominant-negative":
+        scores[:, 0] = -1000.0
+
+    _assert_cuda_matches_reference(scores)
+
+
+@pytest.mark.parametrize("sequence_length", IRREGULAR_SEQUENCE_LENGTHS)
+def test_cuda_operator_supports_irregular_sequence_lengths(
+    sequence_length: int,
+) -> None:
+    generator = torch.Generator(device="cuda").manual_seed(sequence_length)
+    scores = torch.randn(
+        sequence_length,
+        sequence_length,
+        generator=generator,
+        device="cuda",
+    )
+
+    _assert_cuda_matches_reference(scores, scale=0.125)
 
 
 def test_cuda_operator_rejects_cpu_scores() -> None:

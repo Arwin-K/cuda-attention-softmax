@@ -42,22 +42,22 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 
 ## Day 3 — CUDA robustness, measurement, and block-reduction foundations
 
-033. I stressed the CUDA path with extreme values, looking for finite, explainable behavior.
-034. I tested irregular sequence lengths on GPU rather than assuming the simple mapping only works at convenient sizes.
-035. I centralized benchmark shapes and controls so every comparison asks the same question.
-036. I used CUDA events and synchronization to measure GPU work rather than Python dispatch overhead.
-037. I established a fair PyTorch eager baseline for the same scale-mask-softmax work.
-038. I added the custom-kernel route to the same benchmark harness, keeping inputs and timed boundaries comparable.
-039. I attached hardware, software, and commit metadata to every result so numbers can be traced back to code.
-040. I ran the initial GPU baseline only when NVIDIA hardware was available, recording observation separately from explanation.
-041. I used the baseline evidence to state why one serial thread per row might be the limiting design.
-042. I reassigned work so one CUDA block owns one softmax row, preserving the math while changing the collaboration model.
-043. I spread columns across threads in strides, exposing intra-row parallelism and adjacent initial memory access.
-044. I gave each thread a register-local maximum over the columns it owns.
-045. I combined those local maxima with a shared-memory block reduction.
-046. I added and explained the barriers that make shared reduction communication race-free.
-047. I computed stable exponentials and denominator partial sums locally after the block maximum is known.
-048. I reduced those partial sums into the one denominator for the row and recorded the third-day checkpoint.
+033. Completed — `add CUDA numerical stress tests`: I added fixed-tolerance CUDA comparisons for random logits scaled by 10, 100, and 1000 plus zeros, equal values, and dominant positive/negative cases. All seven new cases skip on this Mac because no NVIDIA CUDA device is present, so numerical GPU behavior remains unmeasured.
+034. Completed — `add CUDA odd sequence-length tests`: I added CUDA reference comparisons for 31, 33, 63, 127, 255, 511, 768, and 1023 columns, complementing the existing 32/64/128 cases. They collect and skip cleanly without NVIDIA hardware; arbitrary-width kernel correctness is still pending a real CUDA run.
+035. Completed — `add benchmark configuration and shape registry`: I centralized the seven required sequence lengths, FP32 dtype, eight batch-head groups, seed, warmups, iterations, and derived row/column counts in a validated immutable configuration shared by future benchmark paths.
+036. Completed — `add CUDA event timing utilities`: I added warmup-aware per-iteration CUDA event timing in microseconds, synchronizing each ending event so samples represent completed stream work rather than Python dispatch. CPU-safe tests cover validation and no-fallback behavior; the CUDA timing smoke test skips locally.
+037. Completed — `add PyTorch eager softmax benchmark baseline`: I defined eager PyTorch as scale plus a prebuilt flattened causal mask plus row-wise softmax, kept input/mask construction outside CUDA-event timing, and added a CPU semantic comparison with the trusted reference. No latency was collected locally.
+038. Completed — `add custom CUDA softmax benchmark path`: I added the fused operator beside eager PyTorch under the same shape, seed, scale, warmup, and timing controls, with an untimed PyTorch correctness precheck. An unavailable extension now fails explicitly instead of changing the workload or backend.
+039. Completed — `record hardware software and git metadata in benchmark CSV`: I added raw-sample CSV output whose rows carry the exact Git hash, implementation description, workload, timing controls, sample, GPU identity/capability, PyTorch/CUDA versions, and UTC timestamp. CPU tests verify schema and provenance preservation without inventing a GPU run.
+040. Completed with unavailable evidence — `collect and document initial CUDA baseline experiment`: I attempted the row-serial benchmark, but the Apple Silicon host failed the explicit CUDA prerequisite and produced no CSV. I recorded the command, exit status, planned controls, and NVIDIA handoff without inventing latency or speedup.
+041. Completed with limited evidence — `document baseline bottleneck hypothesis from initial measurements`: because the baseline attempt produced no GPU timing, I framed serial intra-row work as a falsifiable source-derived hypothesis rather than a measured bottleneck, including reduction overhead and short-row crossover as possible counterevidence.
+042. Completed — `rewrite kernel mapping to one CUDA block per softmax row`: I changed row ownership from a global thread index to `blockIdx.x` and launched one 256-thread block per row. Thread 0 temporarily retains the serial math, making this a collaboration-scope transition rather than a measured optimization.
+043. Completed — `distribute row elements with thread-strided access`: I assigned allowed and masked columns in `blockDim.x` strides, so every column has one owner and neighboring threads begin at neighboring addresses. Thread 0 still finishes the softmax after a staging barrier; runtime coalescing and correctness remain unmeasured.
+044. Completed — `add per-thread local maximum accumulation`: I gave every block thread a register-local maximum over its strided allowed columns, stored the 256 partials in dynamic shared memory, and temporarily let thread 0 combine them serially. The parallel shared-memory tree comes next.
+045. Completed — `implement shared-memory maximum reduction`: I replaced thread 0's serial partial scan with a 256-to-1 shared-memory tree reduction. Negative-infinity identity values let threads without allowed columns participate safely; the required barrier reasoning is documented in the next commit.
+046. Completed — `add synchronization for block maximum reduction`: I documented the publication and per-stage barriers, then added a handoff barrier so every thread captures the row maximum before shared scratch is reused. The journal explains the race or participation failure caused by removing each boundary.
+047. Completed — `add per-thread exponential partial sums`: after the block maximum handoff, each thread now computes stable exponentials for its strided columns and accumulates a register-local denominator partial. Thread 0 temporarily combines partials and normalizes serially, preserving a focused next step.
+048. Completed — `implement shared-memory sum reduction`: I replaced the serial denominator scan with a synchronized 256-to-1 shared-memory addition tree. Maximum and sum reductions now use block cooperation, while thread 0 intentionally retains final normalization until Commit 049; CUDA runtime evidence remains unavailable.
 
 ## Day 4 — Validating block parallelism and introducing warp communication
 

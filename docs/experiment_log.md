@@ -162,3 +162,72 @@ No performance or profiling experiment has been recorded yet.
   hardware is available; centralize benchmark controls; add CUDA-event timing,
   eager/custom paths, and provenance metadata; collect a baseline only from a
   real GPU; then begin the one-block-per-row shared-reduction design.
+
+## Initial row-serial CUDA baseline attempt — Commit 040
+
+- **Date/time:** 2026-08-15, America/Toronto
+- **Git commit:** `8f07d76` (benchmark harness state used for the attempt)
+- **Hardware:** Apple Silicon arm64 CPU; no NVIDIA GPU available
+- **Software:** Darwin, Python 3.11.15, PyTorch 2.13.0 without CUDA; no `nvcc`
+  or `nvidia-smi`
+- **Research question:** What latency does the row-serial fused operator achieve
+  relative to equivalent eager PyTorch across the primary sequence lengths?
+- **HYPOTHESIS:** Because every owning thread scans its row serially, latency is
+  expected to grow strongly with sequence length; this prediction has not been
+  tested.
+- **Independent variable:** Intended implementation path and sequence length;
+  no variable was actually measured because CUDA prerequisites failed.
+- **Controlled variables:** Planned FP32, `batch_heads=8`, identical seeded
+  scores, scale `1/sqrt(64)`, prebuilt eager mask, 25 warmups, 100 iterations,
+  and CUDA-event timing
+- **Metrics:** Intended raw microsecond samples; none produced
+- **Command/script:** `.venv/bin/python benchmarks/benchmark_softmax.py
+  --implementation both --sequence-length 128 --warmups 2 --iterations 3
+  --output /tmp/cuda_attention_day3_baseline.csv`
+- **Raw result file:** None; the command exited before creating a CSV
+- **MEASUREMENT:** Exit status 2 with `CUDA benchmark requires Linux with an
+  NVIDIA GPU.` No CUDA work or timing occurred.
+- **INTERPRETATION:** The harness enforces the platform boundary. There is no
+  performance evidence from this attempt and no basis for a speedup claim.
+- **Limitations:** CUDA compilation, correctness, and event timing remain
+  untested. The row-serial source has not run on an NVIDIA GPU.
+- **NEXT EXPERIMENT:** On NVIDIA Linux, build the extension, run the full CUDA
+  correctness suite, then execute `./scripts/run_benchmarks.sh
+  results/raw/row_serial_<commit>.csv --implementation both`.
+- **Student reflection:** `TODO(student): Record what this blocked run taught
+  you about capability checks and honest negative evidence.`
+
+## Day 3 checkpoint — Commit 048
+
+- **What was implemented:** CUDA stress gates for large and structured logits;
+  irregular-width GPU cases through sequence length 1023; an immutable primary
+  benchmark registry; warmup-aware CUDA-event timing; equivalent eager/custom
+  paths with an untimed correctness precheck; raw CSV provenance containing Git,
+  workload, timing, hardware, software, and timestamp fields; and a guarded
+  benchmark runner. The single CUDA source evolved from global-thread row
+  ownership to one block per row, thread-strided column staging, register-local
+  maxima and exponential sums, synchronized shared-memory maximum and sum trees,
+  and exact masked zeros. Final probability division remains on thread 0 until
+  Commit 049.
+- **What was actually measured:** No CUDA value or performance metric was
+  measured. The baseline attempt exited 2 before timing because the Apple
+  Silicon host has no NVIDIA GPU, CUDA-enabled PyTorch, `nvcc`, or `nvidia-smi`;
+  no raw CSV was created. On the final Day 3 working tree,
+  `./scripts/run_tests.sh` reported 68 passed and 26 CUDA-only skips in 0.77
+  seconds. Python compilation and shell syntax checks passed. Test duration is
+  validation metadata, not a kernel benchmark.
+- **What I learned:** `TODO(student): Explain the difference among a
+  thread-local partial, shared-memory tree reduction, barrier, and final block
+  result in your own words.`
+- **What surprised me:** `TODO(student): Record your own observation; no
+  personal reaction has been inferred.`
+- **Unresolved questions:** Whether any Day 2/3 CUDA source compiles against the
+  remote toolchain; whether block reductions match PyTorch at fixed tolerances;
+  how barrier and shared-memory costs compare with saved serial work; where the
+  row-serial/block crossover lies; and whether the raw benchmark schema works
+  unchanged on the target NVIDIA host.
+- **Next day:** Parallelize normalization, validate and stress the complete
+  block path, measure it against an actually collected row-serial baseline,
+  add summary/plotting support, audit coalescing and arbitrary-width behavior,
+  document the evidence, stabilize the block milestone, and begin warp/lane
+  reduction foundations through Commit 064.
