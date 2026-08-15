@@ -143,3 +143,50 @@ CPU tests confirmed exact zeros in masked positions; CUDA remains unimplemented.
 #### Questions still open
 
 `TODO(student): List what you still want to understand or test.`
+
+## Thread-strided row access
+
+### Concept
+
+Distributing row columns across the threads of one CUDA block.
+
+#### What I thought before
+
+`TODO(student): Describe your prior mental model in your own words.`
+
+#### What I learned
+
+`TODO(student): Explain what changed in your understanding.`
+
+#### Why it matters
+
+A block cannot reduce a row in parallel until each thread owns a disjoint part
+of that row. Striding by `blockDim.x` covers arbitrary widths without assuming
+that the number of columns equals the block size.
+
+#### Mental model
+
+Thread `t` handles columns `t`, `t + blockDim.x`, `t + 2*blockDim.x`, and so on.
+The first pass places neighboring threads on neighboring addresses.
+
+#### Where it appears in code
+
+`csrc/fused_causal_softmax.cu`, introduced in Commit 043.
+
+#### Experiment demonstrating it
+
+CUDA correctness cases for power-of-two and irregular widths are prepared but
+have not run without an NVIDIA GPU.
+
+#### Evidence/result
+
+Static inspection confirms the disjoint indexing formula. Runtime correctness
+and memory-transaction behavior are not measured.
+
+#### Explain it in my own words
+
+`TODO(student): Explain this concept without copying the generated notes.`
+
+#### Questions still open
+
+`TODO(student): List what you still want to understand or test.`

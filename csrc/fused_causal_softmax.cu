@@ -27,21 +27,38 @@ __global__ void fused_causal_softmax_kernel(
   if (row >= rows) {
     return;
   }
-  if (threadIdx.x != 0) {
-    return;
-  }
-
   // Flattening removes the explicit query dimension, but query positions repeat
   // every sequence_length rows. The modulo restores that position so future
   // keys can be excluded without allocating a separate mask tensor.
   const int64_t query_position = row % sequence_length;
   const int64_t row_offset = row * sequence_length;
 
+  // Threads advance through the row in blockDim.x-sized strides. Every column
+  // is owned by exactly one thread, and neighboring threads initially access
+  // neighboring global-memory addresses, which is the pattern needed for
+  // coalescing when the hardware combines their memory transactions.
+  for (int64_t column = threadIdx.x; column <= query_position;
+       column += blockDim.x) {
+    probabilities[row_offset + column] = scores[row_offset + column] * scale;
+  }
+  for (int64_t column = query_position + 1 + threadIdx.x;
+       column < sequence_length;
+       column += blockDim.x) {
+    probabilities[row_offset + column] = 0.0f;
+  }
+
+  // Thread 0 cannot read values staged by its peers until every peer has
+  // finished writing. Reduction-specific synchronization is introduced later.
+  __syncthreads();
+  if (threadIdx.x != 0) {
+    return;
+  }
+
   // Scaling happens before both reductions, matching scaled dot-product
   // attention. Only causally allowed columns may influence the row maximum.
   float row_maximum = -CUDART_INF_F;
   for (int64_t column = 0; column <= query_position; ++column) {
-    const float scaled_value = scores[row_offset + column] * scale;
+    const float scaled_value = probabilities[row_offset + column];
     row_maximum = fmaxf(row_maximum, scaled_value);
   }
 
@@ -51,7 +68,7 @@ __global__ void fused_causal_softmax_kernel(
   float exponential_sum = 0.0f;
   for (int64_t column = 0; column <= query_position; ++column) {
     const int64_t index = row_offset + column;
-    const float shifted_value = scores[index] * scale - row_maximum;
+    const float shifted_value = probabilities[index] - row_maximum;
     const float exponential = expf(shifted_value);
     probabilities[index] = exponential;
     exponential_sum += exponential;
@@ -63,10 +80,8 @@ __global__ void fused_causal_softmax_kernel(
     probabilities[row_offset + column] /= exponential_sum;
   }
 
-  // Masked probabilities are exactly zero and never enter either reduction.
-  for (int64_t column = query_position + 1; column < sequence_length; ++column) {
-    probabilities[row_offset + column] = 0.0f;
-  }
+  // Masked probabilities were already assigned exact zeros by their owners and
+  // never entered either reduction.
 }
 
 }  // namespace
