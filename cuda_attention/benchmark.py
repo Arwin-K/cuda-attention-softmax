@@ -4,12 +4,56 @@ from __future__ import annotations
 
 import math
 import random
+from collections.abc import Callable
 
 import torch
 from torch import Tensor
 
 
 DEFAULT_SEED = 0
+
+
+def _validate_timing_count(name: str, value: int) -> None:
+    if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+        raise ValueError(f"{name} must be a positive integer")
+
+
+def time_cuda_callable(
+    operation: Callable[[], object],
+    *,
+    warmups: int,
+    iterations: int,
+) -> list[float]:
+    """Return per-iteration CUDA-event durations in microseconds.
+
+    CUDA launches are asynchronous with respect to Python. Events are recorded
+    on the current CUDA stream around only ``operation``; synchronizing the end
+    event waits for that measured work without including input construction in
+    the interval. Warmups happen first so one-time initialization does not
+    become a steady-state sample.
+    """
+
+    if not callable(operation):
+        raise TypeError("operation must be callable")
+    _validate_timing_count("warmups", warmups)
+    _validate_timing_count("iterations", iterations)
+    if not torch.cuda.is_available():
+        raise RuntimeError("CUDA event timing requires an available NVIDIA GPU")
+
+    for _ in range(warmups):
+        operation()
+    torch.cuda.synchronize()
+
+    start = torch.cuda.Event(enable_timing=True)
+    end = torch.cuda.Event(enable_timing=True)
+    samples_us: list[float] = []
+    for _ in range(iterations):
+        start.record()
+        operation()
+        end.record()
+        end.synchronize()
+        samples_us.append(float(start.elapsed_time(end)) * 1000.0)
+    return samples_us
 
 
 def _validate_seed(seed: int) -> None:

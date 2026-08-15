@@ -45,7 +45,7 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 033. Completed — `add CUDA numerical stress tests`: I added fixed-tolerance CUDA comparisons for random logits scaled by 10, 100, and 1000 plus zeros, equal values, and dominant positive/negative cases. All seven new cases skip on this Mac because no NVIDIA CUDA device is present, so numerical GPU behavior remains unmeasured.
 034. Completed — `add CUDA odd sequence-length tests`: I added CUDA reference comparisons for 31, 33, 63, 127, 255, 511, 768, and 1023 columns, complementing the existing 32/64/128 cases. They collect and skip cleanly without NVIDIA hardware; arbitrary-width kernel correctness is still pending a real CUDA run.
 035. Completed — `add benchmark configuration and shape registry`: I centralized the seven required sequence lengths, FP32 dtype, eight batch-head groups, seed, warmups, iterations, and derived row/column counts in a validated immutable configuration shared by future benchmark paths.
-036. I used CUDA events and synchronization to measure GPU work rather than Python dispatch overhead.
+036. Completed — `add CUDA event timing utilities`: I added warmup-aware per-iteration CUDA event timing in microseconds, synchronizing each ending event so samples represent completed stream work rather than Python dispatch. CPU-safe tests cover validation and no-fallback behavior; the CUDA timing smoke test skips locally.
 037. I established a fair PyTorch eager baseline for the same scale-mask-softmax work.
 038. I added the custom-kernel route to the same benchmark harness, keeping inputs and timed boundaries comparable.
 039. I attached hardware, software, and commit metadata to every result so numbers can be traced back to code.
