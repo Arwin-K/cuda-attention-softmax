@@ -17,7 +17,13 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from benchmarks.config import SoftmaxBenchmarkConfig, softmax_benchmark_registry
-from cuda_attention.benchmark import make_score_tensor, time_cuda_callable
+from cuda_attention.benchmark import (
+    collect_cuda_run_metadata,
+    make_score_tensor,
+    raw_benchmark_records,
+    time_cuda_callable,
+    write_raw_benchmark_csv,
+)
 from cuda_attention.operator import (
     CudaExtensionUnavailableError,
     cuda_extension_available,
@@ -114,6 +120,7 @@ def main() -> int:
         choices=("eager", "custom", "both"),
         default="both",
     )
+    parser.add_argument("--output", type=Path)
     arguments = parser.parse_args()
 
     if not torch.cuda.is_available():
@@ -131,31 +138,41 @@ def main() -> int:
         )
 
     implementations = {
-        "eager": (("pytorch_eager", run_eager_case),),
-        "custom": (("custom_cuda", run_custom_case),),
+        "eager": (("PyTorch eager scale + causal mask + softmax", run_eager_case),),
+        "custom": (("row-serial custom CUDA fused scale + mask + softmax", run_custom_case),),
         "both": (
-            ("pytorch_eager", run_eager_case),
-            ("custom_cuda", run_custom_case),
+            ("PyTorch eager scale + causal mask + softmax", run_eager_case),
+            ("row-serial custom CUDA fused scale + mask + softmax", run_custom_case),
         ),
     }
+    metadata = collect_cuda_run_metadata(PROJECT_ROOT)
+    records: list[dict[str, object]] = []
     try:
         for config in registry:
-            for name, runner in implementations[arguments.implementation]:
+            for description, runner in implementations[arguments.implementation]:
                 samples_us = runner(config)
-                print(
-                    json.dumps(
-                        {
-                            "implementation": name,
-                            "sequence_length": config.sequence_length,
-                            "rows": config.rows,
-                            "columns": config.columns,
-                            "samples_us": samples_us,
-                        }
+                records.extend(
+                    raw_benchmark_records(
+                        metadata=metadata,
+                        implementation_description=description,
+                        sequence_length=config.sequence_length,
+                        rows=config.rows,
+                        columns=config.columns,
+                        dtype=config.dtype,
+                        warmups=config.warmups,
+                        iterations=config.iterations,
+                        samples_us=samples_us,
                     )
                 )
     except CudaExtensionUnavailableError as error:
         print(str(error), file=sys.stderr)
         return 2
+    if arguments.output is not None:
+        write_raw_benchmark_csv(arguments.output, records)
+        print(f"wrote {len(records)} raw samples to {arguments.output}")
+    else:
+        for record in records:
+            print(json.dumps(record))
     return 0
 
 

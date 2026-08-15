@@ -1,5 +1,6 @@
 """CPU-safe checks for benchmark controls and derived shapes."""
 
+import csv
 from unittest.mock import patch
 
 import pytest
@@ -14,7 +15,12 @@ from benchmarks.benchmark_softmax import (
     prepare_custom_case,
     pytorch_eager_causal_softmax,
 )
-from cuda_attention.benchmark import time_cuda_callable
+from cuda_attention.benchmark import (
+    RAW_BENCHMARK_FIELDS,
+    raw_benchmark_records,
+    time_cuda_callable,
+    write_raw_benchmark_csv,
+)
 from cuda_attention.operator import CudaExtensionUnavailableError
 from cuda_attention.reference import causal_allowed_mask, causal_scaled_softmax
 
@@ -99,3 +105,50 @@ def test_custom_benchmark_never_substitutes_an_unbuilt_extension() -> None:
         pytest.raises(CudaExtensionUnavailableError, match="compiled"),
     ):
         prepare_custom_case(config)
+
+
+def test_raw_benchmark_csv_preserves_samples_and_provenance(tmp_path) -> None:
+    metadata = {
+        "git_commit": "a" * 40,
+        "gpu_name": "test GPU",
+        "compute_capability": "9.0",
+        "pytorch_version": "test torch",
+        "cuda_version": "test CUDA",
+        "timestamp": "2026-08-15T00:00:00+00:00",
+    }
+    records = raw_benchmark_records(
+        metadata=metadata,
+        implementation_description="test implementation",
+        sequence_length=128,
+        rows=1024,
+        columns=128,
+        dtype="float32",
+        warmups=2,
+        iterations=3,
+        samples_us=[1.0, 2.0, 3.0],
+    )
+    output_path = tmp_path / "raw.csv"
+
+    write_raw_benchmark_csv(output_path, records)
+
+    with output_path.open(newline="", encoding="utf-8") as output_file:
+        saved = list(csv.DictReader(output_file))
+    assert tuple(saved[0]) == RAW_BENCHMARK_FIELDS
+    assert [row["sample_us"] for row in saved] == ["1.0", "2.0", "3.0"]
+    assert all(row["git_commit"] == "a" * 40 for row in saved)
+    assert all(row["gpu_name"] == "test GPU" for row in saved)
+
+
+def test_raw_record_count_must_match_iterations() -> None:
+    with pytest.raises(ValueError, match="sample count"):
+        raw_benchmark_records(
+            metadata={},
+            implementation_description="test",
+            sequence_length=128,
+            rows=1024,
+            columns=128,
+            dtype="float32",
+            warmups=2,
+            iterations=2,
+            samples_us=[1.0],
+        )
