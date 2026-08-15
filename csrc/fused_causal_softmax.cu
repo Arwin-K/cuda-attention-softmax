@@ -88,24 +88,36 @@ __global__ void fused_causal_softmax_kernel(
   // unsafe after an early return because all block threads must participate.
   const float row_maximum = shared_values[0];
   __syncthreads();
-  if (threadIdx.x != 0) {
-    return;
-  }
 
-  // Writing exponentials into the final output storage avoids allocating an
-  // intermediate tensor. Maximum subtraction bounds the largest exponential
-  // at one while preserving the mathematical softmax result.
-  float exponential_sum = 0.0f;
-  for (int64_t column = 0; column <= query_position; ++column) {
+  // Each thread converts its staged scaled values into stable exponentials and
+  // accumulates one register-local denominator contribution. Maximum
+  // subtraction bounds the largest exponential at one while preserving the
+  // mathematical softmax result.
+  float thread_exponential_sum = 0.0f;
+  for (int64_t column = threadIdx.x; column <= query_position;
+       column += blockDim.x) {
     const int64_t index = row_offset + column;
     const float shifted_value = probabilities[index] - row_maximum;
     const float exponential = expf(shifted_value);
     probabilities[index] = exponential;
-    exponential_sum += exponential;
+    thread_exponential_sum += exponential;
   }
 
-  // Thread 0 still normalizes every allowed entry during this mapping-only
-  // transition. The remaining threads begin cooperating in the next commits.
+  // Publish one partial sum per thread. Thread 0 combines these values serially
+  // in this intermediate commit; the next commit replaces that scan with the
+  // shared-memory sum tree.
+  shared_values[threadIdx.x] = thread_exponential_sum;
+  __syncthreads();
+  if (threadIdx.x != 0) {
+    return;
+  }
+  float exponential_sum = 0.0f;
+  for (int thread = 0; thread < blockDim.x; ++thread) {
+    exponential_sum += shared_values[thread];
+  }
+
+  // Thread 0 still normalizes every allowed entry. Parallel normalization is
+  // intentionally deferred to Commit 049.
   for (int64_t column = 0; column <= query_position; ++column) {
     probabilities[row_offset + column] /= exponential_sum;
   }

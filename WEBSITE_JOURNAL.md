@@ -56,7 +56,7 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 044. Completed — `add per-thread local maximum accumulation`: I gave every block thread a register-local maximum over its strided allowed columns, stored the 256 partials in dynamic shared memory, and temporarily let thread 0 combine them serially. The parallel shared-memory tree comes next.
 045. Completed — `implement shared-memory maximum reduction`: I replaced thread 0's serial partial scan with a 256-to-1 shared-memory tree reduction. Negative-infinity identity values let threads without allowed columns participate safely; the required barrier reasoning is documented in the next commit.
 046. Completed — `add synchronization for block maximum reduction`: I documented the publication and per-stage barriers, then added a handoff barrier so every thread captures the row maximum before shared scratch is reused. The journal explains the race or participation failure caused by removing each boundary.
-047. I computed stable exponentials and denominator partial sums locally after the block maximum is known.
+047. Completed — `add per-thread exponential partial sums`: after the block maximum handoff, each thread now computes stable exponentials for its strided columns and accumulates a register-local denominator partial. Thread 0 temporarily combines partials and normalizes serially, preserving a focused next step.
 048. I reduced those partial sums into the one denominator for the row and recorded the third-day checkpoint.
 
 ## Day 4 — Validating block parallelism and introducing warp communication
