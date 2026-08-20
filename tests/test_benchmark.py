@@ -32,6 +32,7 @@ from cuda_attention.benchmark import (
 from cuda_attention.operator import CudaExtensionUnavailableError
 from cuda_attention.plotting import load_summary_csv, metric_series
 from cuda_attention.reference import causal_allowed_mask, causal_scaled_softmax
+from scripts.generate_figures import generate_figures
 
 
 def test_softmax_registry_contains_required_shapes_in_order() -> None:
@@ -292,3 +293,27 @@ def test_plot_series_remain_commit_specific_and_shape_ordered(tmp_path) -> None:
     )
     with pytest.raises(ValueError, match="no measurements"):
         load_summary_csv(empty_path)
+
+
+def test_figure_generation_maps_summary_to_expected_outputs(tmp_path) -> None:
+    summary_path = tmp_path / "summary.csv"
+    summary_path.write_text(
+        "git_commit,implementation_description,sequence_length,median_us,elements_per_second\n"
+        + f"{'d' * 40},fixture only,128,1.0,2.0\n",
+        encoding="utf-8",
+    )
+    output_directory = tmp_path / "figures"
+
+    with (
+        patch("scripts.generate_figures.plot_latency") as latency,
+        patch("scripts.generate_figures.plot_throughput") as throughput,
+    ):
+        generated = generate_figures(summary_path, output_directory)
+
+    assert generated == (
+        output_directory / "softmax_latency.png",
+        output_directory / "softmax_throughput.png",
+    )
+    assert latency.call_args.args[0] == throughput.call_args.args[0]
+    latency.assert_called_once_with(latency.call_args.args[0], generated[0])
+    throughput.assert_called_once_with(throughput.call_args.args[0], generated[1])
