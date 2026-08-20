@@ -13,6 +13,7 @@ namespace {
 constexpr int kThreadsPerBlock = 256;
 constexpr int kWarpSize = 32;
 constexpr int kWarpsPerBlock = kThreadsPerBlock / kWarpSize;
+constexpr unsigned int kFullWarpMask = 0xffffffffu;
 static_assert(
     kThreadsPerBlock > 0 &&
         (kThreadsPerBlock & (kThreadsPerBlock - 1)) == 0,
@@ -30,6 +31,17 @@ __device__ __forceinline__ unsigned int lane_id() {
 
 __device__ __forceinline__ unsigned int warp_id() {
   return threadIdx.x / kWarpSize;
+}
+
+// Shuffle instructions exchange register values directly among lanes in one
+// warp. At each offset, lane 0 incorporates another half of the candidates;
+// after offsets 16, 8, 4, 2, and 1 it owns the warp maximum. Broadcasting lane
+// 0's result gives every lane a usable copy without shared memory.
+__device__ __forceinline__ float warp_reduce_max(float value) {
+  for (int offset = kWarpSize / 2; offset > 0; offset >>= 1) {
+    value = fmaxf(value, __shfl_down_sync(kFullWarpMask, value, offset));
+  }
+  return __shfl_sync(kFullWarpMask, value, 0);
 }
 
 // A CUDA kernel is device code launched across a grid of thread blocks. The
@@ -84,12 +96,13 @@ __global__ void fused_causal_softmax_kernel(
         fmaxf(thread_maximum, probabilities[row_offset + column]);
   }
 
-  // Dynamic shared memory is visible to every thread in this block. A tree
-  // reduction halves the number of candidates at every stage until element 0
-  // holds the maximum for the full row. Threads without assigned columns begin
-  // at negative infinity, the identity value for maximum.
+  // The first reduction level now happens inside each warp through register
+  // shuffles. This intermediate state publishes the broadcast warp maximum from
+  // every lane into the existing full shared tree; Commit 063 reduces that to
+  // one shared value per warp.
+  const float warp_maximum = warp_reduce_max(thread_maximum);
   extern __shared__ float shared_values[];
-  shared_values[threadIdx.x] = thread_maximum;
+  shared_values[threadIdx.x] = warp_maximum;
 
   // Every partial must be visible before any thread reads its partner. Without
   // this barrier, early threads could reduce stale or uninitialized values.
