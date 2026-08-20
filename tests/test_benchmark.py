@@ -30,6 +30,7 @@ from cuda_attention.benchmark import (
     write_raw_benchmark_csv,
 )
 from cuda_attention.operator import CudaExtensionUnavailableError
+from cuda_attention.plotting import load_summary_csv, metric_series
 from cuda_attention.reference import causal_allowed_mask, causal_scaled_softmax
 
 
@@ -257,3 +258,37 @@ def test_summary_statistics_and_throughput_come_from_raw_samples(tmp_path) -> No
 def test_percentile_rejects_empty_samples() -> None:
     with pytest.raises(ValueError, match="empty"):
         percentile([], 0.5)
+
+
+def test_plot_series_remain_commit_specific_and_shape_ordered(tmp_path) -> None:
+    records = [
+        {
+            "git_commit": "b" * 40,
+            "implementation_description": "block parallel",
+            "sequence_length": "512",
+            "median_us": "3.0",
+            "elements_per_second": "4.0",
+        },
+        {
+            "git_commit": "b" * 40,
+            "implementation_description": "block parallel",
+            "sequence_length": "128",
+            "median_us": "1.0",
+            "elements_per_second": "2.0",
+        },
+    ]
+
+    series = metric_series(records, "median_us")
+
+    assert len(series) == 1
+    assert series[0].label.endswith("(bbbbbbbb)")
+    assert series[0].x == (128, 512)
+    assert series[0].y == (1.0, 3.0)
+
+    empty_path = tmp_path / "empty.csv"
+    empty_path.write_text(
+        "git_commit,implementation_description,sequence_length,median_us,elements_per_second\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="no measurements"):
+        load_summary_csv(empty_path)
