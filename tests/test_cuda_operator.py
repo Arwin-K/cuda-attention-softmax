@@ -17,7 +17,22 @@ from cuda_attention.reference import causal_allowed_mask, causal_scaled_softmax
 RTOL = 1e-5
 ATOL = 1e-6
 CORE_SEQUENCE_LENGTHS = (32, 64, 128)
-IRREGULAR_SEQUENCE_LENGTHS = (31, 33, 63, 127, 255, 511, 768, 1023)
+IRREGULAR_SEQUENCE_LENGTHS = (
+    1,
+    2,
+    3,
+    31,
+    33,
+    63,
+    127,
+    255,
+    257,
+    511,
+    513,
+    768,
+    1023,
+    1025,
+)
 STRESS_MAGNITUDES = (10.0, 100.0, 1000.0)
 STRESS_SEQUENCE_LENGTHS = (31, 128, 511)
 
