@@ -15,6 +15,10 @@ from benchmarks.benchmark_softmax import (
     prepare_custom_case,
     pytorch_eager_causal_softmax,
 )
+from benchmarks.summarize_results import (
+    load_raw_benchmark_csv,
+    validate_comparison_pair,
+)
 from cuda_attention.benchmark import (
     RAW_BENCHMARK_FIELDS,
     raw_benchmark_records,
@@ -152,3 +156,55 @@ def test_raw_record_count_must_match_iterations() -> None:
             iterations=2,
             samples_us=[1.0],
         )
+
+
+def test_comparison_preflight_requires_matching_controls_and_distinct_commits(
+    tmp_path,
+) -> None:
+    common_metadata = {
+        "gpu_name": "test GPU",
+        "compute_capability": "9.0",
+        "pytorch_version": "test torch",
+        "cuda_version": "test CUDA",
+        "timestamp": "2026-08-20T00:00:00+00:00",
+    }
+    baseline = raw_benchmark_records(
+        metadata={**common_metadata, "git_commit": "a" * 40},
+        implementation_description="row serial",
+        sequence_length=128,
+        rows=1024,
+        columns=128,
+        dtype="float32",
+        warmups=2,
+        iterations=2,
+        samples_us=[4.0, 5.0],
+    )
+    candidate = raw_benchmark_records(
+        metadata={**common_metadata, "git_commit": "b" * 40},
+        implementation_description="block parallel",
+        sequence_length=128,
+        rows=1024,
+        columns=128,
+        dtype="float32",
+        warmups=2,
+        iterations=2,
+        samples_us=[2.0, 3.0],
+    )
+    baseline_path = tmp_path / "baseline.csv"
+    candidate_path = tmp_path / "candidate.csv"
+    write_raw_benchmark_csv(baseline_path, baseline)
+    write_raw_benchmark_csv(candidate_path, candidate)
+
+    report = validate_comparison_pair(
+        load_raw_benchmark_csv(baseline_path),
+        load_raw_benchmark_csv(candidate_path),
+    )
+
+    assert report["baseline_commit"] == "a" * 40
+    assert report["candidate_commit"] == "b" * 40
+    assert report["controlled_cases"] == 1
+
+
+def test_comparison_preflight_rejects_missing_artifact(tmp_path) -> None:
+    with pytest.raises(FileNotFoundError, match="does not exist"):
+        load_raw_benchmark_csv(tmp_path / "missing.csv")

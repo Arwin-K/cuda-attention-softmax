@@ -261,3 +261,33 @@ No performance or profiling experiment has been recorded yet.
   suite before accepting benchmark output.
 - **Student reflection:** `TODO(student): Explain why a collected skip is not a
   passed CUDA correctness test.`
+
+## Row-serial versus block-parallel benchmark attempt — Commit 053
+
+- **Date/time:** 2026-08-20, America/Toronto
+- **Git commit:** Commit 053 — `benchmark block-parallel kernel against baseline commit`
+- **Hardware:** Apple Silicon arm64; no NVIDIA GPU
+- **Software:** Darwin, Python 3.11.15, PyTorch 2.13.0 without CUDA
+- **Research question:** How does the complete block-parallel kernel compare
+  with the historical row-serial implementation under identical controls?
+- **HYPOTHESIS:** Block cooperation should benefit longer rows, with a possible
+  short-row penalty from barriers and reduction overhead.
+- **Independent variable:** Kernel implementation Git commit
+- **Controlled variables:** Required shapes, FP32, `batch_heads=8`, seeds,
+  warmups, iterations, GPU/software environment, and timed boundaries
+- **Metrics:** Intended median latency, quartiles, throughput, and speedup
+- **Command/script:** `.venv/bin/python benchmarks/summarize_results.py
+  --baseline results/raw/row_serial.csv --candidate
+  results/raw/block_parallel.csv`
+- **Raw result file:** None for either implementation
+- **MEASUREMENT:** Comparison preflight reported the missing baseline artifact
+  and exited before calculating any statistic.
+- **INTERPRETATION:** The comparison remains unavailable; no crossover or
+  optimization claim is supported.
+- **Limitations:** Neither implementation has a CUDA correctness pass or raw
+  timing artifact from a common NVIDIA environment.
+- **NEXT EXPERIMENT:** On one NVIDIA host, measure the historical row-serial
+  commit and the block-parallel commit with the same harness, then rerun the
+  preflight and summary.
+- **Student reflection:** `TODO(student): Explain why both Git revision and
+  controlled environment must match a before/after comparison.`
