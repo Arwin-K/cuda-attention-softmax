@@ -73,7 +73,7 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 058. Completed — `tighten arbitrary sequence-length boundary handling`: I made the reduction's power-of-two block assumption a compile-time invariant while expressing row work with exclusive 64-bit bounds independent of sequence width. New cases cover partial and wrapped flattened-query cycles; they await CUDA execution.
 059. Completed — `document block reduction design and measured behavior`: I linked every block-mapping/reduction commit into one design narrative and added a claim-status table. Source structure is established; CUDA correctness, coalescing efficiency, latency, throughput, and crossover behavior remain explicitly unmeasured.
 060. Completed — `stabilize block-parallel implementation`: I audited the complete block source, local regression, imports, syntax, and artifact directories. The repository is reproducible on Mac with 74 passes and 43 expected skips, but no CUDA CSV, figure, correctness result, or speedup exists.
-061. I introduced the vocabulary and helpers for reasoning about warps, lanes, and warp IDs.
+061. Completed — `add warp and lane helper utilities to CUDA code`: I defined the 32-thread warp, eight warps per 256-thread block, compile-time divisibility, and device helpers for lane and warp IDs. The active shared-memory reductions are unchanged, so this is vocabulary and infrastructure only.
 062. I reduced maxima within each warp using shuffle instructions and register exchange.
 063. I combined one maximum per warp through a compact shared-memory bridge.
 064. I applied the same warp-level idea to the softmax denominator and recorded the fourth-day checkpoint.

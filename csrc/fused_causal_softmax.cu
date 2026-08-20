@@ -11,10 +11,26 @@
 namespace {
 
 constexpr int kThreadsPerBlock = 256;
+constexpr int kWarpSize = 32;
+constexpr int kWarpsPerBlock = kThreadsPerBlock / kWarpSize;
 static_assert(
     kThreadsPerBlock > 0 &&
         (kThreadsPerBlock & (kThreadsPerBlock - 1)) == 0,
     "shared-memory tree reduction requires a power-of-two block size");
+static_assert(
+    kThreadsPerBlock % kWarpSize == 0,
+    "warp reduction stages require complete 32-thread warps");
+
+// A warp is the hardware group of 32 threads that executes instructions
+// together. The lane identifies a thread inside its warp; the warp ID
+// identifies which such group the thread belongs to inside this block.
+__device__ __forceinline__ unsigned int lane_id() {
+  return threadIdx.x % kWarpSize;
+}
+
+__device__ __forceinline__ unsigned int warp_id() {
+  return threadIdx.x / kWarpSize;
+}
 
 // A CUDA kernel is device code launched across a grid of thread blocks. The
 // grid now contains one block for each softmax row, so blockIdx.x identifies

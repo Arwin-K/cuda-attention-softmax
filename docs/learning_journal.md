@@ -288,3 +288,51 @@ perfect transaction efficiency.`
 
 `TODO(student): How do row alignment and partially active causal warps change
 the number of sectors requested?`
+
+## Warps and lanes
+
+### Concept
+
+A warp is CUDA's 32-thread hardware execution group; a lane is one thread's
+position from 0 through 31 within that group.
+
+#### What I thought before
+
+`TODO(student): Describe your prior mental model in your own words.`
+
+#### What I learned
+
+`TODO(student): Explain what changed in your understanding.`
+
+#### Why it matters
+
+Warp shuffle instructions exchange register values among lanes without using a
+full shared-memory array or block-wide barrier for each warp-local stage.
+
+#### Mental model
+
+The 256-thread block contains eight teams of 32. `lane_id()` is a seat number
+inside a team; `warp_id()` selects the team.
+
+#### Where it appears in code
+
+`lane_id()` and `warp_id()` in `csrc/fused_causal_softmax.cu`, Commit 061.
+
+#### Experiment demonstrating it
+
+No CUDA execution yet. The helpers are introduced before they replace any
+active reduction path.
+
+#### Evidence/result
+
+Static inspection confirms eight complete warps for the fixed 256-thread block.
+Runtime behavior is unmeasured.
+
+#### Explain it in my own words
+
+`TODO(student): Explain the difference between a block, warp, and lane.`
+
+#### Questions still open
+
+`TODO(student): How should a shuffle reduction handle lanes that do not carry a
+valid partial?`
