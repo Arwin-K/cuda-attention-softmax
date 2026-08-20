@@ -411,3 +411,66 @@ the NVIDIA correctness suite?
 ### Git commit
 
 Commit 048 — `implement shared-memory sum reduction`
+
+## Global-memory coalescing audit
+
+### Problem
+
+Parallel column work is useful only if thread-to-address mapping avoids
+unnecessary global-memory transactions. A claim of coalescing must distinguish
+the address pattern visible in source from hardware transactions measured by a
+profiler.
+
+### Existing evidence
+
+The kernel uses `column = threadIdx.x + k * blockDim.x` for scaling, stable
+exponentiation, and normalization. Masked zeroing uses the same stride from the
+first future column. No memory-sector or bandwidth metric exists.
+
+### Hypothesis
+
+Within each stride, active neighboring lanes access neighboring FP32 addresses,
+which is favorable for coalesced loads and stores. Longer rows should provide
+more fully active warp accesses than early causal rows.
+
+### Proposed change
+
+No source change is required for this audit. Trace the address formula for each
+global-memory phase and record alignment, activity, and measurement caveats.
+
+### Implementation
+
+- Scaling reads `scores[row_offset + column]` and writes the corresponding
+  output position. Consecutive active thread IDs produce consecutive columns.
+- Exponentiation and normalization revisit those same consecutive positions.
+- Masked zeroing starts at `query_position + 1 + threadIdx.x`, again giving
+  consecutive addresses to consecutive active thread IDs.
+- A later stride advances every thread by the full block width, so each warp
+  begins another consecutive 32-value segment.
+- For early causal queries, only a prefix of the first warp has allowed work;
+  this preserves address adjacency but lowers lane utilization.
+- If `row_offset` is not aligned to a memory-transaction boundary, an otherwise
+  consecutive warp access may span additional sectors.
+
+### Correctness result
+
+No behavior changed. CPU-safe tests remain the applicable local regression;
+CUDA correctness is still pending.
+
+### Performance result
+
+Not measured. There are no Nsight memory-sector, request, or bandwidth results.
+
+### Interpretation
+
+The mapping is coalescing-friendly by construction, but transaction efficiency
+and achieved bandwidth cannot be concluded from source alone.
+
+### Next question
+
+Do Nsight Compute global-load/store efficiency and memory-sector metrics match
+the predicted pattern across early and late causal rows?
+
+### Git commit
+
+Commit 057 — `audit global memory access pattern for coalescing`

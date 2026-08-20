@@ -239,3 +239,52 @@ threads can deadlock or become undefined.`
 
 `TODO(student): Which barriers can later disappear when warp shuffles replace
 parts of the block-wide shared-memory tree?`
+
+## Memory coalescing
+
+### Concept
+
+Combining neighboring lanes' global-memory requests into a small number of
+hardware transactions when their addresses fall in nearby memory sectors.
+
+#### What I thought before
+
+`TODO(student): Describe your prior mental model in your own words.`
+
+#### What I learned
+
+`TODO(student): Explain what changed in your understanding.`
+
+#### Why it matters
+
+Global memory has high bandwidth, but scattered lane addresses can require more
+transactions than a consecutive access pattern.
+
+#### Mental model
+
+A warp is a group ordering data from adjacent shelves: consecutive requests can
+be served together, while scattered requests require more trips.
+
+#### Where it appears in code
+
+The thread-strided global-memory loops in `csrc/fused_causal_softmax.cu`.
+
+#### Experiment demonstrating it
+
+Source-level address audit only. A future Nsight Compute run must inspect actual
+memory transactions and bandwidth.
+
+#### Evidence/result
+
+Neighboring active lanes use neighboring FP32 addresses. Hardware coalescing
+efficiency is not measured.
+
+#### Explain it in my own words
+
+`TODO(student): Explain why adjacent addresses are favorable but do not prove
+perfect transaction efficiency.`
+
+#### Questions still open
+
+`TODO(student): How do row alignment and partially active causal warps change
+the number of sectors requested?`
