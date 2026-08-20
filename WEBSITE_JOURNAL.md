@@ -63,7 +63,7 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 
 049. Completed — `parallelize final probability normalization`: I removed thread 0's serial division loop and gave every thread strided ownership of its final allowed probabilities. Masked entries remain exact zeros and stay outside both reductions; runtime CUDA correctness is still pending NVIDIA execution.
 050. Completed with unavailable CUDA evidence — `validate block-parallel kernel against PyTorch`: I strengthened every reusable GPU comparison with shape, dtype, device, non-negativity, exact masking, finiteness, row-sum, and fixed-tolerance checks. All CUDA cases skipped locally, so the validation gate is prepared but not passed.
-051. I tested whether changed reduction order remains numerically stable at large magnitudes.
+051. Completed with pending GPU execution — `stress test block-parallel kernel on large magnitudes`: I expanded random ×10/×100/×1000 cases across widths 31, 128, and 511 and moved structured extremes to width 127, exercising idle threads and multi-stride work without changing the fixed tolerances. The cases skip locally.
 052. I tested whether partial work assignment remains correct for odd widths.
 053. I measured the block-parallel design against the recorded row-serial baseline under the same protocol.
 054. I added median, quartiles, and throughput so performance means more than one timing number.

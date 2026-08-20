@@ -19,6 +19,7 @@ ATOL = 1e-6
 CORE_SEQUENCE_LENGTHS = (32, 64, 128)
 IRREGULAR_SEQUENCE_LENGTHS = (31, 33, 63, 127, 255, 511, 768, 1023)
 STRESS_MAGNITUDES = (10.0, 100.0, 1000.0)
+STRESS_SEQUENCE_LENGTHS = (31, 128, 511)
 
 
 def _cuda_test_unavailable_reason() -> str | None:
@@ -93,10 +94,21 @@ def _assert_cuda_matches_reference(scores: torch.Tensor, scale: float = 1.0) -> 
     assert torch.count_nonzero(actual.masked_select(~allowed)) == 0
 
 
+@pytest.mark.parametrize("sequence_length", STRESS_SEQUENCE_LENGTHS)
 @pytest.mark.parametrize("magnitude", STRESS_MAGNITUDES)
-def test_cuda_operator_is_stable_for_large_random_logits(magnitude: float) -> None:
-    generator = torch.Generator(device="cuda").manual_seed(330)
-    scores = torch.randn(128, 64, generator=generator, device="cuda") * magnitude
+def test_cuda_operator_is_stable_for_large_random_logits(
+    magnitude: float,
+    sequence_length: int,
+) -> None:
+    generator = torch.Generator(device="cuda").manual_seed(
+        330 + sequence_length
+    )
+    scores = torch.randn(
+        2 * sequence_length,
+        sequence_length,
+        generator=generator,
+        device="cuda",
+    ) * magnitude
 
     _assert_cuda_matches_reference(scores)
 
@@ -106,7 +118,7 @@ def test_cuda_operator_is_stable_for_large_random_logits(magnitude: float) -> No
     ["zeros", "equal", "dominant-positive", "dominant-negative"],
 )
 def test_cuda_operator_matches_structured_stress_cases(case: str) -> None:
-    scores = torch.zeros(128, 64, device="cuda")
+    scores = torch.zeros(254, 127, device="cuda")
     if case == "equal":
         scores.fill_(1000.0)
     elif case == "dominant-positive":
