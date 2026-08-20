@@ -320,3 +320,33 @@ No performance or profiling experiment has been recorded yet.
   preserve its raw CSV before replacing shared trees with warp reductions.
 - **Student reflection:** `TODO(student): Define what “stable” means here
   without treating skipped GPU work as success.`
+
+## Day 4 checkpoint — Commit 064
+
+- **What was implemented:** Parallel final normalization; expanded normal,
+  stress, odd-width, block-boundary, and flattened-row CUDA gates; an artifact
+  preflight for matched historical comparisons; median, p25, p75, and throughput
+  aggregation; commit-aware latency/throughput plotting; evidence-only figure
+  generation; coalescing and boundary audits; and a stabilized shared-tree block
+  milestone. Warp/lane helpers now support shuffle maximum and sum reductions.
+  Maximum uses one shared value per warp and a first-warp final reduction. Sum
+  reduction is warp-local but deliberately retains a padded 256-entry shared
+  tree until Commit 065.
+- **What was actually measured:** No CUDA compilation, output, latency,
+  throughput, speedup, memory metric, or profiler result was measured. The
+  comparison and figure commands stopped on missing raw/summary artifacts. On
+  Apple Silicon, the final applicable suite reports 74 passed and 43 CUDA-only
+  skips; Python and shell syntax checks pass. Test duration is not a benchmark.
+- **What I learned:** `TODO(student): Explain how a shuffle reduction moves
+  register values within one warp and why a cross-warp bridge is still needed.`
+- **What surprised me:** `TODO(student): Record your own observation; no
+  personal reflection has been inferred.`
+- **Unresolved questions:** Whether the CUDA source compiles; whether changed
+  reduction order satisfies fixed tolerances; whether warp communication lowers
+  latency; how much shared memory/synchronization actually changes; and where
+  block or warp strategies cross over by sequence length.
+- **Next day:** Compact warp sums, remove the remaining full shared-tree paths,
+  validate/stress the complete warp kernel, verify fusion, attempt matched warp
+  benchmarking, expose block size as an experimental variable, measure
+  128/256/512 only on NVIDIA hardware, choose from evidence, and add strong
+  `torch.compile` comparisons through Commit 080.

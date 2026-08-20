@@ -6,7 +6,7 @@ history; it does not maintain parallel kernel versions.
 
 ## Current status
 
-The block-parallel milestone through Commit 060 is complete: the project has
+Day 4 through Commit 064 is complete: the project has
 environment detection, research framing, an
 explicit CPU reference, a causal attention path, correctness/stability/edge
 tests, reproducible tensor helpers, opt-in extension infrastructure, a
@@ -15,7 +15,10 @@ of a one-block-per-row CUDA design. The kernel source distributes scaling,
 maximum and denominator reductions, exponentiation, and final normalization
 across block threads while retaining exact causal zeros. It has not been
 compiled or run on NVIDIA hardware, so no CUDA correctness, latency, throughput,
-speedup, or profiler result exists yet.
+speedup, or profiler result exists yet. Warp-level maximum reduction and compact
+cross-warp maximum combination are now present. Denominator sums reduce within
+each warp but still use a padded full shared-memory bridge; compact cross-warp
+sum combination and full replacement of the old trees remain Day 5 work.
 
 `tests/test_cuda_operator.py` is the device correctness gate. It covers normal,
 large-magnitude, structured, irregular-width, block-boundary, and flattened-row

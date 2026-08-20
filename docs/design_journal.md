@@ -550,3 +550,57 @@ sequence lengths benefit and which costs dominate the crossover?
 ### Git commit
 
 Commit 059 — `document block reduction design and measured behavior`
+
+## Partial warp-reduction state at Day 4
+
+### Problem
+
+Replacing block-wide shared trees safely requires separating warp-local
+register exchange from cross-warp communication.
+
+### Existing evidence
+
+The shared-tree milestone is source-complete but unverified on CUDA. Static
+inspection confirms a fixed 256-thread block containing eight complete warps.
+
+### Hypothesis
+
+Shuffle reductions can reduce per-warp partials without shared-memory traffic or
+block-wide synchronization at every intra-warp stage.
+
+### Proposed change
+
+Introduce warp helpers, reduce maximum and sum values within each warp, and
+stage compact block combination separately for the two operations.
+
+### Implementation
+
+Maximum now uses five shuffle-down stages, one shared maximum per warp, and a
+first-warp final shuffle reduction. Sum uses the same five warp-local stages,
+but lane-zero results currently occupy every 32nd location in the old 256-entry
+shared tree while other lanes write zero. This preserves denominator semantics
+without duplicating warp sums; compact sum combination remains Commit 065.
+
+### Correctness result
+
+Static checks and CPU-safe regression pass. All custom CUDA cases skip locally,
+so neither shuffle path is runtime-validated.
+
+### Performance result
+
+Not measured. No shared-memory, synchronization, latency, or occupancy metric
+exists.
+
+### Interpretation
+
+The maximum path has completed the intended two-level structure. The sum path
+has only completed its first level, so this checkpoint is intentionally partial.
+
+### Next question
+
+Can one sum per warp be combined through the same compact eight-slot bridge
+without changing the fixed-tolerance output contract?
+
+### Git commit
+
+Commit 064 — `implement warp-level sum reduction with shuffle operations`

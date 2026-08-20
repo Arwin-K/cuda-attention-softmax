@@ -44,11 +44,21 @@ __device__ __forceinline__ float warp_reduce_max(float value) {
   return __shfl_sync(kFullWarpMask, value, 0);
 }
 
+// Addition uses the same register-exchange pattern. Lane 0 receives the sum of
+// all 32 lane partials; other lanes need not hold the final value because only
+// lane 0 publishes a warp denominator contribution.
+__device__ __forceinline__ float warp_reduce_sum(float value) {
+  for (int offset = kWarpSize / 2; offset > 0; offset >>= 1) {
+    value += __shfl_down_sync(kFullWarpMask, value, offset);
+  }
+  return value;
+}
+
 // A CUDA kernel is device code launched across a grid of thread blocks. The
 // grid now contains one block for each softmax row, so blockIdx.x identifies
-// row ownership and threadIdx.x identifies a worker within that row. This
-// transitional commit keeps the mathematics on thread 0; later commits give
-// the remaining block threads useful column and reduction work.
+// row ownership and threadIdx.x identifies a worker within that row. Threads
+// cooperate through strided column work, warp-local register reductions, and
+// shared-memory bridges between warps.
 __global__ void fused_causal_softmax_kernel(
     const float* scores,
     float* probabilities,
@@ -142,10 +152,12 @@ __global__ void fused_causal_softmax_kernel(
     thread_exponential_sum += exponential;
   }
 
-  // Publish one partial sum per thread, then apply the same halving tree with
-  // addition as the combining operation. Zero is the sum identity, so threads
-  // without assigned columns participate without changing the denominator.
-  shared_values[threadIdx.x] = thread_exponential_sum;
+  // Each warp first reduces its 32 register-local sums. Lane 0 publishes that
+  // warp result; other lanes publish the additive identity into the existing
+  // 256-entry shared tree. This padded bridge preserves the block denominator
+  // without counting a warp sum 32 times. Commit 065 compacts it to eight slots.
+  const float warp_exponential_sum = warp_reduce_sum(thread_exponential_sum);
+  shared_values[threadIdx.x] = lane == 0 ? warp_exponential_sum : 0.0f;
   __syncthreads();
   for (unsigned int stride = blockDim.x / 2; stride > 0; stride >>= 1) {
     if (threadIdx.x < stride) {
