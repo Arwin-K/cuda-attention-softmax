@@ -75,7 +75,7 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 060. Completed — `stabilize block-parallel implementation`: I audited the complete block source, local regression, imports, syntax, and artifact directories. The repository is reproducible on Mac with 74 passes and 43 expected skips, but no CUDA CSV, figure, correctness result, or speedup exists.
 061. Completed — `add warp and lane helper utilities to CUDA code`: I defined the 32-thread warp, eight warps per 256-thread block, compile-time divisibility, and device helpers for lane and warp IDs. The active shared-memory reductions are unchanged, so this is vocabulary and infrastructure only.
 062. Completed — `implement warp-level maximum reduction with shuffle operations`: I added synchronized register shuffles at offsets 16/8/4/2/1, followed by a lane-0 broadcast. Each lane temporarily publishes its warp maximum into the existing full shared tree, preserving a staged transition before compact cross-warp combination.
-063. I combined one maximum per warp through a compact shared-memory bridge.
+063. Completed — `combine warp maxima through compact shared memory`: lane 0 of each of eight warps now publishes one maximum; the first warp loads those eight values, fills unused lanes with negative infinity, performs a second shuffle reduction, and broadcasts the block maximum through shared slot zero.
 064. I applied the same warp-level idea to the softmax denominator and recorded the fourth-day checkpoint.
 
 ## Day 5 — Completing warp reductions and tuning the fused kernel

@@ -96,32 +96,35 @@ __global__ void fused_causal_softmax_kernel(
         fmaxf(thread_maximum, probabilities[row_offset + column]);
   }
 
-  // The first reduction level now happens inside each warp through register
-  // shuffles. This intermediate state publishes the broadcast warp maximum from
-  // every lane into the existing full shared tree; Commit 063 reduces that to
-  // one shared value per warp.
+  // The first reduction level happens inside each warp through register
+  // shuffles. Only lane 0 publishes, shrinking block communication from one
+  // shared value per thread to one value per warp.
+  const unsigned int lane = lane_id();
+  const unsigned int warp = warp_id();
   const float warp_maximum = warp_reduce_max(thread_maximum);
   extern __shared__ float shared_values[];
-  shared_values[threadIdx.x] = warp_maximum;
-
-  // Every partial must be visible before any thread reads its partner. Without
-  // this barrier, early threads could reduce stale or uninitialized values.
-  __syncthreads();
-  for (unsigned int stride = blockDim.x / 2; stride > 0; stride >>= 1) {
-    if (threadIdx.x < stride) {
-      shared_values[threadIdx.x] = fmaxf(
-          shared_values[threadIdx.x],
-          shared_values[threadIdx.x + stride]);
-    }
-
-    // The next stage consumes values written by the current stage. A block-wide
-    // barrier prevents those reads from racing ahead of their producers.
-    __syncthreads();
+  if (lane == 0) {
+    shared_values[warp] = warp_maximum;
   }
+  __syncthreads();
+
+  // The first warp performs the second reduction level. Its first eight lanes
+  // load valid warp maxima; the remaining lanes contribute negative infinity.
+  // Calling the helper from every lane in warp 0 keeps the full shuffle mask
+  // valid even though only eight lanes carry block data.
+  if (warp == 0) {
+    float block_maximum =
+        lane < kWarpsPerBlock ? shared_values[lane] : -CUDART_INF_F;
+    block_maximum = warp_reduce_max(block_maximum);
+    if (lane == 0) {
+      shared_values[0] = block_maximum;
+    }
+  }
+  __syncthreads();
 
   // Every thread captures the completed maximum before shared_values is reused
-  // for denominator partials in the next commit. This handoff barrier would be
-  // unsafe after an early return because all block threads must participate.
+  // for denominator partials. The handoff barrier prevents thread 0 from
+  // overwriting element 0 before slower peers have loaded it.
   const float row_maximum = shared_values[0];
   __syncthreads();
 
