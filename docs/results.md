@@ -12,3 +12,14 @@ The Day 4 block comparison and first figure-generation attempt also stopped
 without artifacts: neither the historical row-serial CSV nor the current block-
 parallel CSV exists. The generator intentionally refuses to create latency or
 throughput figures from missing or empty summaries.
+
+## Block-reduction evidence status
+
+| Claim | Current status | Required evidence |
+|---|---|---|
+| One block owns each row | Established by source inspection | CUDA build still required |
+| Threads cover columns in strides | Established by source inspection | GPU correctness suite |
+| Max and sum use shared trees | Established by source inspection | GPU correctness suite |
+| Accesses are coalesced efficiently | Hypothesis from address mapping | Nsight memory metrics |
+| Block design is faster than row serial | Unmeasured | Matched commit-tagged CSVs |
+| Speedup varies with sequence length | Untested hypothesis | Full benchmark registry |

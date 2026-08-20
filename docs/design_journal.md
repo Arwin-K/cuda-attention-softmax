@@ -474,3 +474,79 @@ the predicted pattern across early and late causal rows?
 ### Git commit
 
 Commit 057 — `audit global memory access pattern for coalescing`
+
+## Block-parallel reduction milestone
+
+### Problem
+
+The block implementation spans several focused commits. Without one synthesis,
+it is easy to confuse an implemented source property, a locally checked test
+gate, and a measured NVIDIA result.
+
+### Existing evidence
+
+- Commit `2758618` changed ownership to one block per row.
+- Commit `1a4ecbd` introduced thread-strided columns.
+- Commit `77cd283` introduced register-local maxima.
+- Commit `7c7991c` introduced the shared-memory maximum tree.
+- Commit `3102417` documented and completed synchronization boundaries.
+- Commit `49d783f` introduced per-thread stable exponential sums.
+- Commit `02a4c51` introduced the shared-memory denominator tree.
+- Commit `b64151f` parallelized normalization.
+- Commits `d376f81`, `f467353`, `092a8c6`, and `0efe0f4` expanded prepared
+  correctness coverage.
+- Commit `8d86246` stopped the comparison because raw artifacts were absent.
+
+### Hypothesis
+
+Dividing row work across 256 threads should reduce serial work for sufficiently
+long rows, while barriers, shared-memory traffic, and underfilled early causal
+rows may offset the benefit for short rows.
+
+### Proposed change
+
+The completed shared-memory design is:
+
+```text
+one block -> one row
+thread-strided scaled staging
+register-local maximum partials
+shared-memory maximum tree
+thread-strided stable exponentials and local sums
+shared-memory denominator tree
+thread-strided normalization
+```
+
+### Implementation
+
+The maximum tree uses negative infinity as its identity; the sum tree uses zero.
+Both trees halve 256 partials until shared element zero holds the block result.
+Every producer/consumer stage is separated by a block-wide barrier. Masked
+positions are zeroed before reductions and never enter maximum or denominator
+calculations.
+
+### Correctness result
+
+The current local suite reports 74 CPU-safe passes and 43 CUDA-related skips.
+This confirms source-independent reference/tooling behavior and clean skip
+semantics, not block-kernel correctness. No NVIDIA build has run.
+
+### Performance result
+
+Not measured. The comparison preflight rejected missing row-serial and block-
+parallel raw CSVs, and no latency/throughput figure was generated.
+
+### Interpretation
+
+The source implements the intended block algorithm, but whether it is correct
+or faster is unresolved. Coalescing-friendly address formulas and reduced
+serial work are mechanisms to test, not results.
+
+### Next question
+
+After NVIDIA correctness and matched historical measurements exist, which
+sequence lengths benefit and which costs dominate the crossover?
+
+### Git commit
+
+Commit 059 — `document block reduction design and measured behavior`
