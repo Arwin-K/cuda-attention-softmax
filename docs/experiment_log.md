@@ -291,3 +291,32 @@ No performance or profiling experiment has been recorded yet.
   preflight and summary.
 - **Student reflection:** `TODO(student): Explain why both Git revision and
   controlled environment must match a before/after comparison.`
+
+## Block-parallel stabilization audit — Commit 060
+
+- **Date/time:** 2026-08-20, America/Toronto
+- **Git commit:** Commit 060 — `stabilize block-parallel implementation`
+- **Hardware:** Apple Silicon arm64; no NVIDIA GPU
+- **Software:** Darwin, Python 3.11.15, PyTorch 2.13.0 without CUDA
+- **Research question:** Is the complete block-parallel source milestone
+  internally coherent and locally reproducible before warp work begins?
+- **HYPOTHESIS:** CPU-safe tests, static checks, imports, and artifact guards
+  should pass while all CUDA-only work remains visibly skipped or unavailable.
+- **Independent variable:** None; milestone regression only
+- **Controlled variables:** Day 4 source through Commit 060 and project virtual
+  environment
+- **Metrics:** Test pass/skip counts, syntax checks, Git status, and artifact
+  presence
+- **Command/script:** `./scripts/run_tests.sh` plus Python/shell syntax checks
+  and inspection of `results/raw`, `results/summary`, and `figures`
+- **Raw result file:** None
+- **MEASUREMENT:** 74 tests passed and 43 skipped. Only tracked `.gitkeep`
+  placeholders exist in result/figure directories. No CUDA CSV or figure exists.
+- **INTERPRETATION:** The repository milestone is locally stable. This does not
+  establish CUDA compilation, correctness, or performance.
+- **Limitations:** Every custom-device test skipped and no NVIDIA toolchain was
+  exercised.
+- **NEXT EXPERIMENT:** Build and validate this exact milestone on NVIDIA Linux;
+  preserve its raw CSV before replacing shared trees with warp reductions.
+- **Student reflection:** `TODO(student): Define what “stable” means here
+  without treating skipped GPU work as success.`
