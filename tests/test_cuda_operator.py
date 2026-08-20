@@ -72,6 +72,11 @@ def test_cuda_operator_matches_pytorch_reference(sequence_length: int) -> None:
 def _assert_cuda_matches_reference(scores: torch.Tensor, scale: float = 1.0) -> None:
     actual = fused_causal_softmax(scores, scale)
     expected = causal_scaled_softmax(scores, scale)
+    allowed = causal_allowed_mask(
+        scores.shape[0],
+        scores.shape[1],
+        device=scores.device,
+    )
 
     torch.testing.assert_close(actual, expected, rtol=RTOL, atol=ATOL)
     torch.testing.assert_close(
@@ -80,7 +85,12 @@ def _assert_cuda_matches_reference(scores: torch.Tensor, scale: float = 1.0) -> 
         rtol=RTOL,
         atol=ATOL,
     )
+    assert actual.shape == scores.shape
+    assert actual.dtype == scores.dtype
+    assert actual.device == scores.device
+    assert torch.all(actual >= 0)
     assert torch.isfinite(actual).all()
+    assert torch.count_nonzero(actual.masked_select(~allowed)) == 0
 
 
 @pytest.mark.parametrize("magnitude", STRESS_MAGNITUDES)

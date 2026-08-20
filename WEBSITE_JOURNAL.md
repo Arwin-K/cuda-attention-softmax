@@ -62,7 +62,7 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 ## Day 4 — Validating block parallelism and introducing warp communication
 
 049. Completed — `parallelize final probability normalization`: I removed thread 0's serial division loop and gave every thread strided ownership of its final allowed probabilities. Masked entries remain exact zeros and stay outside both reductions; runtime CUDA correctness is still pending NVIDIA execution.
-050. I treated complete PyTorch comparison as a gate before any performance conclusion about the block design.
+050. Completed with unavailable CUDA evidence — `validate block-parallel kernel against PyTorch`: I strengthened every reusable GPU comparison with shape, dtype, device, non-negativity, exact masking, finiteness, row-sum, and fixed-tolerance checks. All CUDA cases skipped locally, so the validation gate is prepared but not passed.
 051. I tested whether changed reduction order remains numerically stable at large magnitudes.
 052. I tested whether partial work assignment remains correct for odd widths.
 053. I measured the block-parallel design against the recorded row-serial baseline under the same protocol.

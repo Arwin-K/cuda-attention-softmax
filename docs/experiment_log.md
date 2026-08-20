@@ -231,3 +231,33 @@ No performance or profiling experiment has been recorded yet.
   add summary/plotting support, audit coalescing and arbitrary-width behavior,
   document the evidence, stabilize the block milestone, and begin warp/lane
   reduction foundations through Commit 064.
+
+## Block-parallel CUDA validation attempt — Commit 050
+
+- **Date/time:** 2026-08-20, America/Toronto
+- **Git commit:** Commit 050 — `validate block-parallel kernel against PyTorch`
+- **Hardware:** Apple Silicon arm64; no NVIDIA GPU
+- **Software:** Darwin, Python 3.11.15, PyTorch 2.13.0 without CUDA
+- **Research question:** Does the complete one-block-per-row implementation
+  match the PyTorch reference across normal, stress, and irregular cases?
+- **HYPOTHESIS:** Cooperative maximum, denominator, and normalization work
+  preserve the reference semantics within the fixed FP32 tolerances.
+- **Independent variable:** Intended custom block-parallel CUDA output versus
+  PyTorch reference output
+- **Controlled variables:** Existing deterministic inputs, sequence lengths,
+  scales, FP32 dtype, `rtol=1e-5`, and `atol=1e-6`
+- **Metrics:** Closeness, row sums, non-negativity, exact causal zeros,
+  finiteness, shape, dtype, and device
+- **Command/script:** `.venv/bin/python -m pytest -q
+  tests/test_cuda_operator.py -rs`
+- **Raw result file:** None; test console only
+- **MEASUREMENT:** Every CUDA case was skipped because an NVIDIA device was
+  unavailable. No custom output was produced or compared.
+- **INTERPRETATION:** Test coverage and platform gating are prepared, but block-
+  parallel CUDA correctness is not established.
+- **Limitations:** No CUDA build, kernel launch, device synchronization, or
+  numerical comparison occurred.
+- **NEXT EXPERIMENT:** Build the extension on NVIDIA Linux and rerun this exact
+  suite before accepting benchmark output.
+- **Student reflection:** `TODO(student): Explain why a collected skip is not a
+  passed CUDA correctness test.`
