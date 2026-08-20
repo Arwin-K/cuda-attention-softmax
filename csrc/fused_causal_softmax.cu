@@ -116,13 +116,11 @@ __global__ void fused_causal_softmax_kernel(
   }
 
   const float exponential_sum = shared_values[0];
-  if (threadIdx.x != 0) {
-    return;
-  }
-
-  // Thread 0 still normalizes every allowed entry. Parallel normalization is
-  // intentionally deferred to Commit 049.
-  for (int64_t column = 0; column <= query_position; ++column) {
+  // The same strided ownership used for loads and exponentials now distributes
+  // final writeback. Each allowed probability is divided exactly once, while
+  // no thread touches the masked zeros staged before the reductions.
+  for (int64_t column = threadIdx.x; column <= query_position;
+       column += blockDim.x) {
     probabilities[row_offset + column] /= exponential_sum;
   }
 

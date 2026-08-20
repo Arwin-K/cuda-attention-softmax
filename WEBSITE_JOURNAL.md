@@ -61,7 +61,7 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 
 ## Day 4 — Validating block parallelism and introducing warp communication
 
-049. I let threads write their own normalized probabilities in parallel while retaining exact causal masking.
+049. Completed — `parallelize final probability normalization`: I removed thread 0's serial division loop and gave every thread strided ownership of its final allowed probabilities. Masked entries remain exact zeros and stay outside both reductions; runtime CUDA correctness is still pending NVIDIA execution.
 050. I treated complete PyTorch comparison as a gate before any performance conclusion about the block design.
 051. I tested whether changed reduction order remains numerically stable at large magnitudes.
 052. I tested whether partial work assignment remains correct for odd widths.
