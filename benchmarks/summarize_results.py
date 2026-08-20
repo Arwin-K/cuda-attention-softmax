@@ -6,6 +6,7 @@ import argparse
 import csv
 import json
 from pathlib import Path
+import statistics
 import sys
 
 
@@ -27,6 +28,32 @@ CONTROL_FIELDS = (
     "compute_capability",
     "pytorch_version",
     "cuda_version",
+)
+
+SUMMARY_FIELDS = (
+    "git_commit",
+    "implementation_description",
+    "sequence_length",
+    "rows",
+    "columns",
+    "dtype",
+    "warmups",
+    "iterations",
+    "median_us",
+    "p25_us",
+    "p75_us",
+    "elements_per_second",
+    "gpu_name",
+    "compute_capability",
+    "pytorch_version",
+    "cuda_version",
+    "timestamp",
+)
+
+SUMMARY_GROUP_FIELDS = tuple(
+    field
+    for field in SUMMARY_FIELDS
+    if field not in {"median_us", "p25_us", "p75_us", "elements_per_second"}
 )
 
 
@@ -75,21 +102,89 @@ def validate_comparison_pair(
     }
 
 
+def percentile(samples: list[float], fraction: float) -> float:
+    """Return a linearly interpolated percentile over finite timing samples."""
+
+    if not samples:
+        raise ValueError("cannot summarize an empty sample set")
+    if not 0.0 <= fraction <= 1.0:
+        raise ValueError("percentile fraction must be between zero and one")
+    ordered = sorted(samples)
+    position = (len(ordered) - 1) * fraction
+    lower = int(position)
+    upper = min(lower + 1, len(ordered) - 1)
+    weight = position - lower
+    return ordered[lower] * (1.0 - weight) + ordered[upper] * weight
+
+
+def summarize_raw_records(
+    records: list[dict[str, str]],
+) -> list[dict[str, object]]:
+    """Aggregate raw timing samples without discarding their provenance."""
+
+    grouped: dict[tuple[str, ...], list[float]] = {}
+    for record in records:
+        key = tuple(record[field] for field in SUMMARY_GROUP_FIELDS)
+        sample = float(record["sample_us"])
+        if sample <= 0.0:
+            raise ValueError("raw CUDA timing samples must be positive")
+        grouped.setdefault(key, []).append(sample)
+
+    summaries: list[dict[str, object]] = []
+    for key, samples in grouped.items():
+        group = dict(zip(SUMMARY_GROUP_FIELDS, key, strict=True))
+        iterations = int(group["iterations"])
+        if len(samples) != iterations:
+            raise ValueError("raw sample count does not match recorded iterations")
+        median_us = statistics.median(samples)
+        elements = int(group["rows"]) * int(group["columns"])
+        summaries.append(
+            {
+                **group,
+                "median_us": median_us,
+                "p25_us": percentile(samples, 0.25),
+                "p75_us": percentile(samples, 0.75),
+                "elements_per_second": elements * 1_000_000.0 / median_us,
+            }
+        )
+    return sorted(
+        summaries,
+        key=lambda record: (
+            int(record["sequence_length"]),
+            str(record["git_commit"]),
+            str(record["implementation_description"]),
+        ),
+    )
+
+
+def write_summary_csv(
+    output_path: Path,
+    records: list[dict[str, object]],
+) -> None:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with output_path.open("w", newline="", encoding="utf-8") as output_file:
+        writer = csv.DictWriter(output_file, fieldnames=SUMMARY_FIELDS)
+        writer.writeheader()
+        writer.writerows(records)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--baseline", type=Path, required=True)
     parser.add_argument("--candidate", type=Path, required=True)
+    parser.add_argument("--output", type=Path, required=True)
     arguments = parser.parse_args()
 
     try:
-        report = validate_comparison_pair(
-            load_raw_benchmark_csv(arguments.baseline),
-            load_raw_benchmark_csv(arguments.candidate),
-        )
+        baseline = load_raw_benchmark_csv(arguments.baseline)
+        candidate = load_raw_benchmark_csv(arguments.candidate)
+        report = validate_comparison_pair(baseline, candidate)
+        summaries = summarize_raw_records(baseline) + summarize_raw_records(candidate)
+        write_summary_csv(arguments.output, summaries)
     except (FileNotFoundError, ValueError) as error:
         print(str(error), file=sys.stderr)
         return 2
-    print(json.dumps(report, indent=2, sort_keys=True))
+    print(json.dumps({**report, "summary_rows": len(summaries)}, indent=2, sort_keys=True))
     return 0
 
 

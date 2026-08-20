@@ -16,8 +16,12 @@ from benchmarks.benchmark_softmax import (
     pytorch_eager_causal_softmax,
 )
 from benchmarks.summarize_results import (
+    SUMMARY_FIELDS,
     load_raw_benchmark_csv,
+    percentile,
+    summarize_raw_records,
     validate_comparison_pair,
+    write_summary_csv,
 )
 from cuda_attention.benchmark import (
     RAW_BENCHMARK_FIELDS,
@@ -208,3 +212,48 @@ def test_comparison_preflight_requires_matching_controls_and_distinct_commits(
 def test_comparison_preflight_rejects_missing_artifact(tmp_path) -> None:
     with pytest.raises(FileNotFoundError, match="does not exist"):
         load_raw_benchmark_csv(tmp_path / "missing.csv")
+
+
+def test_summary_statistics_and_throughput_come_from_raw_samples(tmp_path) -> None:
+    metadata = {
+        "git_commit": "c" * 40,
+        "gpu_name": "fixture GPU",
+        "compute_capability": "9.0",
+        "pytorch_version": "fixture torch",
+        "cuda_version": "fixture CUDA",
+        "timestamp": "2026-08-20T00:00:00+00:00",
+    }
+    raw = raw_benchmark_records(
+        metadata=metadata,
+        implementation_description="synthetic fixture only",
+        sequence_length=2,
+        rows=4,
+        columns=2,
+        dtype="float32",
+        warmups=1,
+        iterations=4,
+        samples_us=[1.0, 2.0, 3.0, 4.0],
+    )
+
+    summaries = summarize_raw_records(
+        [{key: str(value) for key, value in record.items()} for record in raw]
+    )
+
+    assert len(summaries) == 1
+    summary = summaries[0]
+    assert summary["median_us"] == 2.5
+    assert summary["p25_us"] == 1.75
+    assert summary["p75_us"] == 3.25
+    assert summary["elements_per_second"] == 3_200_000.0
+
+    output_path = tmp_path / "summary.csv"
+    write_summary_csv(output_path, summaries)
+    with output_path.open(newline="", encoding="utf-8") as output_file:
+        saved = list(csv.DictReader(output_file))
+    assert tuple(saved[0]) == SUMMARY_FIELDS
+    assert saved[0]["git_commit"] == "c" * 40
+
+
+def test_percentile_rejects_empty_samples() -> None:
+    with pytest.raises(ValueError, match="empty"):
+        percentile([], 0.5)
