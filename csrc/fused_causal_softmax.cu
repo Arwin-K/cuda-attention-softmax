@@ -11,6 +11,10 @@
 namespace {
 
 constexpr int kThreadsPerBlock = 256;
+static_assert(
+    kThreadsPerBlock > 0 &&
+        (kThreadsPerBlock & (kThreadsPerBlock - 1)) == 0,
+    "shared-memory tree reduction requires a power-of-two block size");
 
 // A CUDA kernel is device code launched across a grid of thread blocks. The
 // grid now contains one block for each softmax row, so blockIdx.x identifies
@@ -31,19 +35,22 @@ __global__ void fused_causal_softmax_kernel(
   // every sequence_length rows. The modulo restores that position so future
   // keys can be excluded without allocating a separate mask tensor.
   const int64_t query_position = row % sequence_length;
+  const int64_t allowed_columns = query_position + 1;
   const int64_t row_offset = row * sequence_length;
+  const int64_t thread_column = static_cast<int64_t>(threadIdx.x);
+  const int64_t column_stride = static_cast<int64_t>(blockDim.x);
 
   // Threads advance through the row in blockDim.x-sized strides. Every column
   // is owned by exactly one thread, and neighboring threads initially access
   // neighboring global-memory addresses, which is the pattern needed for
   // coalescing when the hardware combines their memory transactions.
-  for (int64_t column = threadIdx.x; column <= query_position;
-       column += blockDim.x) {
+  for (int64_t column = thread_column; column < allowed_columns;
+       column += column_stride) {
     probabilities[row_offset + column] = scores[row_offset + column] * scale;
   }
-  for (int64_t column = query_position + 1 + threadIdx.x;
+  for (int64_t column = allowed_columns + thread_column;
        column < sequence_length;
-       column += blockDim.x) {
+       column += column_stride) {
     probabilities[row_offset + column] = 0.0f;
   }
 
@@ -55,8 +62,8 @@ __global__ void fused_causal_softmax_kernel(
   // per-thread storage. Each thread reduces only its strided subset, producing
   // one partial maximum that is ready for block-wide combination.
   float thread_maximum = -CUDART_INF_F;
-  for (int64_t column = threadIdx.x; column <= query_position;
-       column += blockDim.x) {
+  for (int64_t column = thread_column; column < allowed_columns;
+       column += column_stride) {
     thread_maximum =
         fmaxf(thread_maximum, probabilities[row_offset + column]);
   }
@@ -94,8 +101,8 @@ __global__ void fused_causal_softmax_kernel(
   // subtraction bounds the largest exponential at one while preserving the
   // mathematical softmax result.
   float thread_exponential_sum = 0.0f;
-  for (int64_t column = threadIdx.x; column <= query_position;
-       column += blockDim.x) {
+  for (int64_t column = thread_column; column < allowed_columns;
+       column += column_stride) {
     const int64_t index = row_offset + column;
     const float shifted_value = probabilities[index] - row_maximum;
     const float exponential = expf(shifted_value);
@@ -119,8 +126,8 @@ __global__ void fused_causal_softmax_kernel(
   // The same strided ownership used for loads and exponentials now distributes
   // final writeback. Each allowed probability is divided exactly once, while
   // no thread touches the masked zeros staged before the reductions.
-  for (int64_t column = threadIdx.x; column <= query_position;
-       column += blockDim.x) {
+  for (int64_t column = thread_column; column < allowed_columns;
+       column += column_stride) {
     probabilities[row_offset + column] /= exponential_sum;
   }
 

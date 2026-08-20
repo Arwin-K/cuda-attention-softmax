@@ -35,6 +35,7 @@ IRREGULAR_SEQUENCE_LENGTHS = (
 )
 STRESS_MAGNITUDES = (10.0, 100.0, 1000.0)
 STRESS_SEQUENCE_LENGTHS = (31, 128, 511)
+ROW_WRAP_SHAPES = ((1, 31), (30, 31), (31, 31), (32, 31), (260, 257))
 
 
 def _cuda_test_unavailable_reason() -> str | None:
@@ -151,6 +152,22 @@ def test_cuda_operator_supports_irregular_sequence_lengths(
     generator = torch.Generator(device="cuda").manual_seed(sequence_length)
     scores = torch.randn(
         sequence_length,
+        sequence_length,
+        generator=generator,
+        device="cuda",
+    )
+
+    _assert_cuda_matches_reference(scores, scale=0.125)
+
+
+@pytest.mark.parametrize(("rows", "sequence_length"), ROW_WRAP_SHAPES)
+def test_cuda_operator_handles_partial_and_wrapped_query_cycles(
+    rows: int,
+    sequence_length: int,
+) -> None:
+    generator = torch.Generator(device="cuda").manual_seed(rows + sequence_length)
+    scores = torch.randn(
+        rows,
         sequence_length,
         generator=generator,
         device="cuda",

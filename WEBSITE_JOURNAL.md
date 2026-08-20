@@ -70,7 +70,7 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 055. Completed — `add latency and throughput plotting utilities`: I added CPU-safe summary loading, commit-specific series construction, and lazy noninteractive Matplotlib rendering for median latency and elements per second. Empty or malformed data fails visibly, and no figure is generated without measurements.
 056. Completed with no generated artifact — `generate first optimization comparison figures`: I wired one measured summary CSV to commit-aware latency and throughput outputs and tested the mapping without rendering synthetic results. The project command fails on the missing summary, so no misleading figure was committed.
 057. Completed — `audit global memory access pattern for coalescing`: I traced every global load/store and confirmed that active neighboring lanes address neighboring FP32 columns on each stride. I also recorded partial-warp and row-alignment caveats and left transaction efficiency unmeasured pending Nsight.
-058. I hardened the implementation for arbitrary sequence lengths rather than relying on power-of-two assumptions.
+058. Completed — `tighten arbitrary sequence-length boundary handling`: I made the reduction's power-of-two block assumption a compile-time invariant while expressing row work with exclusive 64-bit bounds independent of sequence width. New cases cover partial and wrapped flattened-query cycles; they await CUDA execution.
 059. I documented the block-reduction design as a chain from evidence to hypothesis to measured outcome.
 060. I stabilized the block-parallel state as a reproducible Git milestone.
 061. I introduced the vocabulary and helpers for reasoning about warps, lanes, and warp IDs.
