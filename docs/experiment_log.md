@@ -231,3 +231,122 @@ No performance or profiling experiment has been recorded yet.
   add summary/plotting support, audit coalescing and arbitrary-width behavior,
   document the evidence, stabilize the block milestone, and begin warp/lane
   reduction foundations through Commit 064.
+
+## Block-parallel CUDA validation attempt — Commit 050
+
+- **Date/time:** 2026-08-20, America/Toronto
+- **Git commit:** Commit 050 — `validate block-parallel kernel against PyTorch`
+- **Hardware:** Apple Silicon arm64; no NVIDIA GPU
+- **Software:** Darwin, Python 3.11.15, PyTorch 2.13.0 without CUDA
+- **Research question:** Does the complete one-block-per-row implementation
+  match the PyTorch reference across normal, stress, and irregular cases?
+- **HYPOTHESIS:** Cooperative maximum, denominator, and normalization work
+  preserve the reference semantics within the fixed FP32 tolerances.
+- **Independent variable:** Intended custom block-parallel CUDA output versus
+  PyTorch reference output
+- **Controlled variables:** Existing deterministic inputs, sequence lengths,
+  scales, FP32 dtype, `rtol=1e-5`, and `atol=1e-6`
+- **Metrics:** Closeness, row sums, non-negativity, exact causal zeros,
+  finiteness, shape, dtype, and device
+- **Command/script:** `.venv/bin/python -m pytest -q
+  tests/test_cuda_operator.py -rs`
+- **Raw result file:** None; test console only
+- **MEASUREMENT:** Every CUDA case was skipped because an NVIDIA device was
+  unavailable. No custom output was produced or compared.
+- **INTERPRETATION:** Test coverage and platform gating are prepared, but block-
+  parallel CUDA correctness is not established.
+- **Limitations:** No CUDA build, kernel launch, device synchronization, or
+  numerical comparison occurred.
+- **NEXT EXPERIMENT:** Build the extension on NVIDIA Linux and rerun this exact
+  suite before accepting benchmark output.
+- **Student reflection:** `TODO(student): Explain why a collected skip is not a
+  passed CUDA correctness test.`
+
+## Row-serial versus block-parallel benchmark attempt — Commit 053
+
+- **Date/time:** 2026-08-20, America/Toronto
+- **Git commit:** Commit 053 — `benchmark block-parallel kernel against baseline commit`
+- **Hardware:** Apple Silicon arm64; no NVIDIA GPU
+- **Software:** Darwin, Python 3.11.15, PyTorch 2.13.0 without CUDA
+- **Research question:** How does the complete block-parallel kernel compare
+  with the historical row-serial implementation under identical controls?
+- **HYPOTHESIS:** Block cooperation should benefit longer rows, with a possible
+  short-row penalty from barriers and reduction overhead.
+- **Independent variable:** Kernel implementation Git commit
+- **Controlled variables:** Required shapes, FP32, `batch_heads=8`, seeds,
+  warmups, iterations, GPU/software environment, and timed boundaries
+- **Metrics:** Intended median latency, quartiles, throughput, and speedup
+- **Command/script:** `.venv/bin/python benchmarks/summarize_results.py
+  --baseline results/raw/row_serial.csv --candidate
+  results/raw/block_parallel.csv`
+- **Raw result file:** None for either implementation
+- **MEASUREMENT:** Comparison preflight reported the missing baseline artifact
+  and exited before calculating any statistic.
+- **INTERPRETATION:** The comparison remains unavailable; no crossover or
+  optimization claim is supported.
+- **Limitations:** Neither implementation has a CUDA correctness pass or raw
+  timing artifact from a common NVIDIA environment.
+- **NEXT EXPERIMENT:** On one NVIDIA host, measure the historical row-serial
+  commit and the block-parallel commit with the same harness, then rerun the
+  preflight and summary.
+- **Student reflection:** `TODO(student): Explain why both Git revision and
+  controlled environment must match a before/after comparison.`
+
+## Block-parallel stabilization audit — Commit 060
+
+- **Date/time:** 2026-08-20, America/Toronto
+- **Git commit:** Commit 060 — `stabilize block-parallel implementation`
+- **Hardware:** Apple Silicon arm64; no NVIDIA GPU
+- **Software:** Darwin, Python 3.11.15, PyTorch 2.13.0 without CUDA
+- **Research question:** Is the complete block-parallel source milestone
+  internally coherent and locally reproducible before warp work begins?
+- **HYPOTHESIS:** CPU-safe tests, static checks, imports, and artifact guards
+  should pass while all CUDA-only work remains visibly skipped or unavailable.
+- **Independent variable:** None; milestone regression only
+- **Controlled variables:** Day 4 source through Commit 060 and project virtual
+  environment
+- **Metrics:** Test pass/skip counts, syntax checks, Git status, and artifact
+  presence
+- **Command/script:** `./scripts/run_tests.sh` plus Python/shell syntax checks
+  and inspection of `results/raw`, `results/summary`, and `figures`
+- **Raw result file:** None
+- **MEASUREMENT:** 74 tests passed and 43 skipped. Only tracked `.gitkeep`
+  placeholders exist in result/figure directories. No CUDA CSV or figure exists.
+- **INTERPRETATION:** The repository milestone is locally stable. This does not
+  establish CUDA compilation, correctness, or performance.
+- **Limitations:** Every custom-device test skipped and no NVIDIA toolchain was
+  exercised.
+- **NEXT EXPERIMENT:** Build and validate this exact milestone on NVIDIA Linux;
+  preserve its raw CSV before replacing shared trees with warp reductions.
+- **Student reflection:** `TODO(student): Define what “stable” means here
+  without treating skipped GPU work as success.`
+
+## Day 4 checkpoint — Commit 064
+
+- **What was implemented:** Parallel final normalization; expanded normal,
+  stress, odd-width, block-boundary, and flattened-row CUDA gates; an artifact
+  preflight for matched historical comparisons; median, p25, p75, and throughput
+  aggregation; commit-aware latency/throughput plotting; evidence-only figure
+  generation; coalescing and boundary audits; and a stabilized shared-tree block
+  milestone. Warp/lane helpers now support shuffle maximum and sum reductions.
+  Maximum uses one shared value per warp and a first-warp final reduction. Sum
+  reduction is warp-local but deliberately retains a padded 256-entry shared
+  tree until Commit 065.
+- **What was actually measured:** No CUDA compilation, output, latency,
+  throughput, speedup, memory metric, or profiler result was measured. The
+  comparison and figure commands stopped on missing raw/summary artifacts. On
+  Apple Silicon, the final applicable suite reports 74 passed and 43 CUDA-only
+  skips; Python and shell syntax checks pass. Test duration is not a benchmark.
+- **What I learned:** `TODO(student): Explain how a shuffle reduction moves
+  register values within one warp and why a cross-warp bridge is still needed.`
+- **What surprised me:** `TODO(student): Record your own observation; no
+  personal reflection has been inferred.`
+- **Unresolved questions:** Whether the CUDA source compiles; whether changed
+  reduction order satisfies fixed tolerances; whether warp communication lowers
+  latency; how much shared memory/synchronization actually changes; and where
+  block or warp strategies cross over by sequence length.
+- **Next day:** Compact warp sums, remove the remaining full shared-tree paths,
+  validate/stress the complete warp kernel, verify fusion, attempt matched warp
+  benchmarking, expose block size as an experimental variable, measure
+  128/256/512 only on NVIDIA hardware, choose from evidence, and add strong
+  `torch.compile` comparisons through Commit 080.

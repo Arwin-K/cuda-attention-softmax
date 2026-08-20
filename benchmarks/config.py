@@ -12,6 +12,9 @@ DEFAULT_WARMUPS = 25
 DEFAULT_ITERATIONS = 100
 DEFAULT_SEED = 2026
 
+# Aggregate summaries are derived from raw per-iteration CUDA-event samples;
+# they are never entered manually into this configuration.
+
 
 @dataclass(frozen=True)
 class SoftmaxBenchmarkConfig:

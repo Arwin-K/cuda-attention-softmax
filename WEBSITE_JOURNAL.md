@@ -61,22 +61,22 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 
 ## Day 4 — Validating block parallelism and introducing warp communication
 
-049. I let threads write their own normalized probabilities in parallel while retaining exact causal masking.
-050. I treated complete PyTorch comparison as a gate before any performance conclusion about the block design.
-051. I tested whether changed reduction order remains numerically stable at large magnitudes.
-052. I tested whether partial work assignment remains correct for odd widths.
-053. I measured the block-parallel design against the recorded row-serial baseline under the same protocol.
-054. I added median, quartiles, and throughput so performance means more than one timing number.
-055. I built plotting utilities that derive figures from stored CSV data.
-056. I generated the first historical comparison figure only from real baseline and block-parallel measurements.
-057. I audited whether the thread-to-column mapping supports coalesced global-memory access, without overstating its effect.
-058. I hardened the implementation for arbitrary sequence lengths rather than relying on power-of-two assumptions.
-059. I documented the block-reduction design as a chain from evidence to hypothesis to measured outcome.
-060. I stabilized the block-parallel state as a reproducible Git milestone.
-061. I introduced the vocabulary and helpers for reasoning about warps, lanes, and warp IDs.
-062. I reduced maxima within each warp using shuffle instructions and register exchange.
-063. I combined one maximum per warp through a compact shared-memory bridge.
-064. I applied the same warp-level idea to the softmax denominator and recorded the fourth-day checkpoint.
+049. Completed — `parallelize final probability normalization`: I removed thread 0's serial division loop and gave every thread strided ownership of its final allowed probabilities. Masked entries remain exact zeros and stay outside both reductions; runtime CUDA correctness is still pending NVIDIA execution.
+050. Completed with unavailable CUDA evidence — `validate block-parallel kernel against PyTorch`: I strengthened every reusable GPU comparison with shape, dtype, device, non-negativity, exact masking, finiteness, row-sum, and fixed-tolerance checks. All CUDA cases skipped locally, so the validation gate is prepared but not passed.
+051. Completed with pending GPU execution — `stress test block-parallel kernel on large magnitudes`: I expanded random ×10/×100/×1000 cases across widths 31, 128, and 511 and moved structured extremes to width 127, exercising idle threads and multi-stride work without changing the fixed tolerances. The cases skip locally.
+052. Completed with pending GPU execution — `stress test block-parallel kernel on odd sequence lengths`: I extended the CUDA edge matrix to tiny widths and 255/257, 511/513, 768, and 1023/1025 boundaries, covering idle threads and partial strided passes around the 256-thread block size. All cases collect but skip locally.
+053. Completed with missing artifacts — `benchmark block-parallel kernel against baseline commit`: I added a preflight requiring two nonempty, schema-valid, different-commit CSVs with identical workloads and environments. The real comparison stopped at the absent row-serial artifact, so no statistic or speedup was produced.
+054. Completed — `add throughput calculation and benchmark summary statistics`: I added raw-sample aggregation for median, interpolated p25/p75, and `rows × columns / median_seconds`, preserving all Git/hardware/software provenance in the summary CSV. Synthetic fixture tests verify the math; no project measurement was created.
+055. Completed — `add latency and throughput plotting utilities`: I added CPU-safe summary loading, commit-specific series construction, and lazy noninteractive Matplotlib rendering for median latency and elements per second. Empty or malformed data fails visibly, and no figure is generated without measurements.
+056. Completed with no generated artifact — `generate first optimization comparison figures`: I wired one measured summary CSV to commit-aware latency and throughput outputs and tested the mapping without rendering synthetic results. The project command fails on the missing summary, so no misleading figure was committed.
+057. Completed — `audit global memory access pattern for coalescing`: I traced every global load/store and confirmed that active neighboring lanes address neighboring FP32 columns on each stride. I also recorded partial-warp and row-alignment caveats and left transaction efficiency unmeasured pending Nsight.
+058. Completed — `tighten arbitrary sequence-length boundary handling`: I made the reduction's power-of-two block assumption a compile-time invariant while expressing row work with exclusive 64-bit bounds independent of sequence width. New cases cover partial and wrapped flattened-query cycles; they await CUDA execution.
+059. Completed — `document block reduction design and measured behavior`: I linked every block-mapping/reduction commit into one design narrative and added a claim-status table. Source structure is established; CUDA correctness, coalescing efficiency, latency, throughput, and crossover behavior remain explicitly unmeasured.
+060. Completed — `stabilize block-parallel implementation`: I audited the complete block source, local regression, imports, syntax, and artifact directories. The repository is reproducible on Mac with 74 passes and 43 expected skips, but no CUDA CSV, figure, correctness result, or speedup exists.
+061. Completed — `add warp and lane helper utilities to CUDA code`: I defined the 32-thread warp, eight warps per 256-thread block, compile-time divisibility, and device helpers for lane and warp IDs. The active shared-memory reductions are unchanged, so this is vocabulary and infrastructure only.
+062. Completed — `implement warp-level maximum reduction with shuffle operations`: I added synchronized register shuffles at offsets 16/8/4/2/1, followed by a lane-0 broadcast. Each lane temporarily publishes its warp maximum into the existing full shared tree, preserving a staged transition before compact cross-warp combination.
+063. Completed — `combine warp maxima through compact shared memory`: lane 0 of each of eight warps now publishes one maximum; the first warp loads those eight values, fills unused lanes with negative infinity, performs a second shuffle reduction, and broadcasts the block maximum through shared slot zero.
+064. Completed — `implement warp-level sum reduction with shuffle operations`: each warp now reduces its register-local denominator contributions with shuffle-down operations; lane 0 publishes the sum while other lanes publish zero into the still-padded shared tree. The Day 4 checkpoint records compact maximum as complete and compact sum as pending.
 
 ## Day 5 — Completing warp reductions and tuning the fused kernel
 
