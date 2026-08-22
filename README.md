@@ -78,7 +78,7 @@ partial or fabricated artifacts.
 
 ## Google Colab experiment notebook
 
-[![Open the research notebook in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Arwin-K/cuda-attention-softmax/blob/day-five-pt-2/notebooks/04_colab_research_experiments.ipynb)
+[![Open the research notebook in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Arwin-K/cuda-attention-softmax/blob/main/notebooks/04_colab_research_experiments.ipynb)
 
 The [Colab experiment guide](docs/colab_experiments.md) explains the exact run,
 recovery, evidence-validation, and ZIP handoff workflow. The notebook connects

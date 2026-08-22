@@ -75,7 +75,7 @@ def test_notebook_is_connected_to_repository_without_embedded_secrets() -> None:
     text = notebook_text(load_notebook())
 
     assert 'REPO_URL = "https://github.com/Arwin-K/cuda-attention-softmax.git"' in text
-    assert 'BRANCH = "day-five-pt-2"' in text
+    assert 'BRANCH = "main"' in text
     assert "scripts/build_extension.sh" in text
     assert "benchmarks/benchmark_softmax.py" in text
     assert "tests/test_cuda_operator.py" in text
@@ -107,3 +107,5 @@ def test_notebook_names_required_evidence_and_integrity_guards() -> None:
     assert "NSIGHT COMPUTE UNAVAILABLE IN THIS COLAB ENVIRONMENT" in text
     assert 'ARTIFACT_POLICY = "ERROR"' in text
     assert "Do not run custom benchmarks" in text
+    assert "apply_historical_toolchain_compatibility" in text
+    assert "historical_{stage}_compatibility.json" in text

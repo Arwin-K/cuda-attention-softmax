@@ -3,6 +3,9 @@
 #include <c10/cuda/CUDAException.h>
 #include <cuda.h>
 #include <cuda_runtime.h>
+// CUDART_INF_F is declared here. Including its defining header directly avoids
+// depending on CUDA-version-specific transitive includes from cuda_runtime.h.
+#include <math_constants.h>
 #include <limits>
 #include <torch/extension.h>
 

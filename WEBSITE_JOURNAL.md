@@ -160,10 +160,14 @@ changing the numbering or meaning of Commits 001–112.
   run and recovery procedure and added CPU-safe structural tests that reject
   stale notebook generation, saved outputs, embedded secrets, missing stages,
   and absent evidence-integrity guards.
+- Completed — `fix CUDA 12.8 infinity constant include`: The first T4 build
+  reached NVCC and exposed an undefined `CUDART_INF_F`. I added its defining
+  header, guarded the dependency with a static test, and made historical builds
+  record the same header-only compatibility adjustment instead of hiding it.
 
-No NVIDIA experiment was executed while creating these commits. CUDA
+The first NVIDIA compilation attempt failed before a kernel launched. CUDA
 correctness, performance, profiler observations, and hypothesis outcomes remain
-pending the generated notebook's execution on an NVIDIA Colab runtime.
+pending a successful rebuild and correctness gate in the generated notebook.
 
 ## Completion template
 
