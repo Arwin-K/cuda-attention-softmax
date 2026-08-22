@@ -24,6 +24,7 @@ from benchmarks.summarize_results import (
     select_launch_configuration,
     summarize_raw_records,
     validate_comparison_pair,
+    validate_framework_comparison,
     write_summary_csv,
 )
 from cuda_attention.benchmark import (
@@ -254,6 +255,75 @@ def test_comparison_preflight_requires_matching_controls_and_distinct_commits(
 def test_comparison_preflight_rejects_missing_artifact(tmp_path) -> None:
     with pytest.raises(FileNotFoundError, match="does not exist"):
         load_raw_benchmark_csv(tmp_path / "missing.csv")
+
+
+def test_framework_preflight_requires_equal_work_for_all_three_paths() -> None:
+    metadata = {
+        "git_commit": "f" * 40,
+        "gpu_name": "fixture GPU",
+        "compute_capability": "9.0",
+        "pytorch_version": "fixture torch",
+        "cuda_version": "fixture CUDA",
+        "timestamp": "2026-08-22T00:00:00+00:00",
+    }
+    descriptions = (
+        ("PyTorch eager scale + causal mask + softmax", None, 0),
+        ("torch.compile scale + causal mask + softmax", None, 1),
+        (
+            "warp-reduction custom CUDA fused scale + mask + softmax; block_size=256",
+            256,
+            0,
+        ),
+    )
+    records = []
+    for description, block_size, compile_warmups in descriptions:
+        records.extend(
+            raw_benchmark_records(
+                metadata=metadata,
+                implementation_description=description,
+                sequence_length=128,
+                rows=1024,
+                columns=128,
+                dtype="float32",
+                warmups=2,
+                iterations=1,
+                samples_us=[1.0],
+                launch_block_size=block_size,
+                compile_warmups=compile_warmups,
+            )
+        )
+    string_records = [
+        {key: str(value) for key, value in record.items()} for record in records
+    ]
+
+    report = validate_framework_comparison(string_records)
+
+    assert report["frameworks"] == ["compiled", "custom", "eager"]
+    assert report["controlled_cases"] == 1
+
+
+def test_framework_preflight_rejects_incomplete_path_set() -> None:
+    records = [
+        {
+            "git_commit": "f" * 40,
+            "implementation_description": "PyTorch eager scale + causal mask + softmax",
+            "sequence_length": "128",
+            "rows": "1024",
+            "columns": "128",
+            "dtype": "float32",
+            "launch_block_size": "",
+            "compile_warmups": "0",
+            "warmups": "2",
+            "iterations": "1",
+            "gpu_name": "fixture GPU",
+            "compute_capability": "9.0",
+            "pytorch_version": "fixture torch",
+            "cuda_version": "fixture CUDA",
+        }
+    ]
+
+    with pytest.raises(ValueError, match="eager, compiled, and custom"):
+        validate_framework_comparison(records)
 
 
 def test_summary_statistics_and_throughput_come_from_raw_samples(tmp_path) -> None:

@@ -93,7 +93,7 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 075. Completed — `select launch configuration from measured results`: no selection was possible because the 128/256/512 CUDA artifacts do not exist. I added a complete-data selector based on median per-shape relative latency and left 256 explicitly provisional; synthetic tests validate the policy, not kernel performance.
 076. Completed — `add torch compile softmax baseline`: the benchmark now offers a torch.compile path over the exact eager scale-mask-softmax expression, and a CPU-safe compiled semantic check passes. CUDA compilation behavior and latency remain unmeasured.
 077. Completed — `separate compile warmup from steady-state measurements`: each compiled shape now has an explicit untimed first call, a correctness check, ordinary CUDA warmups, and only then event-timed samples. Raw provenance distinguishes one compile warmup from zero on eager/custom paths.
-078. I compared eager PyTorch, compiled PyTorch, and the custom CUDA route on equal work.
+078. Completed — `compare custom CUDA against eager and compiled PyTorch`: one benchmark mode now emits all three paths, and analysis rejects any workload missing eager, compiled, or custom samples. The local CUDA guard produced no CSV, so this commit establishes comparison integrity rather than a winner.
 079. I documented the launch-tuning and framework results with their source artifacts and limitations.
 080. I stabilized the tuned kernel and captured the fifth-day checkpoint.
 

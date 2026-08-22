@@ -107,6 +107,70 @@ def validate_comparison_pair(
     }
 
 
+def _framework_name(description: str) -> str:
+    if description.startswith("PyTorch eager"):
+        return "eager"
+    if description.startswith("torch.compile"):
+        return "compiled"
+    if description.startswith("warp-reduction custom CUDA"):
+        return "custom"
+    raise ValueError(f"unrecognized framework implementation: {description}")
+
+
+def validate_framework_comparison(
+    records: list[dict[str, str]],
+) -> dict[str, object]:
+    """Require eager, compiled, and custom samples for every controlled case."""
+
+    expected_frameworks = {"eager", "compiled", "custom"}
+    commits = {record["git_commit"] for record in records}
+    environments = {
+        tuple(
+            record[field]
+            for field in (
+                "gpu_name",
+                "compute_capability",
+                "pytorch_version",
+                "cuda_version",
+            )
+        )
+        for record in records
+    }
+    if len(commits) != 1 or len(environments) != 1:
+        raise ValueError("framework comparison requires one Git and GPU environment")
+
+    case_fields = (
+        "sequence_length",
+        "rows",
+        "columns",
+        "dtype",
+        "warmups",
+        "iterations",
+    )
+    by_case: dict[tuple[str, ...], set[str]] = {}
+    for record in records:
+        framework = _framework_name(record["implementation_description"])
+        if framework == "compiled" and record["compile_warmups"] != "1":
+            raise ValueError("compiled framework rows require compile_warmups=1")
+        if framework != "compiled" and record["compile_warmups"] != "0":
+            raise ValueError("only compiled framework rows may have compile warmups")
+        if framework == "custom" and not record["launch_block_size"]:
+            raise ValueError("custom framework rows require a launch block size")
+        if framework != "custom" and record["launch_block_size"]:
+            raise ValueError("framework baselines must not record a CUDA block size")
+        case = tuple(record[field] for field in case_fields)
+        by_case.setdefault(case, set()).add(framework)
+
+    if not by_case or any(found != expected_frameworks for found in by_case.values()):
+        raise ValueError("every workload must contain eager, compiled, and custom samples")
+    return {
+        "git_commit": next(iter(commits)),
+        "controlled_cases": len(by_case),
+        "frameworks": sorted(expected_frameworks),
+        "status": "ready_for_summary",
+    }
+
+
 def percentile(samples: list[float], fraction: float) -> float:
     """Return a linearly interpolated percentile over finite timing samples."""
 
@@ -254,16 +318,26 @@ def select_launch_configuration(
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--baseline", type=Path, required=True)
-    parser.add_argument("--candidate", type=Path, required=True)
+    parser.add_argument("--baseline", type=Path)
+    parser.add_argument("--candidate", type=Path)
+    parser.add_argument("--frameworks", type=Path)
     parser.add_argument("--output", type=Path, required=True)
     arguments = parser.parse_args()
 
     try:
-        baseline = load_raw_benchmark_csv(arguments.baseline)
-        candidate = load_raw_benchmark_csv(arguments.candidate)
-        report = validate_comparison_pair(baseline, candidate)
-        summaries = summarize_raw_records(baseline) + summarize_raw_records(candidate)
+        if arguments.frameworks is not None:
+            if arguments.baseline is not None or arguments.candidate is not None:
+                raise ValueError("use --frameworks alone or --baseline/--candidate")
+            framework_records = load_raw_benchmark_csv(arguments.frameworks)
+            report = validate_framework_comparison(framework_records)
+            summaries = summarize_raw_records(framework_records)
+        else:
+            if arguments.baseline is None or arguments.candidate is None:
+                raise ValueError("historical comparison requires --baseline and --candidate")
+            baseline = load_raw_benchmark_csv(arguments.baseline)
+            candidate = load_raw_benchmark_csv(arguments.candidate)
+            report = validate_comparison_pair(baseline, candidate)
+            summaries = summarize_raw_records(baseline) + summarize_raw_records(candidate)
         write_summary_csv(arguments.output, summaries)
     except (FileNotFoundError, ValueError) as error:
         print(str(error), file=sys.stderr)

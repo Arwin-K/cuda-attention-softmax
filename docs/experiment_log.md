@@ -514,3 +514,31 @@ No performance or profiling experiment has been recorded yet.
 - **Student reflection:** `TODO(student): Explain why normalizing within each
   sequence length prevents the longest workloads from deciding the result by
   scale alone.`
+
+## Eager versus compiled versus custom comparison attempt — Commit 078
+
+- **Date/time:** 2026-08-22, America/Toronto
+- **Git commit:** Commit 078 — `compare custom CUDA against eager and compiled PyTorch`
+- **Hardware/software:** Apple Silicon arm64; PyTorch 2.13.0 without CUDA
+- **Research question:** How does the custom fused operator compare with eager
+  composition and `torch.compile` for identical causal scaled-softmax work?
+- **HYPOTHESIS:** Compilation may narrow the eager/custom gap by reducing
+  framework dispatches or fusing operations, but the outcome is GPU- and
+  shape-dependent.
+- **Independent variable:** Eager, compiled, or custom implementation path
+- **Controlled variables:** Identical deterministic inputs, causal semantics,
+  scale, FP32, shape registry, one Git/GPU environment, warmups, iterations,
+  allocations outside timing, and compile startup outside steady state
+- **Metrics:** Median, p25, p75 microseconds and elements/second
+- **Command/script:** `.venv/bin/python benchmarks/benchmark_softmax.py
+  --implementation all --output results/raw/framework_comparison.csv`
+- **Raw result file:** None
+- **MEASUREMENT:** The CUDA guard rejected the benchmark. Framework-summary
+  preflight then rejected the absent raw CSV; neither artifact was created.
+- **INTERPRETATION:** No framework ranking or speedup is supported. CPU tests
+  establish comparison-schema behavior and small-case compiled semantics only.
+- **Limitations:** No CUDA compiler backend or custom extension ran.
+- **NEXT EXPERIMENT:** Build and pass CUDA correctness in Colab, run the full
+  command once, then use `--frameworks` summary preflight before interpreting.
+- **Student reflection:** `TODO(student): Explain why eager, compiled, and custom
+  paths must normalize the same scores with the same causal rule.`
