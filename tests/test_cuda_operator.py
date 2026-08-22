@@ -67,6 +67,18 @@ def test_cuda_source_keeps_scale_mask_and_softmax_in_one_kernel() -> None:
 
 
 @pytest.mark.cuda_static
+def test_cuda_source_includes_the_header_for_cuda_infinity_constants() -> None:
+    source_path = Path(__file__).resolve().parents[1] / "csrc" / "fused_causal_softmax.cu"
+    source = source_path.read_text(encoding="utf-8")
+
+    # CUDA 12.8 does not make CUDART_INF_F visible through cuda_runtime.h in
+    # every compilation path. Include its defining header explicitly so the
+    # reduction identity does not depend on a transitive include.
+    assert "CUDART_INF_F" in source
+    assert "#include <math_constants.h>" in source
+
+
+@pytest.mark.cuda_static
 @pytest.mark.parametrize("block_size", [0, 64, 129, 1024, True])
 def test_python_dispatch_rejects_unsupported_block_sizes(block_size: int) -> None:
     with pytest.raises(ValueError, match="128, 256, or 512"):

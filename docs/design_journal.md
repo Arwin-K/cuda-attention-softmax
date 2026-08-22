@@ -782,3 +782,65 @@ length and does the aggregate choice hide meaningful shape dependence?
 ### Git commit
 
 Commit 079 — `document launch tuning and framework comparison results`
+
+## CUDA 12.8 math-constant include compatibility
+
+### Problem
+
+The first real Colab build reached NVCC but failed because the active kernel
+used `CUDART_INF_F` without directly including the CUDA header that defines it.
+Relying on `cuda_runtime.h` to expose that constant transitively was not
+portable to the Colab CUDA 12.8 compilation path.
+
+### Existing evidence
+
+On a Tesla T4 with compute capability 7.5, PyTorch 2.11.0+cu128, and NVCC 12.8,
+the C++ binding compiled successfully. NVCC then reported
+`identifier "CUDART_INF_F" is undefined` at the thread-local maximum identity.
+The build returned code 1, so the notebook correctly blocked correctness and
+performance sections.
+
+### Hypothesis
+
+Including `math_constants.h` explicitly will make the infinity identity visible
+without changing any kernel operation, launch parameter, memory access, or
+numerical tolerance.
+
+### Proposed change
+
+Add the defining header to the active CUDA source and make that dependency a
+CPU-safe source contract. Because every configured historical implementation
+uses the same constant, apply the identical header-only adjustment during those
+temporary checkouts and preserve its exact diff as artifact metadata.
+
+### Implementation
+
+The active source now includes `math_constants.h`. The Colab historical stage
+records the base commit, reason, exact Git diff, and whether the compatibility
+include was applied; benchmark descriptions disclose the adjustment. The
+temporary source is restored after each historical stage.
+
+### Correctness result
+
+Local static and notebook-integrity checks can verify the dependency and
+workflow. A successful NVIDIA rebuild and the unchanged fixed-tolerance CUDA
+correctness matrix remain required.
+
+### Performance result
+
+Not measured. A compilation repair has no performance result.
+
+### Interpretation
+
+The failed build exposed an include dependency, not a kernel-algorithm error.
+Historical measurements remain attributable to their base commits only when
+the compatibility adjustment is disclosed alongside them.
+
+### Next question
+
+Does the updated `main` revision compile and pass every correctness family on
+the same T4 before any launch or framework timing begins?
+
+### Git commit
+
+Supplemental compatibility fix — hash recorded by Git history after commit.

@@ -599,3 +599,36 @@ No performance or profiling experiment has been recorded yet.
   `cuda_softmax_research_artifacts.zip` before interpreting results.
 - **Student reflection:** `TODO(student): After the Colab run, explain which
   controls made comparisons fair and which limitations remain.`
+
+## First NVIDIA extension build attempt — supplemental Colab run
+
+- **Date/time:** 2026-08-22T16:46:28Z
+- **Git commit:** `e7ee590f16135bb9543a5d84ba5f16b5d3b63a09`
+- **Hardware:** NVIDIA Tesla T4, compute capability 7.5
+- **Software:** Linux x86_64, Python 3.13.15, PyTorch 2.11.0+cu128, PyTorch CUDA
+  12.8, NVCC 12.8, g++ 11.4
+- **Research question:** Can the merged CUDA extension compile in the Colab
+  environment before numerical and performance experiments begin?
+- **HYPOTHESIS:** The opt-in extension build will compile for `sm_75` using the
+  CUDA toolkit supplied by Colab.
+- **Independent variable:** Colab CUDA 12.8 build environment
+- **Controlled variables:** Git commit, single primary CUDA source, T4 runtime,
+  PyTorch installation, and repository build script
+- **Metrics:** Build return code and extension import readiness
+- **Command/script:** `bash scripts/build_extension.sh`
+- **Raw result file:** Colab artifact `build/build_log.txt`; the user preserved
+  and supplied the log for diagnosis
+- **MEASUREMENT:** Dependency installation returned 0. The C++ binding compiled.
+  NVCC targeted `compute_75`/`sm_75` but returned code 2 for
+  `identifier "CUDART_INF_F" is undefined`; the overall build returned 1 and
+  the extension was not imported.
+- **INTERPRETATION:** The kernel depended on a transitive header include. This
+  is a compilation portability defect, not evidence about numerical correctness
+  or performance.
+- **Limitations:** No kernel launched, so no CUDA correctness, latency,
+  throughput, speedup, or profiling conclusion is supported.
+- **NEXT EXPERIMENT:** Build the committed explicit-header fix in a fresh
+  artifact directory on the T4, then run the full fixed-tolerance correctness
+  gate before benchmarking.
+- **Student reflection:** `TODO(student): Explain why a failed compilation is
+  useful experimental evidence but cannot answer a performance hypothesis.`

@@ -12,12 +12,13 @@ no executed outputs or example measurements.
 
 ## Before opening Colab
 
-Push the supplemental branch:
+The Colab notebook is now merged into `main`. Update the local checkout before
+opening the README badge:
 
 ```bash
-git switch day-five-pt-2
+git switch main
+git pull --ff-only origin main
 git status
-git push -u origin day-five-pt-2
 ```
 
 These are user-authorized supplemental commits. They do not renumber or replace
@@ -27,8 +28,8 @@ the planned Commit 001–112 research roadmap.
 
 1. Open the notebook from GitHub using the README badge.
 2. Select **Runtime → Change runtime type → NVIDIA GPU**.
-3. Review the configuration cell. Keep the repository URL and
-   `day-five-pt-2` branch unless deliberately testing another revision.
+3. Review the configuration cell. Keep the repository URL and `main` branch
+   unless deliberately testing another revision.
 4. Use a new `/content/cuda_softmax_artifacts` directory and leave
    `ARTIFACT_POLICY="ERROR"` for the first run.
 5. Run the notebook from the top in order.
@@ -57,6 +58,16 @@ Restore the artifact directory from Drive, set `ARTIFACT_POLICY="REUSE"`, and
 rerun environment/source/build cells. The notebook refuses reuse when the GPU,
 compute capability, Python, PyTorch, CUDA, or Git commit differs. If they differ,
 start a new artifact directory and rerun the complete matched comparison series.
+
+## CUDA 12.8 compatibility
+
+The active source explicitly includes `math_constants.h` because its maximum
+reduction uses `CUDART_INF_F`. The historical experiment applies that same
+header-only compatibility include to older revisions and writes the exact diff
+to `metadata/historical_<stage>_compatibility.json`. The recorded base Git hash
+still identifies the historical implementation, while the description and
+metadata disclose the toolchain-only adjustment. No kernel instruction,
+workload, tolerance, or timing boundary is changed by this compatibility step.
 
 ## What the notebook does not claim
 

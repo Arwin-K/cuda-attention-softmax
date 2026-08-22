@@ -89,7 +89,7 @@ through hidden edits across many cells.
         code(
             r'''
 REPO_URL = "https://github.com/Arwin-K/cuda-attention-softmax.git"
-BRANCH = "day-five-pt-2"
+BRANCH = "main"
 SOURCE_MODE = "GITHUB"  # "GITHUB" or "ZIP"
 
 WORK_DIR = "/content/cuda-attention-softmax"
@@ -1141,7 +1141,9 @@ tests, benchmarks it in isolated subprocesses, and restores the original branch.
 shared-tree, and warp stages needed to evaluate H1–H3.
 
 **What to expect:** Some historical commits may fail against a newer Colab
-toolchain. Such failures are logged and retained instead of silently omitted.
+toolchain. The notebook applies one recorded header-only compatibility change
+when an old revision uses `CUDART_INF_F` without its defining CUDA header.
+Other failures are logged and retained instead of silently omitted.
 
 **What to save:** Historical raw/summary CSVs and per-stage build/test logs.
 
@@ -1177,6 +1179,49 @@ def verify_historical_commit(stage: str, commit: str) -> str:
         )
     return subject
 
+def apply_historical_toolchain_compatibility(
+    stage: str,
+    commit: str,
+) -> tuple[Path, str, dict[str, Any]]:
+    source_path = work_dir / "csrc/fused_causal_softmax.cu"
+    original_source = source_path.read_text(encoding="utf-8")
+    patched_source = original_source
+    include = "#include <math_constants.h>"
+    applied = "CUDART_INF_F" in original_source and include not in original_source
+    if applied:
+        anchor = "#include <cuda_runtime.h>\n"
+        if anchor not in original_source:
+            raise RuntimeError(
+                f"Cannot apply the recorded CUDA compatibility include to {commit}"
+            )
+        patched_source = original_source.replace(
+            anchor,
+            anchor + include + "\n",
+            1,
+        )
+        source_path.write_text(patched_source, encoding="utf-8")
+    record = {
+        "stage": stage,
+        "base_git_commit": commit,
+        "applied": applied,
+        "file": "csrc/fused_causal_softmax.cu",
+        "change": "insert #include <math_constants.h> after cuda_runtime.h",
+        "reason": (
+            "CUDA 12.8 requires the defining header for CUDART_INF_F; "
+            "kernel instructions and benchmark work are unchanged."
+        ),
+        "git_diff": run_command(
+            ["git", "diff", "--", "csrc/fused_causal_softmax.cu"],
+            cwd=work_dir,
+        ).stdout,
+        "timestamp": utc_now(),
+    }
+    write_json(
+        ARTIFACTS / f"metadata/historical_{stage}_compatibility.json",
+        record,
+    )
+    return source_path, original_source, record
+
 if RUN_HISTORICAL_COMMITS and (not historical_raw_path.exists() or ARTIFACT_POLICY != "REUSE"):
     if GIT_COMMIT == "UNAVAILABLE":
         raise RuntimeError("Historical benchmarking requires Git provenance")
@@ -1201,57 +1246,70 @@ if RUN_HISTORICAL_COMMITS and (not historical_raw_path.exists() or ARTIFACT_POLI
                 verify_historical_commit(stage, commit)
                 run_command(["git", "checkout", "--detach", commit], cwd=work_dir)
                 clean_extension_build_products()
-                build = run_command(
-                    ["bash", "scripts/build_extension.sh"], cwd=work_dir,
-                    log_path=ARTIFACTS / f"build/historical_{stage}_build.txt",
-                    check=False,
+                source_path, original_source, compatibility = (
+                    apply_historical_toolchain_compatibility(stage, commit)
                 )
-                if build.returncode != 0:
-                    STATE["failed_experiments"].append(
-                        f"historical {stage} build at {commit}"
+                try:
+                    build = run_command(
+                        ["bash", "scripts/build_extension.sh"], cwd=work_dir,
+                        log_path=ARTIFACTS / f"build/historical_{stage}_build.txt",
+                        check=False,
                     )
-                    continue
-                tests = run_command(
-                    [sys.executable, "-m", "pytest", "-q", "tests/test_cuda_operator.py", "-rs"],
-                    cwd=work_dir,
-                    log_path=ARTIFACTS / f"correctness/historical_{stage}_pytest.txt",
-                    check=False,
-                )
-                if tests.returncode != 0:
-                    STATE["failed_experiments"].append(
-                        f"historical {stage} correctness at {commit}"
-                    )
-                    continue
-                for sequence_length in SEQUENCE_LENGTHS:
-                    temporary = ARTIFACTS / "logs" / f"historical_{stage}_{sequence_length}.csv"
-                    if temporary.exists():
-                        temporary.unlink()
-                    command = [
-                        sys.executable, "benchmarks/benchmark_softmax.py",
-                        "--implementation", "custom",
-                        "--sequence-length", str(sequence_length),
-                        "--warmups", str(WARMUPS), "--iterations", str(ITERATIONS),
-                        "--output", str(temporary),
-                    ]
-                    result = run_command(command, cwd=work_dir, check=False)
-                    if result.returncode != 0 or not temporary.is_file():
+                    if build.returncode != 0:
                         STATE["failed_experiments"].append(
-                            f"historical {stage} benchmark S={sequence_length}"
+                            f"historical {stage} build at {commit}"
                         )
                         continue
-                    stage_rows = normalize_repository_samples(
-                        read_csv(temporary),
-                        forced_implementation=stage,
-                        forced_description=stage_descriptions[stage],
+                    tests = run_command(
+                        [sys.executable, "-m", "pytest", "-q", "tests/test_cuda_operator.py", "-rs"],
+                        cwd=work_dir,
+                        log_path=ARTIFACTS / f"correctness/historical_{stage}_pytest.txt",
+                        check=False,
                     )
-                    historical_raw_rows.extend(stage_rows)
-                    temporary.unlink()
-                    with historical_raw_path.open(
-                        "w", newline="", encoding="utf-8"
-                    ) as output_file:
-                        writer = csv.DictWriter(output_file, fieldnames=RAW_SOFTMAX_FIELDS)
-                        writer.writeheader()
-                        writer.writerows(historical_raw_rows)
+                    if tests.returncode != 0:
+                        STATE["failed_experiments"].append(
+                            f"historical {stage} correctness at {commit}"
+                        )
+                        continue
+                    compatibility_suffix = (
+                        "; header-only CUDA 12.8 compatibility include applied"
+                        if compatibility["applied"] else ""
+                    )
+                    for sequence_length in SEQUENCE_LENGTHS:
+                        temporary = ARTIFACTS / "logs" / f"historical_{stage}_{sequence_length}.csv"
+                        if temporary.exists():
+                            temporary.unlink()
+                        command = [
+                            sys.executable, "benchmarks/benchmark_softmax.py",
+                            "--implementation", "custom",
+                            "--sequence-length", str(sequence_length),
+                            "--warmups", str(WARMUPS), "--iterations", str(ITERATIONS),
+                            "--output", str(temporary),
+                        ]
+                        result = run_command(command, cwd=work_dir, check=False)
+                        if result.returncode != 0 or not temporary.is_file():
+                            STATE["failed_experiments"].append(
+                                f"historical {stage} benchmark S={sequence_length}"
+                            )
+                            continue
+                        stage_rows = normalize_repository_samples(
+                            read_csv(temporary),
+                            forced_implementation=stage,
+                            forced_description=(
+                                stage_descriptions[stage] + compatibility_suffix
+                            ),
+                        )
+                        historical_raw_rows.extend(stage_rows)
+                        temporary.unlink()
+                        with historical_raw_path.open(
+                            "w", newline="", encoding="utf-8"
+                        ) as output_file:
+                            writer = csv.DictWriter(output_file, fieldnames=RAW_SOFTMAX_FIELDS)
+                            writer.writeheader()
+                            writer.writerows(historical_raw_rows)
+                finally:
+                    source_path.write_text(original_source, encoding="utf-8")
+                    clean_extension_build_products()
         finally:
             run_command(["git", "checkout", original_target], cwd=work_dir, check=False)
             clean_extension_build_products()
