@@ -94,7 +94,7 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 076. Completed — `add torch compile softmax baseline`: the benchmark now offers a torch.compile path over the exact eager scale-mask-softmax expression, and a CPU-safe compiled semantic check passes. CUDA compilation behavior and latency remain unmeasured.
 077. Completed — `separate compile warmup from steady-state measurements`: each compiled shape now has an explicit untimed first call, a correctness check, ordinary CUDA warmups, and only then event-timed samples. Raw provenance distinguishes one compile warmup from zero on eager/custom paths.
 078. Completed — `compare custom CUDA against eager and compiled PyTorch`: one benchmark mode now emits all three paths, and analysis rejects any workload missing eager, compiled, or custom samples. The local CUDA guard produced no CSV, so this commit establishes comparison integrity rather than a winner.
-079. I documented the launch-tuning and framework results with their source artifacts and limitations.
+079. Completed — `document launch tuning and framework comparison results`: I documented the expected artifact map, guarded comparison methodology, hypotheses, and evidence gaps. No launch size or framework path is called faster; every quantitative conclusion remains pending Colab CSVs.
 080. I stabilized the tuned kernel and captured the fifth-day checkpoint.
 
 ## Day 6 — Does the microkernel change attention?

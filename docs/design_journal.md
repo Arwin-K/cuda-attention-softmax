@@ -727,3 +727,58 @@ shared-tree milestone under identical NVIDIA controls?
 ### Git commit
 
 Commit 069 — `verify fused scaling and causal masking remain in-kernel`
+
+## Launch tuning and framework comparison design
+
+### Problem
+
+A fixed block size is an assumption, and an eager-only baseline may make a
+custom kernel look stronger than it is. Both choices need controlled evidence.
+
+### Existing evidence
+
+The source accepts 128, 256, and 512 threads without duplicating the kernel.
+CPU-safe tests cover configuration validation, raw provenance, compile semantic
+equivalence, selection math, and three-framework completeness. All NVIDIA
+measurement attempts stopped at capability guards and created no artifacts.
+
+### Hypothesis
+
+Launch-size rankings may vary by row width. `torch.compile` may narrow the gap
+to custom CUDA by optimizing the same PyTorch expression after startup.
+
+### Proposed change
+
+Measure all launch sizes on one kernel revision and GPU, select by median
+per-shape relative latency, then measure eager/compiled/custom paths together
+with compilation excluded from steady-state timing.
+
+### Implementation
+
+Block size flows through Python, C++, the runtime launch, and CSV metadata.
+Launch selection refuses incomplete 128/256/512 results. Framework preflight
+requires all three paths for every identical workload and one Git/GPU
+environment.
+
+### Correctness result
+
+CPU-safe infrastructure tests pass. The compiled CPU fixture matches the eager
+expression. CUDA correctness remains pending.
+
+### Performance result
+
+Not measured. The repository contains no launch or framework CSV.
+
+### Interpretation
+
+The experimental design is executable and guarded, but no block size or
+implementation is a measured winner. The 256-thread default is provisional.
+
+### Next question
+
+After Colab correctness passes, which configurations win at each sequence
+length and does the aggregate choice hide meaningful shape dependence?
+
+### Git commit
+
+Commit 079 — `document launch tuning and framework comparison results`
