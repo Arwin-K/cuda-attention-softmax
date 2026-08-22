@@ -413,3 +413,28 @@ No performance or profiling experiment has been recorded yet.
   identical controls and run comparison preflight.
 - **Student reflection:** `TODO(student): Explain why measuring only the current
   revision would not answer the optimization question.`
+
+## 128-thread launch measurement attempt — Commit 072
+
+- **Date/time:** 2026-08-22, America/Toronto
+- **Git commit:** Commit 072 — `benchmark 128-thread launch configuration`
+- **Hardware/software:** Apple Silicon arm64; PyTorch 2.13.0 without CUDA
+- **Research question:** What latency distribution does the 128-thread launch
+  produce across the required FP32 shape registry?
+- **HYPOTHESIS:** Fewer threads may reduce coordination cost on short rows but
+  require more strided work per thread on long rows.
+- **Independent variable:** `launch_block_size=128`
+- **Controlled variables:** Required shapes, `batch_heads=8`, FP32, seed,
+  warmups, iterations, kernel revision, and intended NVIDIA session
+- **Metrics:** Median, p25, p75 microseconds and elements/second
+- **Command/script:** `.venv/bin/python benchmarks/benchmark_launch_configs.py
+  --block-size 128 --output results/raw/launch_128.csv`
+- **Raw result file:** None
+- **MEASUREMENT:** The CUDA guard rejected the run and no CSV was created.
+- **INTERPRETATION:** Nothing is known yet about the 128-thread configuration's
+  latency or throughput.
+- **Limitations:** No NVIDIA runtime on this host.
+- **NEXT EXPERIMENT:** Run this unchanged command in the same Colab runtime as
+  the 256- and 512-thread experiments.
+- **Student reflection:** `TODO(student): Predict which sequence lengths might
+  favor fewer threads and explain why.`

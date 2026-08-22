@@ -87,7 +87,7 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 069. Completed — `verify fused scaling and causal masking remain in-kernel`: a CPU-safe source contract now checks that one CUDA kernel still owns query-position recovery, scaling, causal exclusion, stable exponentiation, and normalization. This guards equal work for later timing without claiming runtime evidence.
 070. Completed — `benchmark warp-reduction optimization against prior commit`: I identified the stabilized shared-tree revision and attempted the controlled custom benchmark. The Mac guard refused execution and created no CSV, so the warp-versus-block result remains a Colab experiment rather than a claimed measurement.
 071. Completed — `add benchmark support for configurable block sizes`: 128, 256, and 512 threads now flow through the Python API, C++ validation, one runtime-configurable CUDA kernel, benchmark registry, and raw CSV provenance. The unchanged 256 default is explicitly provisional until NVIDIA measurements exist.
-072. I measured the 128-thread configuration under the shared protocol.
+072. Completed — `benchmark 128-thread launch configuration`: I attempted the full-registry 128-thread run, but the platform guard found no NVIDIA CUDA runtime and wrote no CSV. Its short-row-overhead versus long-row-work hypothesis remains untested until Colab execution.
 073. I measured the 256-thread configuration under the shared protocol.
 074. I measured the 512-thread configuration under the shared protocol.
 075. I selected the default launch configuration from results, documenting any shape-dependent tradeoff.
