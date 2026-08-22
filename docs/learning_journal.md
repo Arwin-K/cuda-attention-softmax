@@ -382,3 +382,48 @@ shuffle helper.`
 
 - Would an active-mask implementation help sufficiently narrow rows, or add
   more control complexity than it saves?
+
+## Compiled framework baseline
+
+### Concept
+
+`torch.compile` captures and compiles a PyTorch operation graph. It may combine
+framework operations or reduce dispatch overhead while preserving PyTorch-level
+semantics.
+
+### Why it matters
+
+Comparing only against eager PyTorch can exaggerate the apparent advantage of a
+custom kernel. A compiled composition is a stronger baseline for the same
+scale-mask-softmax workload.
+
+### Mental model
+
+Eager mode sends each operation separately through the framework. Compilation
+first studies the whole recipe and then prepares an execution plan. That first
+study is startup cost, while later calls represent steady-state use.
+
+### Where it appears in this project
+
+`compile_causal_softmax()` in `benchmarks/benchmark_softmax.py` wraps the same
+function used by the eager benchmark.
+
+### Experiment demonstrating it
+
+A CPU-safe semantic test uses the eager compile backend. The research benchmark
+will use the default CUDA compiler backend in Colab.
+
+### Evidence/result
+
+The CPU test establishes expression equivalence for its small case. No compiled
+CUDA latency or generated-kernel result exists yet.
+
+### Explain it in my own words
+
+`TODO(student): Explain why torch.compile is a fairer competitor than eager
+PyTorch alone.`
+
+### Questions still open
+
+- Does compilation fuse this particular expression on the assigned Colab GPU?
+- How large is first-call compilation time relative to steady-state latency?

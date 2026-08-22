@@ -42,6 +42,18 @@ def pytorch_eager_causal_softmax(
     return torch.softmax((scores * scale).masked_fill(~allowed, -torch.inf), dim=-1)
 
 
+def compile_causal_softmax(
+    *,
+    backend: str | None = None,
+) -> Callable[[torch.Tensor, float, torch.Tensor], torch.Tensor]:
+    """Compile the same eager expression without changing its mathematical work."""
+
+    compile_options: dict[str, object] = {"fullgraph": True}
+    if backend is not None:
+        compile_options["backend"] = backend
+    return torch.compile(pytorch_eager_causal_softmax, **compile_options)
+
+
 def prepare_eager_case(
     config: SoftmaxBenchmarkConfig,
 ) -> tuple[torch.Tensor, Callable[[], torch.Tensor]]:
@@ -67,6 +79,43 @@ def run_eager_case(config: SoftmaxBenchmarkConfig) -> list[float]:
     """Measure one eager case and return raw CUDA-event samples."""
 
     _, operation = prepare_eager_case(config)
+    return time_cuda_callable(
+        operation,
+        warmups=config.warmups,
+        iterations=config.iterations,
+    )
+
+
+def prepare_compiled_case(
+    config: SoftmaxBenchmarkConfig,
+) -> tuple[torch.Tensor, Callable[[], torch.Tensor]]:
+    """Create the controlled CUDA case and its compiled callable."""
+
+    scores = make_score_tensor(
+        config.sequence_length,
+        batch_heads=config.batch_heads,
+        seed=config.seed,
+        dtype=torch.float32,
+        device="cuda",
+    )
+    allowed = causal_allowed_mask(
+        config.rows,
+        config.sequence_length,
+        device="cuda",
+    )
+    scale = 1.0 / math.sqrt(64)
+    compiled = compile_causal_softmax()
+    return scores, lambda: compiled(scores, scale, allowed)
+
+
+def run_compiled_case(config: SoftmaxBenchmarkConfig) -> list[float]:
+    """Correctness-check then measure the compiled framework baseline."""
+
+    scores, operation = prepare_compiled_case(config)
+    actual = operation()
+    expected = causal_scaled_softmax(scores, 1.0 / math.sqrt(64))
+    torch.testing.assert_close(actual, expected, rtol=1e-5, atol=1e-6)
+    torch.cuda.synchronize()
     return time_cuda_callable(
         operation,
         warmups=config.warmups,
@@ -122,8 +171,8 @@ def main() -> int:
     parser.add_argument("--block-size", type=int, choices=(128, 256, 512), default=256)
     parser.add_argument(
         "--implementation",
-        choices=("eager", "custom", "both"),
-        default="both",
+        choices=("eager", "compiled", "custom", "both", "all"),
+        default="all",
     )
     parser.add_argument("--output", type=Path)
     arguments = parser.parse_args()
@@ -145,9 +194,15 @@ def main() -> int:
 
     implementations = {
         "eager": (("PyTorch eager scale + causal mask + softmax", run_eager_case),),
+        "compiled": (("torch.compile scale + causal mask + softmax", run_compiled_case),),
         "custom": (("warp-reduction custom CUDA fused scale + mask + softmax", run_custom_case),),
         "both": (
             ("PyTorch eager scale + causal mask + softmax", run_eager_case),
+            ("warp-reduction custom CUDA fused scale + mask + softmax", run_custom_case),
+        ),
+        "all": (
+            ("PyTorch eager scale + causal mask + softmax", run_eager_case),
+            ("torch.compile scale + causal mask + softmax", run_compiled_case),
             ("warp-reduction custom CUDA fused scale + mask + softmax", run_custom_case),
         ),
     }

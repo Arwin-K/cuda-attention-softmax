@@ -13,6 +13,7 @@ from benchmarks.config import (
     softmax_benchmark_registry,
 )
 from benchmarks.benchmark_softmax import (
+    compile_causal_softmax,
     prepare_custom_case,
     pytorch_eager_causal_softmax,
 )
@@ -115,6 +116,18 @@ def test_eager_benchmark_operation_matches_reference_on_cpu() -> None:
 
     actual = pytorch_eager_causal_softmax(scores, scale=0.125, allowed=allowed)
     expected = causal_scaled_softmax(scores, scale=0.125)
+
+    torch.testing.assert_close(actual, expected, rtol=1e-5, atol=1e-6)
+
+
+def test_compiled_baseline_matches_same_expression_on_cpu() -> None:
+    generator = torch.Generator().manual_seed(76)
+    scores = torch.randn(12, 6, generator=generator)
+    allowed = causal_allowed_mask(12, 6)
+    compiled = compile_causal_softmax(backend="eager")
+
+    actual = compiled(scores, 0.125, allowed)
+    expected = pytorch_eager_causal_softmax(scores, 0.125, allowed)
 
     torch.testing.assert_close(actual, expected, rtol=1e-5, atol=1e-6)
 

@@ -91,7 +91,7 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 073. Completed — `benchmark 256-thread launch configuration`: the controlled 256-thread command was attempted and correctly refused on the non-CUDA Mac. No CSV exists, so 256 remains only the provisional default rather than a measured optimum.
 074. Completed — `benchmark 512-thread launch configuration`: the 512-thread experiment also stopped at the CUDA guard and produced no artifact. Its added-parallelism versus extra-warps hypothesis remains open, preserving an honest three-configuration tuning gap for Colab.
 075. Completed — `select launch configuration from measured results`: no selection was possible because the 128/256/512 CUDA artifacts do not exist. I added a complete-data selector based on median per-shape relative latency and left 256 explicitly provisional; synthetic tests validate the policy, not kernel performance.
-076. I added torch.compile as a stronger framework baseline for the same operation.
+076. Completed — `add torch compile softmax baseline`: the benchmark now offers a torch.compile path over the exact eager scale-mask-softmax expression, and a CPU-safe compiled semantic check passes. CUDA compilation behavior and latency remain unmeasured.
 077. I separated compilation warmup from steady-state timing so startup cost does not distort latency.
 078. I compared eager PyTorch, compiled PyTorch, and the custom CUDA route on equal work.
 079. I documented the launch-tuning and framework results with their source artifacts and limitations.
