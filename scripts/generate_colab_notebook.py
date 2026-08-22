@@ -319,6 +319,7 @@ environment_text_path = ARTIFACTS / "environment/environment.txt"
 
 nvidia_smi = run_command(["nvidia-smi"], check=False)
 nvcc = run_command(["nvcc", "--version"], check=False)
+cxx = run_command(["g++", "--version"], check=False)
 
 CUDA_READY = bool(torch.cuda.is_available() and nvidia_smi.returncode == 0)
 device_index = torch.cuda.current_device() if CUDA_READY else None
@@ -341,9 +342,27 @@ ENVIRONMENT = {
     "total_gpu_memory_bytes": device_properties.total_memory if device_properties else None,
     "nvidia_smi_return_code": nvidia_smi.returncode,
     "nvcc_return_code": nvcc.returncode,
+    "cxx_return_code": cxx.returncode,
     "nvidia_smi_output": nvidia_smi.stdout,
     "nvcc_output": nvcc.stdout,
+    "cxx_output": cxx.stdout,
 }
+if environment_path.exists() and ARTIFACT_POLICY == "REUSE":
+    previous_environment = json.loads(environment_path.read_text(encoding="utf-8"))
+    comparison_fields = [
+        "gpu_name", "compute_capability", "pytorch_version",
+        "pytorch_cuda_version", "python_version",
+    ]
+    mismatches = {
+        field: (previous_environment.get(field), ENVIRONMENT.get(field))
+        for field in comparison_fields
+        if previous_environment.get(field) != ENVIRONMENT.get(field)
+    }
+    if mismatches:
+        raise RuntimeError(
+            "REUSE refused because the restored artifacts came from a different "
+            f"environment: {mismatches}"
+        )
 write_json(environment_path, ENVIRONMENT)
 write_text(
     environment_text_path,
@@ -471,6 +490,14 @@ else:
     GIT_STATUS = "Git metadata absent from uploaded archive"
     git_state = "WARNING: Git provenance unavailable from uploaded archive.\n"
     print(git_state)
+
+existing_commit_path = ARTIFACTS / "metadata/git_commit.txt"
+if existing_commit_path.exists() and ARTIFACT_POLICY == "REUSE":
+    previous_commit = existing_commit_path.read_text(encoding="utf-8").strip()
+    if previous_commit != GIT_COMMIT:
+        raise RuntimeError(
+            f"REUSE refused: artifact commit {previous_commit} != source {GIT_COMMIT}"
+        )
 
 write_text(ARTIFACTS / "metadata/git_commit.txt", GIT_COMMIT + "\n")
 write_text(ARTIFACTS / "metadata/git_state.txt", git_state)
@@ -1866,6 +1893,837 @@ else:
 write_json(nsight_directory / "nsight_status.json", nsight_status)
 STATE["nsight_compute"] = nsight_status["status"]
 '''
+            ),
+        ]
+    )
+
+    cells.extend(
+        [
+            markdown(
+                r"""
+# 15. Generate publication figures from saved measurements
+
+**What this section does:** Reads only measured summaries/profiler CSVs and
+creates PDF plus 300-DPI PNG figures for softmax latency, throughput, historical
+speedup, launch tuning, kernel-versus-attention speedup, and profiler breakdown.
+
+**Why necessary:** Figures must be reproducible views of stored evidence rather
+than manually typed numbers.
+
+**What to expect:** Up to six figure pairs. If required data are absent, the
+notebook writes a `*_MISSING.txt` explanation and creates no invented chart.
+
+**What to save:** `artifacts/figures/`.
+
+**Paper meaning:** Every plotted point must be traceable to a CSV row and commit.
+"""
+            ),
+            code(
+                r'''
+import matplotlib.pyplot as plt
+
+FIGURE_SPECS = {
+    "softmax_latency": ("fig_softmax_latency.pdf", "fig_softmax_latency.png"),
+    "softmax_throughput": ("fig_softmax_throughput.pdf", "fig_softmax_throughput.png"),
+    "historical_speedup": ("fig_historical_speedup.pdf", "fig_historical_speedup.png"),
+    "launch_configuration": ("fig_launch_configuration.pdf", "fig_launch_configuration.png"),
+    "kernel_vs_attention_speedup": (
+        "fig_kernel_vs_attention_speedup.pdf", "fig_kernel_vs_attention_speedup.png"
+    ),
+    "profiler_breakdown": ("fig_profiler_breakdown.pdf", "fig_profiler_breakdown.png"),
+}
+
+def save_figure(name: str, figure: plt.Figure) -> None:
+    pdf_name, png_name = FIGURE_SPECS[name]
+    pdf_path = ARTIFACTS / "figures" / pdf_name
+    png_path = ARTIFACTS / "figures" / png_name
+    existing = [path for path in (pdf_path, png_path) if path.exists()]
+    if existing and ARTIFACT_POLICY == "ERROR":
+        raise FileExistsError(f"Refusing to overwrite figure: {existing[0]}")
+    if existing and ARTIFACT_POLICY == "REUSE":
+        for path in (pdf_path, png_path):
+            if path.exists():
+                register_file(path)
+        plt.close(figure)
+        return
+    figure.tight_layout()
+    figure.savefig(pdf_path, bbox_inches="tight")
+    figure.savefig(png_path, dpi=300, bbox_inches="tight")
+    register_file(pdf_path)
+    register_file(png_path)
+    plt.close(figure)
+
+def grouped_summary(
+    rows: Sequence[Mapping[str, Any]], key: str = "implementation"
+) -> dict[str, list[Mapping[str, Any]]]:
+    groups: dict[str, list[Mapping[str, Any]]] = {}
+    for row in rows:
+        groups.setdefault(str(row[key]), []).append(row)
+    for values in groups.values():
+        values.sort(key=lambda row: int(row["sequence_length"]))
+    return groups
+
+if GENERATE_FIGURES and softmax_summaries:
+    groups = grouped_summary(softmax_summaries)
+    figure, axis = plt.subplots(figsize=(7.2, 4.5))
+    for label, rows in groups.items():
+        x = [int(row["sequence_length"]) for row in rows]
+        median = [float(row["median_us"]) for row in rows]
+        lower = [value - float(row["p25_us"]) for value, row in zip(median, rows)]
+        upper = [float(row["p75_us"]) - value for value, row in zip(median, rows)]
+        axis.errorbar(x, median, yerr=[lower, upper], marker="o", capsize=3, label=label)
+    axis.set_xlabel("Sequence length")
+    axis.set_ylabel("Median latency (µs)")
+    axis.set_title("Causal scaled-softmax latency")
+    axis.grid(True, alpha=0.3)
+    axis.legend()
+    save_figure("softmax_latency", figure)
+
+    figure, axis = plt.subplots(figsize=(7.2, 4.5))
+    for label, rows in groups.items():
+        axis.plot(
+            [int(row["sequence_length"]) for row in rows],
+            [float(row["elements_per_second"]) for row in rows],
+            marker="o", label=label,
+        )
+    axis.set_xlabel("Sequence length")
+    axis.set_ylabel("Elements per second")
+    axis.set_title("Causal scaled-softmax throughput")
+    axis.grid(True, alpha=0.3)
+    axis.legend()
+    save_figure("softmax_throughput", figure)
+else:
+    write_text(
+        ARTIFACTS / "figures/softmax_figures_MISSING.txt",
+        "Softmax figures were not generated because measured softmax summaries are absent.\n",
+    )
+
+if GENERATE_FIGURES and historical_summaries and len(
+    {row["implementation"] for row in historical_summaries}
+) >= 2:
+    figure, axis = plt.subplots(figsize=(7.2, 4.5))
+    for label, rows in grouped_summary(historical_summaries).items():
+        usable = [
+            row for row in rows
+            if isinstance(row.get("speedup_vs_row_serial"), (int, float))
+        ]
+        if usable:
+            axis.plot(
+                [int(row["sequence_length"]) for row in usable],
+                [float(row["speedup_vs_row_serial"]) for row in usable],
+                marker="o", label=label,
+            )
+    axis.axhline(1.0, color="black", linewidth=1, linestyle="--")
+    axis.set_xlabel("Sequence length")
+    axis.set_ylabel("Speedup vs one-thread-per-row")
+    axis.set_title("CUDA implementation evolution")
+    axis.grid(True, alpha=0.3)
+    axis.legend()
+    save_figure("historical_speedup", figure)
+else:
+    write_text(
+        ARTIFACTS / "figures/historical_speedup_MISSING.txt",
+        "Historical speedup figure requires at least two verified measured commits.\n",
+    )
+
+if GENERATE_FIGURES and launch_summaries:
+    figure, axis = plt.subplots(figsize=(7.2, 4.5))
+    launch_groups: dict[str, list[Mapping[str, Any]]] = {}
+    for row in launch_summaries:
+        launch_groups.setdefault(f"{row['launch_block_size']} threads", []).append(row)
+    for label, rows in launch_groups.items():
+        rows.sort(key=lambda row: int(row["sequence_length"]))
+        axis.plot(
+            [int(row["sequence_length"]) for row in rows],
+            [float(row["median_us"]) for row in rows],
+            marker="o", label=label,
+        )
+    axis.set_xlabel("Sequence length")
+    axis.set_ylabel("Median latency (µs)")
+    axis.set_title("Launch-configuration comparison")
+    axis.grid(True, alpha=0.3)
+    axis.legend()
+    save_figure("launch_configuration", figure)
+else:
+    write_text(
+        ARTIFACTS / "figures/launch_configuration_MISSING.txt",
+        "Launch figure requires complete measured launch summaries.\n",
+    )
+
+complete_amdahl_rows = [
+    row for row in amdahl_rows if row.get("status") == "COMPLETE"
+]
+if GENERATE_FIGURES and complete_amdahl_rows:
+    figure, axis = plt.subplots(figsize=(7.2, 4.5))
+    x = [int(row["sequence_length"]) for row in complete_amdahl_rows]
+    axis.plot(
+        x,
+        [float(row["measured_softmax_speedup"]) for row in complete_amdahl_rows],
+        marker="o", label="Measured softmax speedup",
+    )
+    axis.plot(
+        x,
+        [float(row["measured_attention_speedup"]) for row in complete_amdahl_rows],
+        marker="s", label="Measured attention speedup",
+    )
+    axis.set_xlabel("Sequence length")
+    axis.set_ylabel("Speedup vs explicit PyTorch")
+    axis.set_title("Kernel versus end-to-end attention speedup")
+    axis.grid(True, alpha=0.3)
+    axis.legend()
+    save_figure("kernel_vs_attention_speedup", figure)
+else:
+    write_text(
+        ARTIFACTS / "figures/kernel_vs_attention_MISSING.txt",
+        "Kernel-versus-attention figure requires matched measured summaries.\n",
+    )
+
+if GENERATE_FIGURES and profiler_events_path.is_file():
+    profiler_plot_rows = [
+        row for row in read_csv(profiler_events_path)
+        if float(row["self_device_time_total_us"]) > 0.0
+    ]
+    profiler_plot_rows.sort(
+        key=lambda row: float(row["self_device_time_total_us"]), reverse=True
+    )
+    profiler_plot_rows = profiler_plot_rows[:12]
+    if profiler_plot_rows:
+        figure, axis = plt.subplots(figsize=(8.0, 5.5))
+        labels = [row["operator"] for row in reversed(profiler_plot_rows)]
+        values = [float(row["self_device_time_total_us"]) for row in reversed(profiler_plot_rows)]
+        axis.barh(labels, values)
+        axis.set_xlabel("Self device time (µs)")
+        axis.set_title("PyTorch Profiler device-time breakdown")
+        save_figure("profiler_breakdown", figure)
+    else:
+        write_text(
+            ARTIFACTS / "figures/profiler_breakdown_MISSING.txt",
+            "Profiler event CSV contains no positive device-time rows.\n",
+        )
+else:
+    write_text(
+        ARTIFACTS / "figures/profiler_breakdown_MISSING.txt",
+        "Profiler breakdown requires a measured profiler event CSV.\n",
+    )
+'''
+            ),
+            markdown(
+                r"""
+# 16. Export paper tables and evaluate hypotheses
+
+**What this section does:** Produces correctness, softmax, launch, attention,
+and environment tables in CSV and LaTeX-friendly fragments. It evaluates H1–H5
+only when the required measurements exist and always separates measurement from
+interpretation.
+
+**Why necessary:** Paper numbers should be generated from artifacts, not copied
+by hand. Hypotheses require explicit evidence and may remain untested or
+inconclusive.
+
+**What to expect:** Table files and `hypothesis_evaluation.md`. No synthetic rows
+are inserted to complete missing tables.
+
+**What to save:** `artifacts/tables/` and the hypothesis file.
+
+**Paper meaning:** These files are the direct inputs for Results, Discussion,
+and the hypothesis-status narrative.
+"""
+            ),
+            code(
+                r'''
+def latex_escape(value: Any) -> str:
+    text = str(value)
+    replacements = {
+        "\\": r"\textbackslash{}", "&": r"\&", "%": r"\%",
+        "$": r"\$", "#": r"\#", "_": r"\_", "{": r"\{", "}": r"\}",
+    }
+    for source, replacement in replacements.items():
+        text = text.replace(source, replacement)
+    return text
+
+def write_latex_table(path: Path, rows: Sequence[Mapping[str, Any]], columns: Sequence[str]) -> None:
+    if not rows:
+        return
+    alignment = "l" * len(columns)
+    lines = [
+        f"\\begin{{tabular}}{{{alignment}}}",
+        "\\hline",
+        " & ".join(latex_escape(column) for column in columns) + r" \\",
+        "\\hline",
+    ]
+    for row in rows:
+        lines.append(" & ".join(latex_escape(row.get(column, "")) for column in columns) + r" \\")
+    lines.extend(["\\hline", "\\end{tabular}"])
+    write_text(path, "\n".join(lines) + "\n")
+
+correctness_table_columns = [
+    "git_commit", "sequence_length", "input_family", "max_absolute_error",
+    "max_relative_error", "max_row_sum_error", "contains_nan", "contains_inf",
+    "pass_fail",
+]
+if correctness_rows:
+    correctness_table = [
+        {column: row.get(column, "") for column in correctness_table_columns}
+        for row in correctness_rows
+    ]
+    write_csv(
+        ARTIFACTS / "tables/correctness_table.csv",
+        correctness_table, correctness_table_columns,
+    )
+    write_latex_table(
+        ARTIFACTS / "tables/correctness_table.tex",
+        correctness_table, correctness_table_columns,
+    )
+
+softmax_table_columns = [
+    "implementation", "git_commit", "sequence_length", "median_us", "p25_us",
+    "p75_us", "elements_per_second", "speedup_vs_eager",
+]
+if softmax_summaries:
+    softmax_table = [
+        {column: row.get(column, "") for column in softmax_table_columns}
+        for row in softmax_summaries
+    ]
+    write_csv(
+        ARTIFACTS / "tables/softmax_performance_table.csv",
+        softmax_table, softmax_table_columns,
+    )
+    write_latex_table(
+        ARTIFACTS / "tables/softmax_performance_table.tex",
+        softmax_table, softmax_table_columns,
+    )
+
+if launch_summaries:
+    launch_by_shape: dict[int, dict[int, float]] = {}
+    for row in launch_summaries:
+        launch_by_shape.setdefault(int(row["sequence_length"]), {})[
+            int(row["launch_block_size"])
+        ] = float(row["median_us"])
+    launch_table = [
+        {
+            "sequence_length": sequence_length,
+            "128_threads_median_us": values.get(128, ""),
+            "256_threads_median_us": values.get(256, ""),
+            "512_threads_median_us": values.get(512, ""),
+            "selected_configuration": SELECTED_BLOCK_SIZE,
+        }
+        for sequence_length, values in sorted(launch_by_shape.items())
+    ]
+    launch_columns = list(launch_table[0])
+    write_csv(
+        ARTIFACTS / "tables/launch_configuration_table.csv",
+        launch_table, launch_columns,
+    )
+    write_latex_table(
+        ARTIFACTS / "tables/launch_configuration_table.tex",
+        launch_table, launch_columns,
+    )
+
+if attention_summaries:
+    attention_table_columns = [
+        "implementation", "git_commit", "sequence_length", "median_us", "p25_us",
+        "p75_us", "speedup_vs_explicit_eager", "speedup_vs_sdpa",
+    ]
+    attention_table = [
+        {column: row.get(column, "") for column in attention_table_columns}
+        for row in attention_summaries
+    ]
+    write_csv(
+        ARTIFACTS / "tables/attention_table.csv",
+        attention_table, attention_table_columns,
+    )
+    write_latex_table(
+        ARTIFACTS / "tables/attention_table.tex",
+        attention_table, attention_table_columns,
+    )
+
+environment_table = [
+    {"component": key, "value": value, "evidence_source": "environment.json"}
+    for key, value in ENVIRONMENT.items()
+    if key not in {"nvidia_smi_output", "nvcc_output"}
+]
+write_csv(
+    ARTIFACTS / "tables/environment_table.csv",
+    environment_table, ["component", "value", "evidence_source"],
+)
+write_latex_table(
+    ARTIFACTS / "tables/environment_table.tex",
+    environment_table, ["component", "value", "evidence_source"],
+)
+
+def hypothesis_entry(
+    identifier: str,
+    hypothesis: str,
+    measured: str,
+    interpretation: str,
+    status: str,
+    next_experiment: str,
+) -> str:
+    return textwrap.dedent(
+        f"""
+        ## {identifier}
+
+        HYPOTHESIS:
+        {hypothesis}
+
+        MEASURED:
+        {measured}
+
+        INTERPRETATION:
+        {interpretation}
+
+        STATUS:
+        {status}
+
+        NEXT EXPERIMENT:
+        {next_experiment}
+        """
+    ).strip()
+
+hypotheses = []
+historical_by_stage = grouped_summary(historical_summaries) if historical_summaries else {}
+serial_rows = historical_by_stage.get("row_serial", [])
+block_rows = historical_by_stage.get("block_shared_tree", [])
+warp_rows = historical_by_stage.get("warp_reduction", [])
+
+if len(serial_rows) >= 2 and len(block_rows) >= 2:
+    serial_growth = float(serial_rows[-1]["median_us"]) / float(serial_rows[0]["median_us"])
+    block_growth = float(block_rows[-1]["median_us"]) / float(block_rows[0]["median_us"])
+    h1_status = "PARTIALLY SUPPORTED" if serial_growth > block_growth else "NOT SUPPORTED"
+    h1_measured = (
+        f"Measured endpoint latency growth: row-serial={serial_growth:.6g}x, "
+        f"block={block_growth:.6g}x."
+    )
+else:
+    h1_status = "UNTESTED"
+    h1_measured = "Compatible row-serial and block scaling measurements are absent."
+hypotheses.append(hypothesis_entry(
+    "H1",
+    "One-thread-per-row scales poorly as row work remains serial.",
+    h1_measured,
+    "Growth comparison can support the observed trend but cannot alone prove the causal mechanism.",
+    h1_status,
+    "Use profiler instruction/memory evidence on matched early and late lengths.",
+))
+
+def later_shape_speedups(candidate_rows: Sequence[Mapping[str, Any]]) -> list[float]:
+    return [
+        float(row["speedup_vs_row_serial"])
+        for row in candidate_rows[-3:]
+        if isinstance(row.get("speedup_vs_row_serial"), (int, float))
+    ]
+
+block_late = later_shape_speedups(block_rows)
+h2_status = (
+    "SUPPORTED" if block_late and all(value > 1.0 for value in block_late)
+    else "PARTIALLY SUPPORTED" if any(value > 1.0 for value in block_late)
+    else "NOT SUPPORTED" if block_late else "UNTESTED"
+)
+hypotheses.append(hypothesis_entry(
+    "H2",
+    "One-block-per-row reduces latency at sufficiently long rows despite coordination overhead.",
+    f"Measured long-shape speedups vs row serial: {block_late}" if block_late else "Required historical rows are absent.",
+    "Status describes only tested lengths and this GPU.", h2_status,
+    "Repeat on another NVIDIA architecture and inspect short-row crossover.",
+))
+
+if warp_rows and block_rows:
+    block_map = {int(row["sequence_length"]): float(row["median_us"]) for row in block_rows}
+    warp_vs_block = [
+        block_map[int(row["sequence_length"])] / float(row["median_us"])
+        for row in warp_rows if int(row["sequence_length"]) in block_map
+    ]
+else:
+    warp_vs_block = []
+h3_status = (
+    "SUPPORTED" if warp_vs_block and all(value > 1.0 for value in warp_vs_block)
+    else "PARTIALLY SUPPORTED" if any(value > 1.0 for value in warp_vs_block)
+    else "NOT SUPPORTED" if warp_vs_block else "UNTESTED"
+)
+hypotheses.append(hypothesis_entry(
+    "H3",
+    "Warp reductions reduce latency relative to full shared-memory trees.",
+    f"Measured block/warp speedups by matched shape: {warp_vs_block}" if warp_vs_block else "Matched block and warp measurements are absent.",
+    "Latency shows outcome; Nsight data is needed to attribute it to communication or synchronization.",
+    h3_status, "Compare barrier/shared-memory metrics if Nsight permissions allow.",
+))
+
+if launch_summaries:
+    winners = {
+        min(values, key=values.get)
+        for values in launch_by_shape.values() if len(values) == 3
+    }
+    h4_status = "SUPPORTED" if len(winners) > 1 else "NOT SUPPORTED"
+    h4_measured = f"Per-shape winning block sizes: {sorted(winners)}."
+else:
+    h4_status = "UNTESTED"
+    h4_measured = "Complete launch measurements are absent."
+hypotheses.append(hypothesis_entry(
+    "H4",
+    "The best block size depends on sequence length and resource tradeoffs.",
+    h4_measured,
+    "A single observed winner does not establish universality beyond the tested matrix.",
+    h4_status, "Repeat launch tuning on a second GPU architecture.",
+))
+
+if complete_amdahl_rows:
+    comparisons = [
+        float(row["measured_softmax_speedup"]) > float(row["measured_attention_speedup"])
+        for row in complete_amdahl_rows
+    ]
+    h5_status = (
+        "SUPPORTED" if all(comparisons)
+        else "PARTIALLY SUPPORTED" if any(comparisons)
+        else "NOT SUPPORTED"
+    )
+    h5_measured = f"Kernel speedup exceeded attention speedup for {sum(comparisons)}/{len(comparisons)} matched shapes."
+else:
+    h5_status = "UNTESTED"
+    h5_measured = "Matched kernel and attention measurements are absent."
+hypotheses.append(hypothesis_entry(
+    "H5",
+    "Softmax-kernel speedup exceeds complete-attention speedup.",
+    h5_measured,
+    "Unchanged matrix multiplications limit application-level benefit; measured results remain distinct from the Amdahl model.",
+    h5_status, "Profile the fraction of attention time attributable to softmax by shape.",
+))
+
+write_text(
+    ARTIFACTS / "metadata/hypothesis_evaluation.md",
+    "# Hypothesis evaluation\n\n" + "\n\n".join(hypotheses) + "\n",
+)
+'''
+            ),
+            markdown(
+                r"""
+# 17. Automatic validation, manifest, and reproducibility README
+
+**What this section does:** Recomputes statistics from raw samples, checks
+schemas/provenance/correctness, inventories files, and creates the validation
+report, experiment manifest, and reproduction guide.
+
+**Why necessary:** A polished figure is not trustworthy unless its raw samples,
+metadata, formulas, and correctness gate agree.
+
+**What to expect:** Every audit item is labeled `PASS`, `WARNING`, or `FAIL`.
+Critical failures must be resolved before paper claims are written.
+
+**What to save:** `validation_report.md`, `experiment_manifest.json`, and
+`README_EXPERIMENTS.md`.
+
+**Paper meaning:** This is the final traceability and limitations check.
+"""
+            ),
+            code(
+                r'''
+validation_items: list[tuple[str, str, str]] = []
+
+def validation(name: str, status: str, detail: str) -> None:
+    if status not in {"PASS", "WARNING", "FAIL"}:
+        raise ValueError(status)
+    validation_items.append((name, status, detail))
+
+validation("CUDA environment", "PASS" if CUDA_READY else "FAIL", str(ENVIRONMENT["gpu_name"]))
+validation("CUDA extension build", "PASS" if EXTENSION_READY else "FAIL", str(BUILD_METADATA))
+validation("Custom operator import", "PASS" if EXTENSION_READY else "FAIL", "cuda_attention._C")
+validation("CUDA correctness", "PASS" if CORRECTNESS_READY else "FAIL", str(correctness_summary))
+
+if correctness_rows:
+    no_nonfinite = all(
+        str(row["contains_nan"]).lower() == "false"
+        and str(row["contains_inf"]).lower() == "false"
+        for row in correctness_rows
+    )
+    masks_zero = all(
+        str(row["masked_positions_exactly_zero"]).lower() == "true"
+        for row in correctness_rows
+    )
+    row_sums = all(float(row["max_row_sum_error"]) <= ATOL + RTOL for row in correctness_rows)
+    validation("No unexpected NaNs/Infs", "PASS" if no_nonfinite else "FAIL", "correctness CSV")
+    validation("Masked probabilities exactly zero", "PASS" if masks_zero else "FAIL", "correctness CSV")
+    validation("Softmax row sums", "PASS" if row_sums else "FAIL", f"threshold={ATOL + RTOL}")
+else:
+    validation("Correctness invariants", "FAIL", "correctness CSV absent")
+
+required_softmax_columns = set(RAW_SOFTMAX_FIELDS)
+if softmax_raw_rows:
+    raw_columns_ok = all(required_softmax_columns <= set(row) for row in softmax_raw_rows)
+    raw_positive = all(float(row["latency_us"]) > 0 for row in softmax_raw_rows)
+    hashes_present = all(str(row["git_commit"]) == GIT_COMMIT for row in softmax_raw_rows)
+    validation("Softmax raw schema", "PASS" if raw_columns_ok else "FAIL", str(required_softmax_columns))
+    validation("Softmax raw samples", "PASS" if raw_positive else "FAIL", f"rows={len(softmax_raw_rows)}")
+    validation("Git hashes in benchmark rows", "PASS" if hashes_present else "FAIL", GIT_COMMIT)
+
+    summary_lookup = {
+        (str(row["implementation"]), int(row["sequence_length"])): row
+        for row in softmax_summaries
+    }
+    recomputed_ok = True
+    throughput_ok = True
+    for key, summary in summary_lookup.items():
+        samples = [
+            float(row["latency_us"])
+            for row in softmax_raw_rows
+            if (str(row["implementation"]), int(row["sequence_length"])) == key
+        ]
+        recomputed_ok &= math.isclose(
+            statistics.median(samples), float(summary["median_us"]), rel_tol=1e-12
+        )
+        recomputed_ok &= math.isclose(
+            percentile(samples, 0.25), float(summary["p25_us"]), rel_tol=1e-12
+        )
+        recomputed_ok &= math.isclose(
+            percentile(samples, 0.75), float(summary["p75_us"]), rel_tol=1e-12
+        )
+        expected_throughput = (
+            int(summary["rows"]) * int(summary["columns"]) * 1_000_000.0
+            / float(summary["median_us"])
+        )
+        throughput_ok &= math.isclose(
+            expected_throughput,
+            float(summary["elements_per_second"]),
+            rel_tol=1e-12,
+        )
+    validation("Summary median/quartiles", "PASS" if recomputed_ok else "FAIL", "recomputed from raw")
+    validation("Throughput formula", "PASS" if throughput_ok else "FAIL", "rows*columns/median_seconds")
+    eager_by_shape = {
+        int(row["sequence_length"]): row
+        for row in softmax_summaries if row["implementation"] == "pytorch_eager"
+    }
+    speedup_ok = True
+    for row in softmax_summaries:
+        eager = eager_by_shape.get(int(row["sequence_length"]))
+        recorded = row.get("speedup_vs_eager")
+        if eager is None or not isinstance(recorded, (int, float)):
+            speedup_ok = False
+            continue
+        expected_speedup = float(eager["median_us"]) / float(row["median_us"])
+        speedup_ok &= math.isclose(expected_speedup, float(recorded), rel_tol=1e-12)
+    validation("Matched softmax speedups", "PASS" if speedup_ok else "FAIL", "eager median / candidate median")
+else:
+    validation("Softmax benchmarks", "WARNING", "raw file absent or stage disabled")
+
+validation(
+    "Environment metadata",
+    "PASS" if environment_path.is_file() and ENVIRONMENT.get("gpu_name") else "FAIL",
+    str(environment_path),
+)
+figure_files = sorted((ARTIFACTS / "figures").glob("fig_*"))
+validation(
+    "Figures from measured data",
+    "PASS" if figure_files else "WARNING",
+    f"generated_files={len(figure_files)}; missing figures have text reports",
+)
+validation(
+    "Git working tree provenance",
+    "WARNING" if STATE["git_dirty"] else "PASS",
+    GIT_STATUS or "clean",
+)
+
+validation_lines = ["# Validation report", ""]
+for name, status, detail in validation_items:
+    validation_lines.extend([f"## {name}: {status}", "", detail, ""])
+write_text(
+    ARTIFACTS / "validation_report.md",
+    "\n".join(validation_lines).rstrip() + "\n",
+)
+
+all_artifact_files = sorted(
+    path for path in ARTIFACTS.rglob("*") if path.is_file()
+)
+manifest = {
+    "project_title": "CUDA Optimization of Fused Causal Softmax for Transformer Attention",
+    "run_timestamp": RUN_TIMESTAMP,
+    "manifest_timestamp": utc_now(),
+    "git_commit": GIT_COMMIT,
+    "git_dirty": STATE["git_dirty"],
+    "gpu": ENVIRONMENT["gpu_name"],
+    "compute_capability": ENVIRONMENT["compute_capability"],
+    "cuda": ENVIRONMENT["pytorch_cuda_version"],
+    "pytorch": ENVIRONMENT["pytorch_version"],
+    "python": ENVIRONMENT["python_version"],
+    "benchmark_configuration": {
+        "warmups": WARMUPS, "iterations": ITERATIONS,
+        "sequence_lengths": SEQUENCE_LENGTHS, "batch_heads": BATCH_HEADS,
+        "head_dimension": HEAD_DIM, "dtype": DTYPE,
+        "selected_block_size": SELECTED_BLOCK_SIZE,
+        "random_seed": RANDOM_SEED,
+    },
+    "correctness_tolerance": {"rtol": RTOL, "atol": ATOL},
+    "csv_files": [str(path.relative_to(ARTIFACTS)) for path in all_artifact_files if path.suffix == ".csv"],
+    "figures": [str(path.relative_to(ARTIFACTS)) for path in all_artifact_files if path.suffix in {".png", ".pdf"}],
+    "profiler_artifacts": [
+        str(path.relative_to(ARTIFACTS))
+        for path in all_artifact_files if "profiler" in path.parts
+    ],
+    "failed_experiments": STATE["failed_experiments"],
+    "skipped_experiments": STATE["skipped_experiments"],
+    "stage_status": {
+        key: value for key, value in STATE.items()
+        if key in {
+            "cuda_environment", "cuda_extension_build", "cuda_correctness",
+            "softmax_benchmarks", "historical_benchmarks", "launch_configuration",
+            "attention_benchmarks", "pytorch_profiler", "nsight_compute",
+        }
+    },
+}
+write_json(ARTIFACTS / "experiment_manifest.json", manifest)
+
+reproducibility_readme = f"""# CUDA softmax experiment artifacts
+
+## Runtime environment
+
+- Git commit: `{GIT_COMMIT}`
+- Git dirty: `{STATE['git_dirty']}`
+- GPU: `{ENVIRONMENT['gpu_name']}`
+- Compute capability: `{ENVIRONMENT['compute_capability']}`
+- PyTorch: `{ENVIRONMENT['pytorch_version']}`
+- PyTorch CUDA: `{ENVIRONMENT['pytorch_cuda_version']}`
+- Python: `{ENVIRONMENT['python_version']}`
+
+## Build
+
+The notebook invoked `bash scripts/build_extension.sh` from the repository root.
+See `build/build_log.txt` and `build/build_metadata.json` for the complete result.
+
+## Methodology
+
+Inputs and masks were allocated outside timed regions. Each operation received
+{WARMUPS} untimed warmups and {ITERATIONS} CUDA-event samples. The compiled
+baseline used an additional untimed first invocation. CUDA synchronization made
+device completion part of every sample. Correctness used rtol={RTOL}, atol={ATOL}.
+
+## Output files
+
+See `experiment_manifest.json` for the machine-readable inventory and stage
+status. Raw samples are retained rather than replaced by summary values.
+
+## Known limitations
+
+Google Colab is a shared cloud environment. GPU model, clocks, contention,
+runtime lifetime, Nsight availability, and performance-counter permissions are
+not guaranteed. Results from different GPU environments must not be combined.
+
+## Reproduction
+
+Open `notebooks/04_colab_research_experiments.ipynb`, choose an NVIDIA GPU,
+configure the same repository revision and controls, use a new artifact
+directory, and run cells in order. Resolve validation failures before quoting
+results.
+"""
+write_text(ARTIFACTS / "README_EXPERIMENTS.md", reproducibility_readme)
+'''
+            ),
+            markdown(
+                r"""
+# 18. Inventory, optional Drive backup, and artifact ZIP
+
+**What this section does:** Prints the complete artifact tree and stage summary,
+optionally copies it to Google Drive, and packages every raw file/log into one
+ZIP without excluding failures.
+
+**Why necessary:** Colab `/content` storage is temporary, and the paper handoff
+must include raw evidence rather than screenshots alone.
+
+**What to expect:** `cuda_softmax_research_artifacts.zip` plus an optional Drive
+folder. Existing destinations obey the configured overwrite policy.
+
+**What to save:** The ZIP and optional Drive backup.
+
+**Paper meaning:** This is the complete evidence handoff for claim verification.
+"""
+            ),
+            code(
+                r'''
+def artifact_tree(root: Path) -> str:
+    lines = [root.name + "/"]
+    for path in sorted(root.rglob("*")):
+        relative = path.relative_to(root)
+        indent = "    " * (len(relative.parts) - 1)
+        suffix = "/" if path.is_dir() else ""
+        lines.append(f"{indent}{relative.name}{suffix}")
+    return "\n".join(lines)
+
+print(artifact_tree(ARTIFACTS))
+status_summary = {
+    "CUDA environment": STATE.get("cuda_environment", "FAIL"),
+    "CUDA extension build": STATE.get("cuda_extension_build", "FAIL"),
+    "CUDA correctness": STATE.get("cuda_correctness", "FAIL"),
+    "Softmax benchmarks": STATE.get("softmax_benchmarks", "INCOMPLETE"),
+    "Historical benchmarks": STATE.get("historical_benchmarks", "INCOMPLETE"),
+    "Launch configuration": STATE.get("launch_configuration", "INCOMPLETE"),
+    "Attention benchmarks": STATE.get("attention_benchmarks", "INCOMPLETE"),
+    "PyTorch Profiler": STATE.get("pytorch_profiler", "INCOMPLETE"),
+    "Nsight Compute": STATE.get("nsight_compute", "UNAVAILABLE"),
+    "Figures generated": (
+        f"{len({path.stem for path in (ARTIFACTS / 'figures').glob('fig_*')})}/6"
+    ),
+}
+print(json.dumps(status_summary, indent=2))
+
+if BACKUP_TO_DRIVE:
+    from google.colab import drive
+    drive.mount("/content/drive")
+    backup_root = Path("/content/drive/MyDrive/cuda_softmax_research_runs")
+    backup_root.mkdir(parents=True, exist_ok=True)
+    backup_destination = backup_root / RUN_TIMESTAMP.replace(":", "-")
+    if backup_destination.exists():
+        raise FileExistsError(f"Refusing to overwrite Drive backup: {backup_destination}")
+    shutil.copytree(ARTIFACTS, backup_destination)
+    print(f"Drive backup: {backup_destination}")
+
+zip_path = Path("/content/cuda_softmax_research_artifacts.zip")
+if zip_path.exists():
+    if ARTIFACT_POLICY == "ERROR":
+        raise FileExistsError(f"Refusing to overwrite {zip_path}")
+    if ARTIFACT_POLICY == "OVERWRITE":
+        zip_path.unlink()
+
+if not zip_path.exists():
+    with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        for path in sorted(ARTIFACTS.rglob("*")):
+            if path.is_file():
+                archive.write(path, Path("artifacts") / path.relative_to(ARTIFACTS))
+print(f"Artifact ZIP: {zip_path} ({zip_path.stat().st_size} bytes)")
+'''
+            ),
+            code(
+                r'''
+# Run this cell only when you are ready for the browser download dialog.
+from google.colab import files
+files.download("/content/cuda_softmax_research_artifacts.zip")
+'''
+            ),
+            markdown(
+                r"""
+# WHAT TO SEND TO CHATGPT TO FINISH THE PAPER
+
+Upload `cuda_softmax_research_artifacts.zip`. Also provide the current repository
+source/Git history and, if they are not already available, `main.tex` and
+`references.bib`.
+
+The ZIP should contain environment and Git reports, build logs, correctness
+records, raw and summary softmax data, historical and launch data when run,
+attention data, profiler artifacts, supported figures, paper tables, the
+validation report, manifest, and hypothesis evaluation.
+
+Ask ChatGPT to replace only claims and placeholders directly supported by these
+artifacts. Missing figures, unavailable Nsight counters, failed historical
+builds, or inconclusive hypotheses must remain explicit limitations rather than
+being repaired with invented values.
+
+## MEASURED
+
+Use facts directly present in the ZIP.
+
+## INTERPRETATION
+
+Explain potential causes separately and cautiously.
+
+## NEXT EXPERIMENT
+
+Propose a controlled measurement that could test each interpretation.
+"""
             ),
         ]
     )
