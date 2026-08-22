@@ -40,6 +40,7 @@ IRREGULAR_SEQUENCE_LENGTHS = (
 STRESS_MAGNITUDES = (10.0, 100.0, 1000.0)
 STRESS_SEQUENCE_LENGTHS = (31, 128, 511)
 ROW_WRAP_SHAPES = ((1, 31), (30, 31), (31, 31), (32, 31), (260, 257))
+PARTIAL_WARP_ALLOWED_COLUMNS = (1, 2, 31, 32, 33, 63, 64, 65, 95, 96, 97)
 
 
 @pytest.mark.cuda_static
@@ -183,6 +184,31 @@ def test_cuda_operator_handles_partial_and_wrapped_query_cycles(
     sequence_length: int,
 ) -> None:
     generator = torch.Generator(device="cuda").manual_seed(rows + sequence_length)
+    scores = torch.randn(
+        rows,
+        sequence_length,
+        generator=generator,
+        device="cuda",
+    )
+
+    _assert_cuda_matches_reference(scores, scale=0.125)
+
+
+@pytest.mark.parametrize("allowed_columns", PARTIAL_WARP_ALLOWED_COLUMNS)
+def test_warp_reductions_handle_partially_populated_column_groups(
+    allowed_columns: int,
+) -> None:
+    """Exercise both sides of 32-column boundaries in the causal prefix.
+
+    The CUDA block always consists of complete hardware warps. For a causal row,
+    however, lanes whose starting column is beyond ``allowed_columns`` own no
+    data. They must enter shuffle reductions with max/sum identity values while
+    still executing the shuffle instructions under the full-warp mask.
+    """
+
+    sequence_length = 97
+    rows = allowed_columns
+    generator = torch.Generator(device="cuda").manual_seed(680 + allowed_columns)
     scores = torch.randn(
         rows,
         sequence_length,

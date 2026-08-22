@@ -336,3 +336,49 @@ Runtime behavior is unmeasured.
 
 `TODO(student): How should a shuffle reduction handle lanes that do not carry a
 valid partial?`
+
+## Partial data participation versus a partial hardware warp
+
+### Concept
+
+A launched 256-thread block contains eight complete 32-lane hardware warps.
+An early causal row can nevertheless give only a prefix of lanes real column
+data, which is partial *work participation*, not a partially launched warp.
+
+### Why it matters
+
+The shuffle helpers use a full-warp mask. Every lane must execute them, including
+lanes with no assigned column, or the mask would promise participation that the
+program does not provide.
+
+### Mental model
+
+Imagine 32 students required to remain in a reduction line. Students without a
+number still stand in the line holding the identity: negative infinity for a
+maximum or zero for a sum.
+
+### Where it appears in this project
+
+`thread_maximum` begins at negative infinity and
+`thread_exponential_sum` begins at zero. The shuffle calls occur after the
+thread-strided loops, so data ownership does not control shuffle participation.
+
+### Experiment demonstrating it
+
+The CUDA gate tests allowed causal prefixes immediately below, at, and above
+32-column boundaries: 31/32/33, 63/64/65, and 95/96/97.
+
+### Evidence/result
+
+The test cases are collected but skip on Apple Silicon. Their numerical result
+must be obtained on NVIDIA hardware.
+
+### Explain it in my own words
+
+`TODO(student): Explain why an idle data lane must still call the full-mask
+shuffle helper.`
+
+### Questions still open
+
+- Would an active-mask implementation help sufficiently narrow rows, or add
+  more control complexity than it saves?

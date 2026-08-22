@@ -83,7 +83,7 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 065. Completed — `combine warp sums through compact shared memory`: lane zero now publishes one denominator partial per warp into eight shared slots, and the first warp combines them with a second shuffle reduction. Static inspection and the CPU-safe suite pass; NVIDIA compilation and numerical validation remain pending.
 066. Completed — `replace shared-memory block reductions with warp reductions`: the active source now uses the same two-level shuffle-plus-compact-shared-memory hierarchy for maximum and sum. I removed the obsolete shared-tree power-of-two assumption and documented that correctness and speed still require NVIDIA evidence.
 067. Completed — `validate warp-reduction kernel correctness`: I made the required shape set an explicit test contract and reran the regression suite. The coverage check passes locally, while every device comparison skips without NVIDIA; this records readiness, not CUDA correctness.
-068. I tested partial final warps, where lane participation is easy to get subtly wrong.
+068. Completed — `stress test warp reductions on partial final warps`: I added targeted causal-prefix cases around 32-column boundaries and documented why lanes with no data still execute full-mask shuffles using identity values. The cases collect and skip locally; Colab must produce their CUDA results.
 069. I verified that scaling and causal masking are still fused inside the kernel after the reduction changes.
 070. I measured the warp-reduction kernel against the prior block-reduction milestone.
 071. I made block size a controlled experimental variable rather than a hidden launch constant.
