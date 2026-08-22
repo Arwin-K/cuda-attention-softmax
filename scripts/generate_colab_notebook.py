@@ -242,6 +242,12 @@ def write_text(path: Path, content: str) -> bool:
 def write_json(path: Path, payload: Any) -> bool:
     return write_text(path, json.dumps(payload, indent=2, sort_keys=True) + "\n")
 
+def checkpoint_json(path: Path, payload: Any) -> None:
+    """Update an already-claimed stage artifact after each completed case."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    register_file(path)
+
 def write_csv(path: Path, rows: Sequence[Mapping[str, Any]], fieldnames: Sequence[str]) -> bool:
     if not claim_output(path):
         register_file(path)
@@ -1266,6 +1272,599 @@ if historical_raw_rows:
 else:
     historical_summaries = []
     STATE["historical_benchmarks"] = "INCOMPLETE"
+'''
+            ),
+        ]
+    )
+
+    cells.extend(
+        [
+            markdown(
+                r"""
+# 11. End-to-end transformer attention benchmark
+
+**What this section does:** Uses identical Q/K/V tensors to measure explicit
+PyTorch attention, explicit attention with only softmax replaced by the custom
+CUDA operator, and PyTorch `scaled_dot_product_attention` with causal semantics.
+
+**Why necessary:** A fast softmax kernel changes only one portion of attention;
+both matrix multiplications remain. End-to-end speedup can therefore be much
+smaller than kernel speedup.
+
+**What to expect:** Untimed output comparisons at the fixed tolerances followed
+by raw CUDA-event samples and summaries. A shape that fails correctness is not
+timed and its failure is preserved.
+
+**What to save:** `attention_correctness.json`, `attention_raw.csv`, and
+`attention_summary.csv`.
+
+**Paper meaning:** These artifacts support the transformer-attention experiment
+and the distinction between microkernel and application performance.
+"""
+            ),
+            code(
+                r'''
+import torch.nn.functional as F
+
+ATTENTION_RAW_FIELDS = [
+    "implementation", "git_commit", "batch", "heads", "sequence_length",
+    "head_dimension", "dtype", "warmups", "iterations", "sample_index",
+    "latency_us", "gpu_name", "compute_capability", "pytorch_version",
+    "cuda_version", "timestamp",
+]
+
+def cuda_event_samples(operation: Callable[[], Any]) -> list[float]:
+    for _ in range(WARMUPS):
+        operation()
+    torch.cuda.synchronize()
+    start = torch.cuda.Event(enable_timing=True)
+    end = torch.cuda.Event(enable_timing=True)
+    samples = []
+    for _ in range(ITERATIONS):
+        start.record()
+        operation()
+        end.record()
+        end.synchronize()
+        samples.append(float(start.elapsed_time(end)) * 1000.0)
+    return samples
+
+def make_attention_operations(
+    sequence_length: int,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, dict[str, Callable[[], torch.Tensor]]]:
+    generator = torch.Generator(device="cuda").manual_seed(
+        RANDOM_SEED + sequence_length
+    )
+    shape = (BATCH, HEADS, sequence_length, HEAD_DIM)
+    query = torch.randn(shape, generator=generator, device="cuda", dtype=torch.float32)
+    key = torch.randn(shape, generator=generator, device="cuda", dtype=torch.float32)
+    value = torch.randn(shape, generator=generator, device="cuda", dtype=torch.float32)
+    allowed = torch.ones(
+        sequence_length, sequence_length, dtype=torch.bool, device="cuda"
+    ).tril()
+    scale = 1.0 / math.sqrt(HEAD_DIM)
+
+    def explicit_eager() -> torch.Tensor:
+        scores = query @ key.transpose(-2, -1)
+        probabilities = torch.softmax(
+            (scores * scale).masked_fill(~allowed, -torch.inf), dim=-1
+        )
+        return probabilities @ value
+
+    def custom_softmax_attention() -> torch.Tensor:
+        scores = query @ key.transpose(-2, -1)
+        flattened = scores.reshape(-1, sequence_length).contiguous()
+        probabilities = fused_causal_softmax(
+            flattened, scale, block_size=SELECTED_BLOCK_SIZE
+        ).reshape(BATCH, HEADS, sequence_length, sequence_length)
+        return probabilities @ value
+
+    def pytorch_sdpa() -> torch.Tensor:
+        return F.scaled_dot_product_attention(
+            query, key, value, dropout_p=0.0, is_causal=True
+        )
+
+    return query, key, value, {
+        "explicit_pytorch": explicit_eager,
+        "custom_softmax_attention": custom_softmax_attention,
+        "pytorch_sdpa": pytorch_sdpa,
+    }
+
+attention_raw_path = ARTIFACTS / "attention/attention_raw.csv"
+attention_summary_path = ARTIFACTS / "attention/attention_summary.csv"
+attention_correctness_path = ARTIFACTS / "attention/attention_correctness.json"
+
+if RUN_ATTENTION_BENCHMARKS and (
+    not attention_raw_path.exists() or ARTIFACT_POLICY != "REUSE"
+):
+    if not CORRECTNESS_READY:
+        raise RuntimeError("Attention benchmarking requires custom-softmax correctness")
+    if not claim_output(attention_raw_path):
+        attention_raw_rows = read_csv(attention_raw_path)
+        attention_correctness = json.loads(attention_correctness_path.read_text())
+    else:
+        if attention_correctness_path.exists() and ARTIFACT_POLICY == "ERROR":
+            raise FileExistsError(
+                f"Refusing to overwrite {attention_correctness_path}"
+            )
+        attention_raw_rows: list[dict[str, Any]] = []
+        attention_correctness: list[dict[str, Any]] = []
+        for sequence_length in SEQUENCE_LENGTHS:
+            try:
+                _, _, _, operations = make_attention_operations(sequence_length)
+                eager_output = operations["explicit_pytorch"]()
+                custom_output = operations["custom_softmax_attention"]()
+                sdpa_output = operations["pytorch_sdpa"]()
+                torch.cuda.synchronize()
+                custom_difference = (custom_output - eager_output).abs().max().item()
+                sdpa_difference = (sdpa_output - eager_output).abs().max().item()
+                try:
+                    torch.testing.assert_close(
+                        custom_output, eager_output, rtol=RTOL, atol=ATOL
+                    )
+                    custom_close = True
+                except AssertionError:
+                    custom_close = False
+                try:
+                    torch.testing.assert_close(
+                        sdpa_output, eager_output, rtol=RTOL, atol=ATOL
+                    )
+                    sdpa_close = True
+                except AssertionError:
+                    sdpa_close = False
+                passed = custom_close and sdpa_close
+                attention_correctness.append(
+                    {
+                        "sequence_length": sequence_length,
+                        "custom_max_absolute_error_vs_eager": custom_difference,
+                        "sdpa_max_absolute_error_vs_eager": sdpa_difference,
+                        "rtol": RTOL,
+                        "atol": ATOL,
+                        "pass_fail": "PASS" if passed else "FAIL",
+                    }
+                )
+                checkpoint_json(attention_correctness_path, attention_correctness)
+                if not passed:
+                    STATE["failed_experiments"].append(
+                        f"attention correctness S={sequence_length}"
+                    )
+                    print(f"Skipping attention timing for failed S={sequence_length}")
+                    continue
+                for implementation, operation in operations.items():
+                    samples = cuda_event_samples(operation)
+                    timestamp = utc_now()
+                    for sample_index, latency_us in enumerate(samples):
+                        attention_raw_rows.append(
+                            {
+                                "implementation": implementation,
+                                "git_commit": GIT_COMMIT,
+                                "batch": BATCH,
+                                "heads": HEADS,
+                                "sequence_length": sequence_length,
+                                "head_dimension": HEAD_DIM,
+                                "dtype": DTYPE,
+                                "warmups": WARMUPS,
+                                "iterations": ITERATIONS,
+                                "sample_index": sample_index,
+                                "latency_us": latency_us,
+                                "gpu_name": ENVIRONMENT["gpu_name"],
+                                "compute_capability": ENVIRONMENT["compute_capability"],
+                                "pytorch_version": ENVIRONMENT["pytorch_version"],
+                                "cuda_version": ENVIRONMENT["pytorch_cuda_version"],
+                                "timestamp": timestamp,
+                            }
+                        )
+                with attention_raw_path.open(
+                    "w", newline="", encoding="utf-8"
+                ) as output_file:
+                    writer = csv.DictWriter(output_file, fieldnames=ATTENTION_RAW_FIELDS)
+                    writer.writeheader()
+                    writer.writerows(attention_raw_rows)
+            except (RuntimeError, torch.cuda.OutOfMemoryError) as error:
+                attention_correctness.append(
+                    {
+                        "sequence_length": sequence_length,
+                        "pass_fail": "FAIL",
+                        "error": f"{type(error).__name__}: {error}",
+                    }
+                )
+                checkpoint_json(attention_correctness_path, attention_correctness)
+                STATE["failed_experiments"].append(
+                    f"attention S={sequence_length}: {type(error).__name__}"
+                )
+            finally:
+                torch.cuda.empty_cache()
+        register_file(attention_raw_path)
+        register_file(attention_correctness_path)
+elif attention_raw_path.exists():
+    attention_raw_rows = read_csv(attention_raw_path)
+    attention_correctness = json.loads(attention_correctness_path.read_text())
+else:
+    attention_raw_rows = []
+    attention_correctness = []
+    STATE["skipped_experiments"].append("attention benchmarks")
+
+def summarize_attention(
+    raw_rows: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    grouped: dict[tuple[str, int], list[float]] = {}
+    representative: dict[tuple[str, int], Mapping[str, Any]] = {}
+    for row in raw_rows:
+        key = (str(row["implementation"]), int(row["sequence_length"]))
+        grouped.setdefault(key, []).append(float(row["latency_us"]))
+        representative[key] = row
+    summaries = []
+    for key, samples in grouped.items():
+        implementation, sequence_length = key
+        source = representative[key]
+        summaries.append(
+            {
+                "implementation": implementation,
+                "git_commit": source["git_commit"],
+                "batch": int(source["batch"]),
+                "heads": int(source["heads"]),
+                "sequence_length": sequence_length,
+                "head_dimension": int(source["head_dimension"]),
+                "dtype": source["dtype"],
+                "warmups": int(source["warmups"]),
+                "iterations": int(source["iterations"]),
+                "median_us": statistics.median(samples),
+                "p25_us": percentile(samples, 0.25),
+                "p75_us": percentile(samples, 0.75),
+                "speedup_vs_explicit_eager": "",
+                "speedup_vs_sdpa": "",
+                "gpu_name": source["gpu_name"],
+                "compute_capability": source["compute_capability"],
+                "pytorch_version": source["pytorch_version"],
+                "cuda_version": source["cuda_version"],
+                "timestamp": source["timestamp"],
+            }
+        )
+    by_shape = {
+        sequence_length: {
+            row["implementation"]: row
+            for row in summaries if row["sequence_length"] == sequence_length
+        }
+        for sequence_length in {row["sequence_length"] for row in summaries}
+    }
+    for row in summaries:
+        peers = by_shape[row["sequence_length"]]
+        eager = peers.get("explicit_pytorch")
+        sdpa = peers.get("pytorch_sdpa")
+        controls = [
+            "git_commit", "batch", "heads", "sequence_length", "head_dimension",
+            "dtype", "warmups", "iterations", "gpu_name", "compute_capability",
+            "pytorch_version", "cuda_version",
+        ]
+        row["speedup_vs_explicit_eager"] = (
+            float(eager["median_us"]) / float(row["median_us"])
+            if eager and all(row[field] == eager[field] for field in controls)
+            else "SPEEDUP NOT COMPUTED: incompatible experimental conditions."
+        )
+        row["speedup_vs_sdpa"] = (
+            float(sdpa["median_us"]) / float(row["median_us"])
+            if sdpa and all(row[field] == sdpa[field] for field in controls)
+            else "SPEEDUP NOT COMPUTED: incompatible experimental conditions."
+        )
+    return sorted(summaries, key=lambda row: (row["sequence_length"], row["implementation"]))
+
+if attention_raw_rows:
+    attention_summaries = summarize_attention(attention_raw_rows)
+    write_csv(
+        attention_summary_path,
+        attention_summaries,
+        list(attention_summaries[0]),
+    )
+    STATE["attention_benchmarks"] = "COMPLETE"
+else:
+    attention_summaries = []
+    STATE["attention_benchmarks"] = "INCOMPLETE"
+'''
+            ),
+            markdown(
+                r"""
+# 12. Kernel versus attention and Amdahl's Law analysis
+
+**What this section does:** Matches measured softmax and attention rows by shape
+and environment, computes measured speedups, and separately computes an Amdahl
+model prediction when the measured fraction is valid.
+
+**Why necessary:** Amdahl's Law explains why optimizing one component cannot
+automatically accelerate unchanged QKᵀ and PV work by the same factor.
+
+**What to expect:** A CSV distinguishing `MEASURED` quantities from
+`MODEL_PREDICTION`. Invalid or incompatible rows report that computation was not
+performed.
+
+**What to save:** `artifacts/attention/amdahl_analysis.csv`.
+
+**Paper meaning:** Model predictions must never be described as measured
+end-to-end outcomes.
+"""
+            ),
+            code(
+                r'''
+amdahl_path = ARTIFACTS / "attention/amdahl_analysis.csv"
+amdahl_rows: list[dict[str, Any]] = []
+
+if softmax_summaries and attention_summaries:
+    softmax_by_shape = {
+        int(row["sequence_length"]): row
+        for row in softmax_summaries if row["implementation"] == "pytorch_eager"
+    }
+    custom_softmax_by_shape = {
+        int(row["sequence_length"]): row
+        for row in softmax_summaries if row["implementation"] == "custom_cuda"
+    }
+    attention_eager_by_shape = {
+        int(row["sequence_length"]): row
+        for row in attention_summaries if row["implementation"] == "explicit_pytorch"
+    }
+    attention_custom_by_shape = {
+        int(row["sequence_length"]): row
+        for row in attention_summaries if row["implementation"] == "custom_softmax_attention"
+    }
+    for sequence_length in sorted(
+        set(softmax_by_shape)
+        & set(custom_softmax_by_shape)
+        & set(attention_eager_by_shape)
+        & set(attention_custom_by_shape)
+    ):
+        softmax_eager = softmax_by_shape[sequence_length]
+        softmax_custom = custom_softmax_by_shape[sequence_length]
+        attention_eager = attention_eager_by_shape[sequence_length]
+        attention_custom = attention_custom_by_shape[sequence_length]
+        same_environment = len(
+            {
+                (
+                    row["gpu_name"], row["compute_capability"],
+                    row["pytorch_version"], row["cuda_version"],
+                )
+                for row in [
+                    softmax_eager, softmax_custom, attention_eager, attention_custom
+                ]
+            }
+        ) == 1
+        if not same_environment:
+            amdahl_rows.append(
+                {
+                    "sequence_length": sequence_length,
+                    "status": "SPEEDUP NOT COMPUTED: incompatible experimental conditions.",
+                }
+            )
+            continue
+        softmax_speedup = float(softmax_eager["median_us"]) / float(
+            softmax_custom["median_us"]
+        )
+        measured_attention_speedup = float(attention_eager["median_us"]) / float(
+            attention_custom["median_us"]
+        )
+        measured_fraction = float(softmax_eager["median_us"]) / float(
+            attention_eager["median_us"]
+        )
+        valid_model = 0.0 <= measured_fraction <= 1.0 and softmax_speedup > 0.0
+        predicted = (
+            1.0 / ((1.0 - measured_fraction) + measured_fraction / softmax_speedup)
+            if valid_model else "MODEL NOT COMPUTED: invalid measured fraction."
+        )
+        amdahl_rows.append(
+            {
+                "sequence_length": sequence_length,
+                "measured_softmax_speedup": softmax_speedup,
+                "measured_attention_speedup": measured_attention_speedup,
+                "measured_softmax_fraction_of_explicit_attention": measured_fraction,
+                "amdahl_model_prediction": predicted,
+                "softmax_values_label": "MEASURED",
+                "attention_values_label": "MEASURED",
+                "amdahl_value_label": "MODEL_PREDICTION" if valid_model else "UNAVAILABLE",
+                "git_commit": GIT_COMMIT,
+                "gpu_name": ENVIRONMENT["gpu_name"],
+                "timestamp": utc_now(),
+                "status": "COMPLETE" if valid_model else "INCOMPLETE",
+            }
+        )
+
+if amdahl_rows:
+    fieldnames = sorted({key for row in amdahl_rows for key in row})
+    write_csv(amdahl_path, amdahl_rows, fieldnames)
+else:
+    STATE["skipped_experiments"].append("Amdahl analysis: matched data absent")
+'''
+            ),
+            markdown(
+                r"""
+# 13. PyTorch Profiler
+
+**What this section does:** Profiles one configurable shape with labeled eager,
+custom-softmax, and SDPA regions; exports a Chrome trace, text table, and event
+CSV without turning profiler facts into causal explanations.
+
+**Why necessary:** Timing says how long; profiling helps identify where time is
+reported and which kernels/operators are present.
+
+**What to expect:** Profiler artifacts when CUDA profiling is supported. A
+failure is logged without deleting completed benchmark data.
+
+**What to save:** Everything under `artifacts/profiler/`.
+
+**Paper meaning:** Use `MEASURED / INTERPRETATION / NEXT EXPERIMENT`; kernel names
+and times are measurements, while bottleneck explanations remain hypotheses.
+"""
+            ),
+            code(
+                r'''
+profiler_table_path = ARTIFACTS / "profiler/pytorch_profiler_table.txt"
+profiler_trace_path = ARTIFACTS / "profiler/pytorch_profiler_trace.json"
+profiler_events_path = ARTIFACTS / "profiler/pytorch_profiler_events.csv"
+profiler_notes_path = ARTIFACTS / "profiler/pytorch_profiler_interpretation.md"
+
+if RUN_PYTORCH_PROFILER:
+    try:
+        _, _, _, profile_operations = make_attention_operations(
+            PROFILE_SEQUENCE_LENGTH
+        )
+        for operation in profile_operations.values():
+            for _ in range(3):
+                operation()
+        torch.cuda.synchronize()
+        activities = [
+            torch.profiler.ProfilerActivity.CPU,
+            torch.profiler.ProfilerActivity.CUDA,
+        ]
+        with torch.profiler.profile(
+            activities=activities,
+            record_shapes=True,
+            profile_memory=True,
+            with_stack=False,
+        ) as profile:
+            for label, operation in profile_operations.items():
+                with torch.profiler.record_function(f"attention::{label}"):
+                    operation()
+            torch.cuda.synchronize()
+
+        averages = profile.key_averages()
+        try:
+            table = averages.table(sort_by="self_device_time_total", row_limit=100)
+        except KeyError:
+            table = averages.table(sort_by="self_cuda_time_total", row_limit=100)
+        write_text(profiler_table_path, table + "\n")
+        if claim_output(profiler_trace_path):
+            profile.export_chrome_trace(str(profiler_trace_path))
+        register_file(profiler_trace_path)
+
+        profiler_rows = []
+        for event in averages:
+            device_total = getattr(
+                event, "self_device_time_total",
+                getattr(event, "self_cuda_time_total", 0.0),
+            )
+            profiler_rows.append(
+                {
+                    "operator": event.key,
+                    "count": event.count,
+                    "self_cpu_time_total_us": event.self_cpu_time_total,
+                    "cpu_time_total_us": event.cpu_time_total,
+                    "self_device_time_total_us": device_total,
+                }
+            )
+        write_csv(
+            profiler_events_path,
+            profiler_rows,
+            [
+                "operator", "count", "self_cpu_time_total_us",
+                "cpu_time_total_us", "self_device_time_total_us",
+            ],
+        )
+        write_text(
+            profiler_notes_path,
+            "# PyTorch Profiler notes\n\n"
+            "## MEASURED\n\n"
+            "Profiler table, event CSV, and trace were exported for the configured "
+            f"S={PROFILE_SEQUENCE_LENGTH} workload. Read the artifacts before adding facts.\n\n"
+            "## INTERPRETATION\n\nTODO(student): Add a hypothesis, not a profiler fact.\n\n"
+            "## NEXT EXPERIMENT\n\nTODO(student): State a controlled follow-up.\n",
+        )
+        STATE["pytorch_profiler"] = "COMPLETE"
+    except Exception as error:
+        failure = f"{type(error).__name__}: {error}"
+        write_text(ARTIFACTS / "profiler/pytorch_profiler_failure.txt", failure + "\n")
+        STATE["failed_experiments"].append(f"PyTorch Profiler: {failure}")
+        STATE["pytorch_profiler"] = "INCOMPLETE"
+else:
+    STATE["skipped_experiments"].append("PyTorch Profiler")
+    STATE["pytorch_profiler"] = "INCOMPLETE"
+'''
+            ),
+            markdown(
+                r"""
+# 14. Optional NVIDIA Nsight Compute attempt
+
+**What this section does:** Detects the installed `ncu` version and, if present,
+attempts a narrowly filtered `--set basic` profile of the custom kernel. The
+installed tool—not this notebook—chooses version-valid basic metrics.
+
+**Why necessary:** Nsight can report launch/resource/hardware-counter evidence
+that source inspection cannot establish. Colab often restricts performance
+counters.
+
+**What to expect:** Either a report/export or the explicit marker
+`NSIGHT COMPUTE UNAVAILABLE IN THIS COLAB ENVIRONMENT` with the failure log.
+
+**What to save:** `artifacts/profiler/nsight/`.
+
+**Paper meaning:** Absence of permission is a limitation, not a measured kernel
+property. Interpretations require a separate controlled follow-up.
+"""
+            ),
+            code(
+                r'''
+nsight_directory = ARTIFACTS / "profiler/nsight"
+nsight_status: dict[str, Any] = {"timestamp": utc_now(), "status": "UNAVAILABLE"}
+ncu_path = shutil.which("ncu")
+
+if RUN_NSIGHT and ncu_path:
+    version = run_command([ncu_path, "--version"], check=False)
+    nsight_status["version_output"] = version.stdout
+    target_path = nsight_directory / "profile_target.py"
+    target_source = f"""
+import math
+import torch
+from cuda_attention.operator import fused_causal_softmax
+scores = torch.randn({BATCH_HEADS * PROFILE_SEQUENCE_LENGTH}, {PROFILE_SEQUENCE_LENGTH}, device="cuda", dtype=torch.float32)
+scale = 1.0 / math.sqrt({HEAD_DIM})
+for _ in range(3):
+    fused_causal_softmax(scores, scale, block_size={SELECTED_BLOCK_SIZE})
+torch.cuda.synchronize()
+fused_causal_softmax(scores, scale, block_size={SELECTED_BLOCK_SIZE})
+torch.cuda.synchronize()
+""".strip() + "\n"
+    write_text(target_path, target_source)
+    report_base = nsight_directory / "fused_causal_softmax"
+    report_path = report_base.with_suffix(".ncu-rep")
+    if report_path.exists() and ARTIFACT_POLICY == "ERROR":
+        raise FileExistsError(f"Refusing to overwrite {report_path}")
+    command = [
+        ncu_path, "--set", "basic", "--target-processes", "all",
+        "--kernel-name", "regex:.*fused_causal_softmax_kernel.*",
+        "--export", str(report_base), sys.executable, str(target_path),
+    ]
+    result = run_command(
+        command, cwd=work_dir,
+        log_path=nsight_directory / "ncu_run_log.txt", check=False,
+    )
+    nsight_status["return_code"] = result.returncode
+    if result.returncode == 0 and report_path.is_file():
+        register_file(report_path)
+        export_result = run_command(
+            [ncu_path, "--import", str(report_path), "--csv", "--page", "raw"],
+            cwd=work_dir,
+            log_path=nsight_directory / "ncu_raw_export.csv",
+            check=False,
+        )
+        nsight_status["export_return_code"] = export_result.returncode
+        nsight_status["status"] = (
+            "COMPLETE" if export_result.returncode == 0 else "PARTIAL"
+        )
+    else:
+        marker = (
+            "NSIGHT COMPUTE UNAVAILABLE IN THIS COLAB ENVIRONMENT\n\n"
+            "The tool was present, but profiling failed. Inspect ncu_run_log.txt; "
+            "hardware-counter permissions are a common Colab limitation.\n"
+        )
+        write_text(nsight_directory / "UNAVAILABLE.txt", marker)
+        STATE["failed_experiments"].append("Nsight Compute execution")
+elif RUN_NSIGHT:
+    write_text(
+        nsight_directory / "UNAVAILABLE.txt",
+        "NSIGHT COMPUTE UNAVAILABLE IN THIS COLAB ENVIRONMENT\n"
+        "The ncu executable was not installed.\n",
+    )
+    STATE["skipped_experiments"].append("Nsight Compute: ncu not installed")
+else:
+    write_text(nsight_directory / "UNAVAILABLE.txt", "Nsight Compute disabled by configuration.\n")
+    STATE["skipped_experiments"].append("Nsight Compute disabled")
+
+write_json(nsight_directory / "nsight_status.json", nsight_status)
+STATE["nsight_compute"] = nsight_status["status"]
 '''
             ),
         ]
