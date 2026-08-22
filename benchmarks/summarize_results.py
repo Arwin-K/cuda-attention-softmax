@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 import statistics
 import sys
+from typing import Sequence
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -168,6 +169,85 @@ def write_summary_csv(
         writer = csv.DictWriter(output_file, fieldnames=SUMMARY_FIELDS)
         writer.writeheader()
         writer.writerows(records)
+
+
+def select_launch_configuration(
+    summaries: Sequence[dict[str, object]],
+) -> dict[str, object]:
+    """Select among complete 128/256/512 results without overweighting long rows.
+
+    For each sequence length, latency is divided by the fastest configuration's
+    latency at that same length. The configuration with the lowest median
+    relative latency wins. This gives every planned shape one vote-like weight
+    while retaining the magnitude of slowdowns.
+    """
+
+    expected_sizes = {128, 256, 512}
+    by_size: dict[int, dict[int, float]] = {}
+    provenance: set[tuple[str, ...]] = set()
+    for record in summaries:
+        raw_size = str(record.get("launch_block_size", ""))
+        if not raw_size:
+            raise ValueError("launch selection requires a block size on every row")
+        block_size = int(raw_size)
+        sequence_length = int(record["sequence_length"])
+        latency = float(record["median_us"])
+        if latency <= 0.0:
+            raise ValueError("launch selection requires positive median latency")
+        if sequence_length in by_size.setdefault(block_size, {}):
+            raise ValueError("launch selection requires one summary per size and shape")
+        by_size[block_size][sequence_length] = latency
+        provenance.add(
+            tuple(
+                str(record[field])
+                for field in (
+                    "git_commit",
+                    "gpu_name",
+                    "compute_capability",
+                    "pytorch_version",
+                    "cuda_version",
+                )
+            )
+        )
+
+    if set(by_size) != expected_sizes:
+        raise ValueError("launch selection requires complete 128/256/512 results")
+    if len(provenance) != 1:
+        raise ValueError("launch selection requires one Git and GPU environment")
+    shape_sets = {tuple(sorted(results)) for results in by_size.values()}
+    if len(shape_sets) != 1:
+        raise ValueError("launch configurations must cover identical sequence lengths")
+
+    sequence_lengths = next(iter(shape_sets))
+    relative_latency: dict[int, list[float]] = {size: [] for size in expected_sizes}
+    wins = {size: 0 for size in expected_sizes}
+    for sequence_length in sequence_lengths:
+        best_latency = min(
+            by_size[size][sequence_length] for size in expected_sizes
+        )
+        winners = [
+            size
+            for size in expected_sizes
+            if by_size[size][sequence_length] == best_latency
+        ]
+        for size in winners:
+            wins[size] += 1
+        for size in expected_sizes:
+            relative_latency[size].append(
+                by_size[size][sequence_length] / best_latency
+            )
+
+    scores = {
+        size: statistics.median(relative_latency[size]) for size in expected_sizes
+    }
+    selected = min(expected_sizes, key=lambda size: (scores[size], size))
+    return {
+        "selected_block_size": selected,
+        "median_relative_latency": scores,
+        "per_sequence_wins": wins,
+        "sequence_lengths": list(sequence_lengths),
+        "selection_rule": "lowest median per-shape relative latency",
+    }
 
 
 def main() -> int:

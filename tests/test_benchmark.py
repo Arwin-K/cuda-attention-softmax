@@ -20,6 +20,7 @@ from benchmarks.summarize_results import (
     SUMMARY_FIELDS,
     load_raw_benchmark_csv,
     percentile,
+    select_launch_configuration,
     summarize_raw_records,
     validate_comparison_pair,
     write_summary_csv,
@@ -271,6 +272,48 @@ def test_summary_statistics_and_throughput_come_from_raw_samples(tmp_path) -> No
 def test_percentile_rejects_empty_samples() -> None:
     with pytest.raises(ValueError, match="empty"):
         percentile([], 0.5)
+
+
+def _launch_summary(block_size: int, sequence_length: int, median_us: float) -> dict[str, object]:
+    return {
+        "git_commit": "e" * 40,
+        "gpu_name": "fixture GPU",
+        "compute_capability": "9.0",
+        "pytorch_version": "fixture torch",
+        "cuda_version": "fixture CUDA",
+        "launch_block_size": str(block_size),
+        "sequence_length": str(sequence_length),
+        "median_us": median_us,
+    }
+
+
+def test_launch_selection_uses_complete_per_shape_relative_latencies() -> None:
+    summaries = [
+        _launch_summary(128, 128, 1.0),
+        _launch_summary(256, 128, 1.1),
+        _launch_summary(512, 128, 1.4),
+        _launch_summary(128, 2048, 8.0),
+        _launch_summary(256, 2048, 6.0),
+        _launch_summary(512, 2048, 7.0),
+        _launch_summary(128, 768, 4.0),
+        _launch_summary(256, 768, 3.0),
+        _launch_summary(512, 768, 3.5),
+    ]
+
+    selection = select_launch_configuration(summaries)
+
+    assert selection["selected_block_size"] == 256
+    assert selection["per_sequence_wins"] == {128: 1, 256: 2, 512: 0}
+
+
+def test_launch_selection_rejects_missing_configuration() -> None:
+    summaries = [
+        _launch_summary(128, 128, 1.0),
+        _launch_summary(256, 128, 1.1),
+    ]
+
+    with pytest.raises(ValueError, match="complete 128/256/512"):
+        select_launch_configuration(summaries)
 
 
 def test_plot_series_remain_commit_specific_and_shape_ordered(tmp_path) -> None:

@@ -486,3 +486,31 @@ No performance or profiling experiment has been recorded yet.
   summarize results by shape before choosing any default.
 - **Student reflection:** `TODO(student): Explain why more threads can increase
   overhead even when the maximum block size is supported.`
+
+## Launch-default selection gate — Commit 075
+
+- **Date/time:** 2026-08-22, America/Toronto
+- **Git commit:** Commit 075 — `select launch configuration from measured results`
+- **Hardware/software:** CPU-only analysis path on Apple Silicon
+- **Research question:** Which supported block size gives the best robust result
+  across the complete planned sequence-length set?
+- **HYPOTHESIS:** The winner may be shape-dependent, so a per-shape normalized
+  score is safer than summing raw latency across unlike workloads.
+- **Independent variable:** Launch block size 128, 256, or 512
+- **Controlled variables:** One Git revision, GPU/software environment, and the
+  complete identical shape set
+- **Metrics:** Median relative latency across shapes and per-shape win count
+- **Command/script:** `.venv/bin/python benchmarks/benchmark_launch_configs.py
+  --select-from results/raw/launch_128.csv results/raw/launch_256.csv
+  results/raw/launch_512.csv --output results/summary/launch_selection.json`
+- **Raw result file:** None
+- **MEASUREMENT:** Selection stopped at the missing 128-thread CSV. No summary
+  or selected-default artifact was written.
+- **INTERPRETATION:** The data requirement works as intended; 256 remains the
+  historical provisional default, not a research result.
+- **Limitations:** Only synthetic unit fixtures exercised the ranking formula.
+- **NEXT EXPERIMENT:** Generate all three real CSVs in one Colab session, run
+  the selector, inspect per-shape tradeoffs, and only then call a size tuned.
+- **Student reflection:** `TODO(student): Explain why normalizing within each
+  sequence length prevents the longest workloads from deciding the result by
+  scale alone.`

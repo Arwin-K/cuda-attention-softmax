@@ -14,6 +14,10 @@ DEFAULT_SEED = 2026
 SUPPORTED_BLOCK_SIZES = (128, 256, 512)
 DEFAULT_BLOCK_SIZE = 256
 
+# This preserves the pre-tuning launch behavior so the repository remains
+# runnable. It is not a performance conclusion; Commit 075 found no NVIDIA
+# artifacts from which to choose a measured default.
+
 # Aggregate summaries are derived from raw per-iteration CUDA-event samples;
 # they are never entered manually into this configuration.
 

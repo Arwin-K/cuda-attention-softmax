@@ -23,3 +23,16 @@ throughput figures from missing or empty summaries.
 | Accesses are coalesced efficiently | Hypothesis from address mapping | Nsight memory metrics |
 | Block design is faster than row serial | Unmeasured | Matched commit-tagged CSVs |
 | Speedup varies with sequence length | Untested hypothesis | Full benchmark registry |
+## Launch-configuration selection status
+
+The kernel accepts 128, 256, and 512 threads per block, but no NVIDIA launch
+CSV exists for any configuration. Therefore, **no launch configuration has been
+selected from measurements**. The code retains 256 only as the pre-tuning,
+provisional default.
+
+Once all three artifacts exist from one Git revision and one GPU environment,
+`benchmarks/benchmark_launch_configs.py --select-from ...` assigns equal
+importance to each required sequence length by dividing each latency by the
+best latency at that same length. It selects the lowest median relative latency
+and reports per-shape wins. This policy is implemented and tested on explicitly
+synthetic unit-test fixtures; those fixtures are not project results.
