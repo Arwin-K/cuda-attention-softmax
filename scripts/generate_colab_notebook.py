@@ -558,6 +558,719 @@ if not EXTENSION_READY:
         ),
     ]
 
+    cells.extend(
+        [
+            markdown(
+                r"""
+# 7. CUDA correctness gate
+
+**What this section does:** Runs the repository CUDA test module and a structured
+matrix over every required sequence length and input family using the fixed FP32
+tolerances `rtol=1e-5`, `atol=1e-6`.
+
+**Why necessary:** Performance measurements are rejected until the custom output
+matches the trusted PyTorch reference, causal positions are exactly zero, rows
+sum to one, and shape/dtype/device invariants hold.
+
+**What to expect:** A passing pytest log, one CSV row per correctness case, and a
+summary JSON. Failures remain in the CSV and block later custom benchmarks.
+
+**What to save:** Everything under `artifacts/correctness/`.
+
+**Paper meaning:** These artifacts support the numerical-correctness section;
+they are not latency measurements.
+"""
+            ),
+            code(
+                r'''
+from cuda_attention.operator import fused_causal_softmax
+from cuda_attention.reference import causal_allowed_mask, causal_scaled_softmax
+
+pytest_result = run_command(
+    [sys.executable, "-m", "pytest", "-q", "tests/test_cuda_operator.py", "-rs"],
+    cwd=work_dir,
+    log_path=ARTIFACTS / "correctness/pytest_output.txt",
+    check=False,
+)
+
+CORRECTNESS_FIELDS = [
+    "git_commit", "sequence_length", "rows", "input_family", "dtype", "scale",
+    "max_absolute_error", "max_relative_error", "max_row_sum_error",
+    "masked_positions_exactly_zero", "contains_nan", "contains_inf",
+    "shape_correct", "dtype_correct", "device_correct", "pass_fail",
+    "rtol", "atol", "gpu_name", "compute_capability", "timestamp",
+]
+correctness_path = ARTIFACTS / "correctness/correctness_results.csv"
+
+def make_correctness_scores(
+    sequence_length: int,
+    rows: int,
+    family: str,
+) -> torch.Tensor:
+    generator = torch.Generator(device="cuda").manual_seed(
+        RANDOM_SEED + sequence_length + sum(map(ord, family))
+    )
+    if family == "zeros":
+        scores = torch.zeros(rows, sequence_length, device="cuda", dtype=torch.float32)
+    elif family == "equal":
+        scores = torch.full(
+            (rows, sequence_length), 7.0, device="cuda", dtype=torch.float32
+        )
+    else:
+        scores = torch.randn(
+            rows, sequence_length, generator=generator,
+            device="cuda", dtype=torch.float32,
+        )
+        if family.startswith("random_x"):
+            scores.mul_(float(family.removeprefix("random_x")))
+        elif family == "dominant_positive":
+            scores[:, 0] = 1000.0
+        elif family == "dominant_negative":
+            scores[:, 0] = -1000.0
+        elif family != "normal":
+            raise ValueError(f"Unknown correctness family: {family}")
+    return scores
+
+if RUN_CORRECTNESS and (not correctness_path.exists() or ARTIFACT_POLICY != "REUSE"):
+    if not claim_output(correctness_path):
+        correctness_rows = read_csv(correctness_path)
+    else:
+        correctness_rows: list[dict[str, Any]] = []
+        scale = 1.0 / math.sqrt(HEAD_DIM)
+        for sequence_length in CORRECTNESS_SEQUENCE_LENGTHS:
+            rows = 2 * sequence_length
+            allowed = causal_allowed_mask(rows, sequence_length, device="cuda")
+            for family in CORRECTNESS_INPUT_FAMILIES:
+                scores = make_correctness_scores(sequence_length, rows, family)
+                expected = causal_scaled_softmax(scores, scale)
+                try:
+                    actual = fused_causal_softmax(
+                        scores, scale, block_size=PROVISIONAL_BLOCK_SIZE
+                    )
+                    torch.cuda.synchronize()
+                    difference = (actual - expected).abs()
+                    relative = difference / expected.abs().clamp_min(
+                        torch.finfo(torch.float32).tiny
+                    )
+                    row_sum_error = (actual.sum(dim=-1) - 1.0).abs().max()
+                    masked_zero = bool(
+                        torch.count_nonzero(actual.masked_select(~allowed)).item() == 0
+                    )
+                    shape_correct = actual.shape == scores.shape
+                    dtype_correct = actual.dtype == scores.dtype
+                    device_correct = actual.device == scores.device
+                    contains_nan = bool(torch.isnan(actual).any().item())
+                    contains_inf = bool(torch.isinf(actual).any().item())
+                    try:
+                        torch.testing.assert_close(
+                            actual, expected, rtol=RTOL, atol=ATOL
+                        )
+                        close = True
+                    except AssertionError:
+                        close = False
+                    passed = all(
+                        [close, masked_zero, shape_correct, dtype_correct,
+                         device_correct, not contains_nan, not contains_inf]
+                    )
+                    record = {
+                        "git_commit": GIT_COMMIT,
+                        "sequence_length": sequence_length,
+                        "rows": rows,
+                        "input_family": family,
+                        "dtype": str(scores.dtype).removeprefix("torch."),
+                        "scale": scale,
+                        "max_absolute_error": float(difference.max().item()),
+                        "max_relative_error": float(relative.max().item()),
+                        "max_row_sum_error": float(row_sum_error.item()),
+                        "masked_positions_exactly_zero": masked_zero,
+                        "contains_nan": contains_nan,
+                        "contains_inf": contains_inf,
+                        "shape_correct": shape_correct,
+                        "dtype_correct": dtype_correct,
+                        "device_correct": device_correct,
+                        "pass_fail": "PASS" if passed else "FAIL",
+                        "rtol": RTOL,
+                        "atol": ATOL,
+                        "gpu_name": ENVIRONMENT["gpu_name"],
+                        "compute_capability": ENVIRONMENT["compute_capability"],
+                        "timestamp": utc_now(),
+                    }
+                except Exception as error:
+                    record = {
+                        "git_commit": GIT_COMMIT,
+                        "sequence_length": sequence_length,
+                        "rows": rows,
+                        "input_family": family,
+                        "dtype": DTYPE,
+                        "scale": scale,
+                        "max_absolute_error": "",
+                        "max_relative_error": "",
+                        "max_row_sum_error": "",
+                        "masked_positions_exactly_zero": False,
+                        "contains_nan": "",
+                        "contains_inf": "",
+                        "shape_correct": False,
+                        "dtype_correct": False,
+                        "device_correct": False,
+                        "pass_fail": "FAIL",
+                        "rtol": RTOL,
+                        "atol": ATOL,
+                        "gpu_name": ENVIRONMENT["gpu_name"],
+                        "compute_capability": ENVIRONMENT["compute_capability"],
+                        "timestamp": utc_now(),
+                    }
+                    print(f"Correctness failure S={sequence_length} family={family}: {error}")
+                correctness_rows.append(record)
+                with correctness_path.open("w", newline="", encoding="utf-8") as output_file:
+                    writer = csv.DictWriter(output_file, fieldnames=CORRECTNESS_FIELDS)
+                    writer.writeheader()
+                    writer.writerows(correctness_rows)
+        register_file(correctness_path)
+elif correctness_path.exists():
+    correctness_rows = read_csv(correctness_path)
+else:
+    correctness_rows = []
+    STATE["skipped_experiments"].append("structured CUDA correctness")
+
+CORRECTNESS_READY = bool(
+    pytest_result.returncode == 0
+    and correctness_rows
+    and all(row["pass_fail"] == "PASS" for row in correctness_rows)
+)
+correctness_summary = {
+    "timestamp": utc_now(),
+    "git_commit": GIT_COMMIT,
+    "pytest_return_code": pytest_result.returncode,
+    "case_count": len(correctness_rows),
+    "passed_cases": sum(row["pass_fail"] == "PASS" for row in correctness_rows),
+    "failed_cases": sum(row["pass_fail"] != "PASS" for row in correctness_rows),
+    "rtol": RTOL,
+    "atol": ATOL,
+    "correctness_ready_for_benchmark": CORRECTNESS_READY,
+}
+write_json(ARTIFACTS / "correctness/correctness_summary.json", correctness_summary)
+STATE["cuda_correctness"] = "PASS" if CORRECTNESS_READY else "FAIL"
+print(json.dumps(correctness_summary, indent=2))
+
+if RUN_CORRECTNESS and not CORRECTNESS_READY:
+    raise RuntimeError(
+        "CUDA correctness did not pass. Do not run custom benchmarks until the "
+        "failure is understood without weakening tolerances."
+    )
+'''
+            ),
+            markdown(
+                r"""
+# 8. Benchmark utilities and launch-configuration experiment
+
+**What this section does:** Runs the repository custom benchmark at 128, 256,
+and 512 threads for every planned length, retains every CUDA-event sample, and
+selects a configuration only after all three matrices are complete.
+
+**Why necessary:** Block size changes parallel work, idle lanes, and cross-warp
+coordination. A familiar default is not evidence of optimality.
+
+**What to expect:** Raw and summary CSVs plus `launch_selection.json`. The rule
+is the lowest median per-shape relative latency, with per-length wins reported.
+
+**What to save:** Launch raw samples, summaries, and selection JSON.
+
+**Paper meaning:** These support the launch-tuning table and H4. A selected size
+is workload/environment-specific, not universally best.
+"""
+            ),
+            code(
+                r'''
+RAW_SOFTMAX_FIELDS = [
+    "git_commit", "implementation", "implementation_description",
+    "sequence_length", "rows", "columns", "dtype", "scale", "warmups",
+    "iterations", "sample_index", "latency_us", "launch_block_size",
+    "compile_warmups", "gpu_name", "compute_capability", "pytorch_version",
+    "cuda_version", "timestamp",
+]
+
+def percentile(values: Sequence[float], fraction: float) -> float:
+    ordered = sorted(values)
+    if not ordered:
+        raise ValueError("Cannot summarize empty samples")
+    position = (len(ordered) - 1) * fraction
+    lower = int(position)
+    upper = min(lower + 1, len(ordered) - 1)
+    weight = position - lower
+    return ordered[lower] * (1 - weight) + ordered[upper] * weight
+
+def classify_implementation(description: str) -> str:
+    lowered = description.lower()
+    if "torch.compile" in lowered:
+        return "torch_compile"
+    if "pytorch eager" in lowered:
+        return "pytorch_eager"
+    if "custom cuda" in lowered:
+        return "custom_cuda"
+    raise ValueError(f"Unknown implementation description: {description}")
+
+def normalize_repository_samples(
+    rows: Sequence[Mapping[str, str]],
+    *,
+    forced_implementation: str | None = None,
+    forced_description: str | None = None,
+) -> list[dict[str, Any]]:
+    normalized = []
+    for row in rows:
+        description = forced_description or row["implementation_description"]
+        implementation = forced_implementation or classify_implementation(description)
+        normalized.append(
+            {
+                "git_commit": row["git_commit"],
+                "implementation": implementation,
+                "implementation_description": description,
+                "sequence_length": int(row["sequence_length"]),
+                "rows": int(row["rows"]),
+                "columns": int(row["columns"]),
+                "dtype": row["dtype"],
+                "scale": 1.0 / math.sqrt(HEAD_DIM),
+                "warmups": int(row["warmups"]),
+                "iterations": int(row["iterations"]),
+                "sample_index": int(row["sample_index"]),
+                "latency_us": float(row.get("sample_us", row.get("latency_us", "nan"))),
+                "launch_block_size": row.get("launch_block_size", ""),
+                "compile_warmups": int(row.get("compile_warmups", 0) or 0),
+                "gpu_name": row["gpu_name"],
+                "compute_capability": row["compute_capability"],
+                "pytorch_version": row["pytorch_version"],
+                "cuda_version": row["cuda_version"],
+                "timestamp": row["timestamp"],
+            }
+        )
+    return normalized
+
+def summarize_softmax_rows(
+    raw_rows: Sequence[Mapping[str, Any]],
+    *,
+    baseline: str | None,
+) -> list[dict[str, Any]]:
+    group_fields = [
+        "git_commit", "implementation", "implementation_description",
+        "sequence_length", "rows", "columns", "dtype", "warmups", "iterations",
+        "launch_block_size", "compile_warmups", "gpu_name", "compute_capability",
+        "pytorch_version", "cuda_version",
+    ]
+    grouped: dict[tuple[Any, ...], list[float]] = {}
+    timestamps: dict[tuple[Any, ...], str] = {}
+    for row in raw_rows:
+        key = tuple(row[field] for field in group_fields)
+        latency = float(row["latency_us"])
+        if not math.isfinite(latency) or latency <= 0:
+            raise ValueError("CUDA latency samples must be finite and positive")
+        grouped.setdefault(key, []).append(latency)
+        timestamps[key] = str(row["timestamp"])
+    summaries = []
+    for key, samples in grouped.items():
+        group = dict(zip(group_fields, key, strict=True))
+        if len(samples) != int(group["iterations"]):
+            raise ValueError("Raw sample count does not match iterations")
+        median_us = statistics.median(samples)
+        summaries.append(
+            {
+                **group,
+                "median_us": median_us,
+                "p25_us": percentile(samples, 0.25),
+                "p75_us": percentile(samples, 0.75),
+                "elements_per_second": (
+                    int(group["rows"]) * int(group["columns"]) * 1_000_000.0
+                    / median_us
+                ),
+                "speedup_vs_eager": "",
+                "timestamp": timestamps[key],
+            }
+        )
+    if baseline is not None:
+        baseline_by_shape = {
+            int(row["sequence_length"]): row
+            for row in summaries
+            if row["implementation"] == baseline
+        }
+        for row in summaries:
+            base = baseline_by_shape.get(int(row["sequence_length"]))
+            if base is None:
+                row["speedup_vs_eager"] = (
+                    "SPEEDUP NOT COMPUTED: incompatible experimental conditions."
+                )
+                continue
+            compatible = all(
+                row[field] == base[field]
+                for field in [
+                    "sequence_length", "rows", "columns", "dtype", "warmups",
+                    "iterations", "gpu_name", "compute_capability",
+                    "pytorch_version", "cuda_version",
+                ]
+            )
+            row["speedup_vs_eager"] = (
+                float(base["median_us"]) / float(row["median_us"])
+                if compatible
+                else "SPEEDUP NOT COMPUTED: incompatible experimental conditions."
+            )
+    return sorted(
+        summaries,
+        key=lambda row: (int(row["sequence_length"]), str(row["implementation"])),
+    )
+
+def run_repository_softmax_case(
+    *, implementation: str, sequence_length: int, block_size: int,
+) -> list[dict[str, Any]]:
+    temporary = ARTIFACTS / "logs" / (
+        f"temporary_{implementation}_S{sequence_length}_B{block_size}.csv"
+    )
+    if temporary.exists():
+        temporary.unlink()
+    command = [
+        sys.executable, "benchmarks/benchmark_softmax.py",
+        "--implementation", implementation,
+        "--sequence-length", str(sequence_length),
+        "--warmups", str(WARMUPS), "--iterations", str(ITERATIONS),
+        "--block-size", str(block_size), "--output", str(temporary),
+    ]
+    result = run_command(command, cwd=work_dir, check=False)
+    if result.returncode != 0 or not temporary.is_file():
+        log = ARTIFACTS / "logs" / f"failed_{implementation}_S{sequence_length}_B{block_size}.txt"
+        write_text(log, result.stdout or "No command output\n")
+        raise RuntimeError(f"Benchmark failed for {implementation}, S={sequence_length}")
+    rows = normalize_repository_samples(read_csv(temporary))
+    temporary.unlink()
+    return rows
+
+if not CORRECTNESS_READY:
+    raise RuntimeError("Launch benchmarking requires the passed correctness gate")
+
+launch_raw_path = ARTIFACTS / "benchmarks/raw/launch_configuration_raw.csv"
+launch_summary_path = ARTIFACTS / "benchmarks/summaries/launch_configuration_summary.csv"
+
+if RUN_LAUNCH_CONFIG and (not launch_raw_path.exists() or ARTIFACT_POLICY != "REUSE"):
+    if not claim_output(launch_raw_path):
+        launch_raw_rows = read_csv(launch_raw_path)
+    else:
+        launch_raw_rows: list[dict[str, Any]] = []
+        for block_size in SUPPORTED_BLOCK_SIZES:
+            for sequence_length in SEQUENCE_LENGTHS:
+                case_rows = run_repository_softmax_case(
+                    implementation="custom",
+                    sequence_length=sequence_length,
+                    block_size=block_size,
+                )
+                launch_raw_rows.extend(case_rows)
+                with launch_raw_path.open("w", newline="", encoding="utf-8") as output_file:
+                    writer = csv.DictWriter(output_file, fieldnames=RAW_SOFTMAX_FIELDS)
+                    writer.writeheader()
+                    writer.writerows(launch_raw_rows)
+        register_file(launch_raw_path)
+elif launch_raw_path.exists():
+    launch_raw_rows = read_csv(launch_raw_path)
+else:
+    launch_raw_rows = []
+    STATE["skipped_experiments"].append("launch configuration")
+
+if launch_raw_rows:
+    launch_summaries = summarize_softmax_rows(launch_raw_rows, baseline=None)
+    summary_fields = list(launch_summaries[0])
+    write_csv(launch_summary_path, launch_summaries, summary_fields)
+
+    by_size: dict[int, dict[int, float]] = {}
+    for row in launch_summaries:
+        size = int(row["launch_block_size"])
+        by_size.setdefault(size, {})[int(row["sequence_length"])] = float(row["median_us"])
+    expected_sizes = set(SUPPORTED_BLOCK_SIZES)
+    expected_shapes = set(SEQUENCE_LENGTHS)
+    complete = set(by_size) == expected_sizes and all(
+        set(by_size[size]) == expected_shapes for size in expected_sizes
+    )
+    if not complete:
+        raise RuntimeError("Launch selection requires complete 128/256/512 matrices")
+    relative: dict[int, list[float]] = {size: [] for size in expected_sizes}
+    wins = {size: 0 for size in expected_sizes}
+    for sequence_length in SEQUENCE_LENGTHS:
+        best = min(by_size[size][sequence_length] for size in expected_sizes)
+        for size in expected_sizes:
+            relative[size].append(by_size[size][sequence_length] / best)
+            if by_size[size][sequence_length] == best:
+                wins[size] += 1
+    scores = {size: statistics.median(relative[size]) for size in expected_sizes}
+    SELECTED_BLOCK_SIZE = min(expected_sizes, key=lambda size: (scores[size], size))
+    launch_selection = {
+        "selected_block_size": SELECTED_BLOCK_SIZE,
+        "selection_rule": "lowest median per-shape relative latency",
+        "median_relative_latency": scores,
+        "per_sequence_wins": wins,
+        "sequence_lengths": SEQUENCE_LENGTHS,
+        "git_commit": GIT_COMMIT,
+        "gpu_name": ENVIRONMENT["gpu_name"],
+        "timestamp": utc_now(),
+    }
+    write_json(ARTIFACTS / "benchmarks/summaries/launch_selection.json", launch_selection)
+    STATE["launch_configuration"] = "COMPLETE"
+    print(json.dumps(launch_selection, indent=2))
+else:
+    SELECTED_BLOCK_SIZE = PROVISIONAL_BLOCK_SIZE
+    STATE["launch_configuration"] = "INCOMPLETE"
+    print("No complete launch data: retaining provisional block size without selection")
+'''
+            ),
+            markdown(
+                r"""
+# 9. Matched eager, torch.compile, and custom-softmax benchmark
+
+**What this section does:** Measures equivalent scale + causal mask + softmax
+work on the same deterministic score convention. Inputs and masks are outside
+timing; compilation has a separate untimed first call; CUDA events capture every
+steady-state sample.
+
+**Why necessary:** Eager alone is a weak framework baseline. `torch.compile`
+tests whether framework-level fusion narrows the custom-kernel advantage.
+
+**What to expect:** `softmax_raw.csv` and `softmax_summary.csv`, with speedup only
+when workload/environment controls match. Compilation failure is preserved; the
+applicable eager/custom results remain usable.
+
+**What to save:** Both softmax CSVs and any failure logs.
+
+**Paper meaning:** These are the primary kernel latency and throughput results.
+Synchronization is necessary because CUDA launches asynchronously; without the
+ending event synchronization, Python could return before GPU work completes.
+"""
+            ),
+            code(
+                r'''
+softmax_raw_path = ARTIFACTS / "benchmarks/raw/softmax_raw.csv"
+softmax_summary_path = ARTIFACTS / "benchmarks/summaries/softmax_summary.csv"
+
+if RUN_SOFTMAX_BENCHMARKS and (not softmax_raw_path.exists() or ARTIFACT_POLICY != "REUSE"):
+    if not claim_output(softmax_raw_path):
+        softmax_raw_rows = read_csv(softmax_raw_path)
+    else:
+        softmax_raw_rows: list[dict[str, Any]] = []
+        requested = "all" if RUN_TORCH_COMPILE else "both"
+        for sequence_length in SEQUENCE_LENGTHS:
+            try:
+                case_rows = run_repository_softmax_case(
+                    implementation=requested,
+                    sequence_length=sequence_length,
+                    block_size=SELECTED_BLOCK_SIZE,
+                )
+            except RuntimeError as error:
+                if RUN_TORCH_COMPILE:
+                    STATE["failed_experiments"].append(
+                        f"torch.compile or combined softmax at S={sequence_length}: {error}"
+                    )
+                    print("Combined path failed; retrying applicable eager/custom paths")
+                    case_rows = []
+                    for fallback in ("eager", "custom"):
+                        case_rows.extend(
+                            run_repository_softmax_case(
+                                implementation=fallback,
+                                sequence_length=sequence_length,
+                                block_size=SELECTED_BLOCK_SIZE,
+                            )
+                        )
+                else:
+                    raise
+            softmax_raw_rows.extend(case_rows)
+            with softmax_raw_path.open("w", newline="", encoding="utf-8") as output_file:
+                writer = csv.DictWriter(output_file, fieldnames=RAW_SOFTMAX_FIELDS)
+                writer.writeheader()
+                writer.writerows(softmax_raw_rows)
+        register_file(softmax_raw_path)
+elif softmax_raw_path.exists():
+    softmax_raw_rows = read_csv(softmax_raw_path)
+else:
+    softmax_raw_rows = []
+    STATE["skipped_experiments"].append("softmax benchmarks")
+
+if softmax_raw_rows:
+    softmax_summaries = summarize_softmax_rows(
+        softmax_raw_rows, baseline="pytorch_eager"
+    )
+    write_csv(softmax_summary_path, softmax_summaries, list(softmax_summaries[0]))
+    STATE["softmax_benchmarks"] = "COMPLETE"
+    print(f"Saved {len(softmax_raw_rows)} raw softmax samples")
+else:
+    softmax_summaries = []
+    STATE["softmax_benchmarks"] = "INCOMPLETE"
+'''
+            ),
+            markdown(
+                r"""
+# 10. Optional historical Git-revision experiment
+
+**What this section does:** Verifies configured commit objects and subjects,
+checks out each revision, cleans only build products, rebuilds, runs its CUDA
+tests, benchmarks it in isolated subprocesses, and restores the original branch.
+
+**Why necessary:** Git history—not duplicate CUDA files—contains the serial,
+shared-tree, and warp stages needed to evaluate H1–H3.
+
+**What to expect:** Some historical commits may fail against a newer Colab
+toolchain. Such failures are logged and retained instead of silently omitted.
+
+**What to save:** Historical raw/summary CSVs and per-stage build/test logs.
+
+**Paper meaning:** Only verified, correctness-passing commits can appear in the
+optimization-evolution comparison.
+"""
+            ),
+            code(
+                r'''
+historical_raw_path = ARTIFACTS / "benchmarks/raw/historical_raw.csv"
+historical_summary_path = ARTIFACTS / "benchmarks/summaries/historical_summary.csv"
+
+def clean_extension_build_products() -> None:
+    build_directory = work_dir / "build"
+    if build_directory.exists():
+        shutil.rmtree(build_directory)
+    for extension_path in (work_dir / "cuda_attention").glob("_C*.so"):
+        extension_path.unlink()
+
+def verify_historical_commit(stage: str, commit: str) -> str:
+    exists = run_command(
+        ["git", "cat-file", "-e", f"{commit}^{{commit}}"],
+        cwd=work_dir, check=False,
+    )
+    if exists.returncode != 0:
+        raise ValueError(f"Configured historical commit does not exist: {commit}")
+    subject = run_command(
+        ["git", "show", "-s", "--format=%s", commit], cwd=work_dir
+    ).stdout.strip()
+    if subject != EXPECTED_COMMIT_SUBJECTS[stage]:
+        raise ValueError(
+            f"Historical subject mismatch for {stage}: {subject!r}"
+        )
+    return subject
+
+if RUN_HISTORICAL_COMMITS and (not historical_raw_path.exists() or ARTIFACT_POLICY != "REUSE"):
+    if GIT_COMMIT == "UNAVAILABLE":
+        raise RuntimeError("Historical benchmarking requires Git provenance")
+    if GIT_STATUS:
+        raise RuntimeError("Historical benchmarking refuses a dirty working tree")
+    if not claim_output(historical_raw_path):
+        historical_raw_rows = read_csv(historical_raw_path)
+    else:
+        historical_raw_rows: list[dict[str, Any]] = []
+        original_branch_result = run_command(
+            ["git", "symbolic-ref", "--short", "-q", "HEAD"],
+            cwd=work_dir, check=False,
+        )
+        original_target = original_branch_result.stdout.strip() or GIT_COMMIT
+        stage_descriptions = {
+            "row_serial": "one-thread-per-row custom CUDA",
+            "block_shared_tree": "one-block-per-row shared-tree custom CUDA",
+            "warp_reduction": "compact warp-reduction custom CUDA",
+        }
+        try:
+            for stage, commit in IMPLEMENTATION_COMMITS.items():
+                verify_historical_commit(stage, commit)
+                run_command(["git", "checkout", "--detach", commit], cwd=work_dir)
+                clean_extension_build_products()
+                build = run_command(
+                    ["bash", "scripts/build_extension.sh"], cwd=work_dir,
+                    log_path=ARTIFACTS / f"build/historical_{stage}_build.txt",
+                    check=False,
+                )
+                if build.returncode != 0:
+                    STATE["failed_experiments"].append(
+                        f"historical {stage} build at {commit}"
+                    )
+                    continue
+                tests = run_command(
+                    [sys.executable, "-m", "pytest", "-q", "tests/test_cuda_operator.py", "-rs"],
+                    cwd=work_dir,
+                    log_path=ARTIFACTS / f"correctness/historical_{stage}_pytest.txt",
+                    check=False,
+                )
+                if tests.returncode != 0:
+                    STATE["failed_experiments"].append(
+                        f"historical {stage} correctness at {commit}"
+                    )
+                    continue
+                for sequence_length in SEQUENCE_LENGTHS:
+                    temporary = ARTIFACTS / "logs" / f"historical_{stage}_{sequence_length}.csv"
+                    if temporary.exists():
+                        temporary.unlink()
+                    command = [
+                        sys.executable, "benchmarks/benchmark_softmax.py",
+                        "--implementation", "custom",
+                        "--sequence-length", str(sequence_length),
+                        "--warmups", str(WARMUPS), "--iterations", str(ITERATIONS),
+                        "--output", str(temporary),
+                    ]
+                    result = run_command(command, cwd=work_dir, check=False)
+                    if result.returncode != 0 or not temporary.is_file():
+                        STATE["failed_experiments"].append(
+                            f"historical {stage} benchmark S={sequence_length}"
+                        )
+                        continue
+                    stage_rows = normalize_repository_samples(
+                        read_csv(temporary),
+                        forced_implementation=stage,
+                        forced_description=stage_descriptions[stage],
+                    )
+                    historical_raw_rows.extend(stage_rows)
+                    temporary.unlink()
+                    with historical_raw_path.open(
+                        "w", newline="", encoding="utf-8"
+                    ) as output_file:
+                        writer = csv.DictWriter(output_file, fieldnames=RAW_SOFTMAX_FIELDS)
+                        writer.writeheader()
+                        writer.writerows(historical_raw_rows)
+        finally:
+            run_command(["git", "checkout", original_target], cwd=work_dir, check=False)
+            clean_extension_build_products()
+            restore = run_command(
+                ["bash", "scripts/build_extension.sh"], cwd=work_dir,
+                log_path=ARTIFACTS / "build/restored_current_build.txt",
+                check=False,
+            )
+            if restore.returncode != 0:
+                raise RuntimeError("Failed to restore the current extension build")
+        register_file(historical_raw_path)
+elif historical_raw_path.exists():
+    historical_raw_rows = read_csv(historical_raw_path)
+else:
+    historical_raw_rows = []
+    STATE["skipped_experiments"].append("historical Git revisions")
+
+if historical_raw_rows:
+    historical_summaries = summarize_softmax_rows(historical_raw_rows, baseline=None)
+    serial_by_shape = {
+        int(row["sequence_length"]): row
+        for row in historical_summaries if row["implementation"] == "row_serial"
+    }
+    for row in historical_summaries:
+        baseline = serial_by_shape.get(int(row["sequence_length"]))
+        compatible = baseline is not None and all(
+            row[field] == baseline[field]
+            for field in [
+                "sequence_length", "rows", "columns", "dtype", "warmups",
+                "iterations", "gpu_name", "compute_capability",
+                "pytorch_version", "cuda_version",
+            ]
+        )
+        row["speedup_vs_row_serial"] = (
+            float(baseline["median_us"]) / float(row["median_us"])
+            if compatible
+            else "SPEEDUP NOT COMPUTED: incompatible experimental conditions."
+        )
+    write_csv(
+        historical_summary_path,
+        historical_summaries,
+        list(historical_summaries[0]),
+    )
+    STATE["historical_benchmarks"] = "COMPLETE"
+else:
+    historical_summaries = []
+    STATE["historical_benchmarks"] = "INCOMPLETE"
+'''
+            ),
+        ]
+    )
+
     for index, cell in enumerate(cells, start=1):
         cell["id"] = f"cell-{index:03d}"
     return {
