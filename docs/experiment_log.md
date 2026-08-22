@@ -350,3 +350,35 @@ No performance or profiling experiment has been recorded yet.
   benchmarking, expose block size as an experimental variable, measure
   128/256/512 only on NVIDIA hardware, choose from evidence, and add strong
   `torch.compile` comparisons through Commit 080.
+
+## Warp-reduction CUDA validation attempt — Commit 067
+
+- **Date/time:** 2026-08-22, America/Toronto
+- **Git commit:** Commit 067 — `validate warp-reduction kernel correctness`
+- **Hardware:** Apple Silicon arm64; no NVIDIA GPU
+- **Software:** Darwin, Python 3.11.15, PyTorch 2.13.0 without CUDA
+- **Research question:** Does the completed compact warp-reduction kernel match
+  the trusted PyTorch path for every required correctness length and input
+  family?
+- **HYPOTHESIS:** Replacing the shared trees with two-level shuffle reductions
+  preserves causal scaled-softmax semantics within `rtol=1e-5`, `atol=1e-6`.
+- **Independent variable:** Custom warp-reduction CUDA output versus PyTorch
+  reference output
+- **Controlled variables:** FP32, existing deterministic seeds and scales,
+  required lengths, stress families, and fixed tolerances
+- **Metrics:** Numerical closeness, row sums, exact masked zeros, finiteness,
+  non-negativity, shape, dtype, and device
+- **Command/script:** `.venv/bin/python -m pytest -q
+  tests/test_cuda_operator.py -rs`
+- **Raw result file:** None; correctness test console only
+- **MEASUREMENT:** The CPU-safe coverage-contract test passed. All CUDA kernel
+  cases skipped because no NVIDIA device is available, so no CUDA output was
+  compared.
+- **INTERPRETATION:** The intended CUDA regression matrix is complete and
+  discoverable, but warp-kernel correctness is not established.
+- **Limitations:** No extension build, kernel launch, synchronization, or device
+  arithmetic occurred on this host.
+- **NEXT EXPERIMENT:** Run the exact test module after building the extension in
+  Google Colab, and treat any failure as a blocker before benchmarking.
+- **Student reflection:** `TODO(student): Explain why preserving tolerances is
+  more scientifically useful than relaxing them after an optimization.`

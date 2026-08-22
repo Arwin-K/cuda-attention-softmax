@@ -16,6 +16,10 @@ from cuda_attention.reference import causal_allowed_mask, causal_scaled_softmax
 
 RTOL = 1e-5
 ATOL = 1e-6
+# This union is the explicit regression contract from AGENTS.md. Keeping it
+# visible in the CUDA gate prevents later optimization work from silently
+# dropping an awkward length merely because another parametrized group changed.
+REQUIRED_SEQUENCE_LENGTHS = (31, 32, 33, 63, 64, 127, 128, 255, 511, 768, 1023)
 CORE_SEQUENCE_LENGTHS = (32, 64, 128)
 IRREGULAR_SEQUENCE_LENGTHS = (
     1,
@@ -38,6 +42,13 @@ STRESS_SEQUENCE_LENGTHS = (31, 128, 511)
 ROW_WRAP_SHAPES = ((1, 31), (30, 31), (31, 31), (32, 31), (260, 257))
 
 
+@pytest.mark.cuda_static
+def test_cuda_gate_covers_every_required_sequence_length() -> None:
+    covered = set(CORE_SEQUENCE_LENGTHS) | set(IRREGULAR_SEQUENCE_LENGTHS)
+
+    assert set(REQUIRED_SEQUENCE_LENGTHS) <= covered
+
+
 def _cuda_test_unavailable_reason() -> str | None:
     if not torch.cuda.is_available():
         return "requires an NVIDIA CUDA device; MPS is not a CUDA substitute"
@@ -47,10 +58,16 @@ def _cuda_test_unavailable_reason() -> str | None:
 
 
 CUDA_TEST_UNAVAILABLE_REASON = _cuda_test_unavailable_reason()
-pytestmark = pytest.mark.skipif(
-    CUDA_TEST_UNAVAILABLE_REASON is not None,
-    reason=CUDA_TEST_UNAVAILABLE_REASON or "CUDA test prerequisites unavailable",
-)
+
+
+@pytest.fixture(autouse=True)
+def require_cuda_for_device_cases(request: pytest.FixtureRequest) -> None:
+    """Skip device execution while allowing static coverage gates to run."""
+
+    if request.node.get_closest_marker("cuda_static") is not None:
+        return
+    if CUDA_TEST_UNAVAILABLE_REASON is not None:
+        pytest.skip(CUDA_TEST_UNAVAILABLE_REASON)
 
 
 @pytest.mark.parametrize("sequence_length", CORE_SEQUENCE_LENGTHS)

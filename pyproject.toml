@@ -11,6 +11,9 @@ dependencies = ["torch>=2.0"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "cuda_static: CUDA source/test-contract checks that do not execute a device kernel",
+]
 
 [tool.setuptools.packages.find]
 include = ["cuda_attention*"]
