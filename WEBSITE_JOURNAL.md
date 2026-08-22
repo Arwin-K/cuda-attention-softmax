@@ -80,7 +80,7 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 
 ## Day 5 — Completing warp reductions and tuning the fused kernel
 
-065. I combined warp sums into the final denominator with only a small shared array.
+065. Completed — `combine warp sums through compact shared memory`: lane zero now publishes one denominator partial per warp into eight shared slots, and the first warp combines them with a second shuffle reduction. Static inspection and the CPU-safe suite pass; NVIDIA compilation and numerical validation remain pending.
 066. I removed the old full shared-memory reduction path, letting Git history preserve it while the source stays singular.
 067. I re-ran full correctness validation after the warp-reduction rewrite.
 068. I tested partial final warps, where lane participation is easy to get subtly wrong.

@@ -152,19 +152,27 @@ __global__ void fused_causal_softmax_kernel(
     thread_exponential_sum += exponential;
   }
 
-  // Each warp first reduces its 32 register-local sums. Lane 0 publishes that
-  // warp result; other lanes publish the additive identity into the existing
-  // 256-entry shared tree. This padded bridge preserves the block denominator
-  // without counting a warp sum 32 times. Commit 065 compacts it to eight slots.
+  // Each warp first reduces its 32 register-local sums. Lane 0 publishes one
+  // value, so the cross-warp bridge needs only eight shared slots rather than
+  // one slot per thread.
   const float warp_exponential_sum = warp_reduce_sum(thread_exponential_sum);
-  shared_values[threadIdx.x] = lane == 0 ? warp_exponential_sum : 0.0f;
-  __syncthreads();
-  for (unsigned int stride = blockDim.x / 2; stride > 0; stride >>= 1) {
-    if (threadIdx.x < stride) {
-      shared_values[threadIdx.x] += shared_values[threadIdx.x + stride];
-    }
-    __syncthreads();
+  if (lane == 0) {
+    shared_values[warp] = warp_exponential_sum;
   }
+  __syncthreads();
+
+  // Warp 0 performs the second level exactly as it did for the maximum. Lanes
+  // beyond the number of warps contribute zero, the additive identity. Every
+  // lane still executes each shuffle because the helper uses a full-warp mask.
+  if (warp == 0) {
+    float block_exponential_sum =
+        lane < kWarpsPerBlock ? shared_values[lane] : 0.0f;
+    block_exponential_sum = warp_reduce_sum(block_exponential_sum);
+    if (lane == 0) {
+      shared_values[0] = block_exponential_sum;
+    }
+  }
+  __syncthreads();
 
   const float exponential_sum = shared_values[0];
   // The same strided ownership used for loads and exponentials now distributes
@@ -198,7 +206,7 @@ torch::Tensor fused_causal_softmax_cuda(
 
   const int blocks = static_cast<int>(rows);
   const size_t shared_memory_bytes =
-      static_cast<size_t>(kThreadsPerBlock) * sizeof(float);
+      static_cast<size_t>(kWarpsPerBlock) * sizeof(float);
   const cudaStream_t stream =
       c10::cuda::getCurrentCUDAStream(scores.get_device());
   fused_causal_softmax_kernel<<<
