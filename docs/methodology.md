@@ -112,3 +112,16 @@ educational notebook code paths executed successfully. The environment report
 identified Darwin arm64, Python 3.11.15, PyTorch 2.13.0, and no CUDA device or
 PyTorch CUDA build. Test-run duration is validation metadata, not a performance
 benchmark.
+## Compilation startup versus steady-state latency
+
+The `torch.compile` baseline uses three ordered phases for each shape:
+
+1. one explicit untimed compile/startup call,
+2. the same numerical comparison against the trusted causal reference,
+3. ordinary untimed CUDA warmups followed by CUDA-event samples.
+
+The raw CSV records `compile_warmups=1` for the compiled path and zero for eager
+and custom paths. Compilation time is intentionally outside the primary
+steady-state latency metric; if startup cost is later reported, it must be a
+separate metric rather than mixed into the distribution. Input and causal-mask
+allocation remain outside every timed region.

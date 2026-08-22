@@ -604,3 +604,181 @@ without changing the fixed-tolerance output contract?
 ### Git commit
 
 Commit 064 — `implement warp-level sum reduction with shuffle operations`
+
+## Complete compact warp-reduction structure
+
+### Problem
+
+The Day 4 denominator path reduced values inside each warp but then padded the
+eight warp sums back into a 256-entry shared-memory tree. That left two active
+reduction strategies and retained shared storage and barriers that the warp
+design was intended to avoid.
+
+### Existing evidence
+
+Static inspection establishes that the fixed 256-thread launch has eight full
+warps. Local tests establish only that CPU behavior and CUDA skip guards remain
+stable; the kernel has not compiled or executed on NVIDIA hardware.
+
+### Hypothesis
+
+A two-level shuffle reduction can produce the same maximum and denominator
+while communicating only one value per warp through shared memory.
+
+### Proposed change
+
+Use an intra-warp shuffle reduction, publish lane-zero partials to an eight-slot
+array, and have the first warp perform the final reduction. Remove the old
+power-of-two tree assumption from the active source.
+
+### Implementation
+
+Both maximum and sum now follow the same hierarchy:
+
+```text
+thread-local partial
+-> 32-lane shuffle reduction
+-> one shared value per warp
+-> first-warp shuffle reduction
+-> one block-wide value
+```
+
+The identities are negative infinity for maximum and zero for addition. A
+block barrier separates every cross-warp publish/consume boundary. The launcher
+allocates eight floats of dynamic shared memory for the fixed configuration.
+
+### Correctness result
+
+The CPU-safe suite passes and CUDA-only tests skip on Apple Silicon. NVIDIA
+compilation and output comparison remain unperformed.
+
+### Performance result
+
+Not measured. No claim is made about latency, shared-memory occupancy, or
+synchronization savings until matched CUDA artifacts exist.
+
+### Interpretation
+
+The source now contains one reduction strategy and its invariants are explicit.
+This is an implementation fact, not evidence that the strategy is faster.
+
+### Next question
+
+Does the completed warp hierarchy compile and match PyTorch across normal,
+stress, and irregular-width cases on NVIDIA hardware?
+
+### Git commit
+
+Commit 066 — `replace shared-memory block reductions with warp reductions`
+
+## Fusion-boundary audit after warp reductions
+
+### Problem
+
+Changing reduction mechanics can accidentally move work outside the custom
+kernel, making a faster-looking kernel incomparable because it performs less
+of the original scale-mask-softmax operation.
+
+### Existing evidence
+
+Source inspection shows one `__global__` function. It restores query position
+with `row % sequence_length`, multiplies allowed scores by `scale`, writes
+future columns to zero, computes stable exponentials, reduces their denominator,
+and normalizes allowed probabilities. Python dispatch calls one extension
+function and C++ dispatch calls one CUDA launcher.
+
+### Hypothesis
+
+Warp communication changes only how maximum and sum partials combine; it should
+not change the fused operation boundary.
+
+### Proposed change
+
+Add a CPU-safe source-contract test that fails if the primary scale, causal
+boundary, masked write, exponential, or single-kernel structure disappears.
+
+### Implementation
+
+The audit test checks structural markers in the one evolving CUDA source. The
+existing device comparisons remain the numerical gate for the full fused
+semantics.
+
+### Correctness result
+
+The source-contract test passes locally. Numerical CUDA validation remains
+pending because device tests skip without NVIDIA hardware.
+
+### Performance result
+
+Not measured. Fusion integrity keeps future comparisons fair but does not imply
+a speedup.
+
+### Interpretation
+
+The active source still performs the intended amount of work in one kernel.
+Static inspection cannot establish generated code, runtime correctness, or
+latency.
+
+### Next question
+
+How does this exact warp-reduction commit compare with the historical
+shared-tree milestone under identical NVIDIA controls?
+
+### Git commit
+
+Commit 069 — `verify fused scaling and causal masking remain in-kernel`
+
+## Launch tuning and framework comparison design
+
+### Problem
+
+A fixed block size is an assumption, and an eager-only baseline may make a
+custom kernel look stronger than it is. Both choices need controlled evidence.
+
+### Existing evidence
+
+The source accepts 128, 256, and 512 threads without duplicating the kernel.
+CPU-safe tests cover configuration validation, raw provenance, compile semantic
+equivalence, selection math, and three-framework completeness. All NVIDIA
+measurement attempts stopped at capability guards and created no artifacts.
+
+### Hypothesis
+
+Launch-size rankings may vary by row width. `torch.compile` may narrow the gap
+to custom CUDA by optimizing the same PyTorch expression after startup.
+
+### Proposed change
+
+Measure all launch sizes on one kernel revision and GPU, select by median
+per-shape relative latency, then measure eager/compiled/custom paths together
+with compilation excluded from steady-state timing.
+
+### Implementation
+
+Block size flows through Python, C++, the runtime launch, and CSV metadata.
+Launch selection refuses incomplete 128/256/512 results. Framework preflight
+requires all three paths for every identical workload and one Git/GPU
+environment.
+
+### Correctness result
+
+CPU-safe infrastructure tests pass. The compiled CPU fixture matches the eager
+expression. CUDA correctness remains pending.
+
+### Performance result
+
+Not measured. The repository contains no launch or framework CSV.
+
+### Interpretation
+
+The experimental design is executable and guarded, but no block size or
+implementation is a measured winner. The 256-thread default is provisional.
+
+### Next question
+
+After Colab correctness passes, which configurations win at each sequence
+length and does the aggregate choice hide meaningful shape dependence?
+
+### Git commit
+
+Commit 079 — `document launch tuning and framework comparison results`

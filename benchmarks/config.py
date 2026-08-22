@@ -11,6 +11,12 @@ DEFAULT_DTYPE = "float32"
 DEFAULT_WARMUPS = 25
 DEFAULT_ITERATIONS = 100
 DEFAULT_SEED = 2026
+SUPPORTED_BLOCK_SIZES = (128, 256, 512)
+DEFAULT_BLOCK_SIZE = 256
+
+# This preserves the pre-tuning launch behavior so the repository remains
+# runnable. It is not a performance conclusion; Commit 075 found no NVIDIA
+# artifacts from which to choose a measured default.
 
 # Aggregate summaries are derived from raw per-iteration CUDA-event samples;
 # they are never entered manually into this configuration.
@@ -30,6 +36,7 @@ class SoftmaxBenchmarkConfig:
     warmups: int = DEFAULT_WARMUPS
     iterations: int = DEFAULT_ITERATIONS
     seed: int = DEFAULT_SEED
+    block_size: int = DEFAULT_BLOCK_SIZE
 
     def __post_init__(self) -> None:
         for name, value in (
@@ -44,6 +51,8 @@ class SoftmaxBenchmarkConfig:
             raise ValueError("seed must be a nonnegative integer")
         if self.dtype != "float32":
             raise ValueError("the primary benchmark currently requires float32")
+        if self.block_size not in SUPPORTED_BLOCK_SIZES:
+            raise ValueError("block_size must be one of 128, 256, or 512")
 
     @property
     def rows(self) -> int:
@@ -54,10 +63,16 @@ class SoftmaxBenchmarkConfig:
         return self.sequence_length
 
 
-def softmax_benchmark_registry() -> tuple[SoftmaxBenchmarkConfig, ...]:
+def softmax_benchmark_registry(
+    *,
+    block_size: int = DEFAULT_BLOCK_SIZE,
+) -> tuple[SoftmaxBenchmarkConfig, ...]:
     """Return the complete primary benchmark matrix in stable order."""
 
     return tuple(
-        SoftmaxBenchmarkConfig(sequence_length=sequence_length)
+        SoftmaxBenchmarkConfig(
+            sequence_length=sequence_length,
+            block_size=block_size,
+        )
         for sequence_length in BENCHMARK_SEQUENCE_LENGTHS
     )

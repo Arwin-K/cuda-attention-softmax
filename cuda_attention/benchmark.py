@@ -24,6 +24,8 @@ RAW_BENCHMARK_FIELDS = (
     "rows",
     "columns",
     "dtype",
+    "launch_block_size",
+    "compile_warmups",
     "warmups",
     "iterations",
     "sample_index",
@@ -77,6 +79,8 @@ def raw_benchmark_records(
     warmups: int,
     iterations: int,
     samples_us: Sequence[float],
+    launch_block_size: int | None = None,
+    compile_warmups: int = 0,
 ) -> list[dict[str, object]]:
     """Combine raw samples with enough context to reproduce their workload."""
 
@@ -92,6 +96,10 @@ def raw_benchmark_records(
                 "rows": rows,
                 "columns": columns,
                 "dtype": dtype,
+                "launch_block_size": (
+                    "" if launch_block_size is None else launch_block_size
+                ),
+                "compile_warmups": compile_warmups,
                 "warmups": warmups,
                 "iterations": iterations,
                 "sample_index": sample_index,
@@ -117,6 +125,22 @@ def write_raw_benchmark_csv(
 def _validate_timing_count(name: str, value: int) -> None:
     if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
         raise ValueError(f"{name} must be a positive integer")
+
+
+def run_untimed_warmups(
+    operation: Callable[[], object],
+    *,
+    iterations: int,
+) -> object:
+    """Run explicit startup calls and return the last result without timing it."""
+
+    if not callable(operation):
+        raise TypeError("operation must be callable")
+    _validate_timing_count("iterations", iterations)
+    result: object = None
+    for _ in range(iterations):
+        result = operation()
+    return result
 
 
 def time_cuda_callable(

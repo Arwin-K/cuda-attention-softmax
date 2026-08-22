@@ -6,25 +6,28 @@ history; it does not maintain parallel kernel versions.
 
 ## Current status
 
-Day 4 through Commit 064 is complete: the project has
-environment detection, research framing, an
-explicit CPU reference, a causal attention path, correctness/stability/edge
-tests, reproducible tensor helpers, opt-in extension infrastructure, a
-provenance-aware benchmark harness, and the shared-memory reduction foundations
-of a one-block-per-row CUDA design. The kernel source distributes scaling,
-maximum and denominator reductions, exponentiation, and final normalization
-across block threads while retaining exact causal zeros. It has not been
-compiled or run on NVIDIA hardware, so no CUDA correctness, latency, throughput,
-speedup, or profiler result exists yet. Warp-level maximum reduction and compact
-cross-warp maximum combination are now present. Denominator sums reduce within
-each warp but still use a padded full shared-memory bridge; compact cross-warp
-sum combination and full replacement of the old trees remain Day 5 work.
+Day 5 through Commit 080 is complete. The one-block-per-row source now performs
+maximum and denominator reductions in two levels: warp-local register shuffles,
+then one compact shared value per warp combined by the first warp. Scaling,
+causal masking, stable exponentiation, and normalization remain inside the same
+kernel. The launch accepts 128, 256, or 512 threads without duplicating source.
+
+The benchmark path records raw CUDA-event samples, Git/hardware/software
+provenance, launch block size, and compile warmups. It supports PyTorch eager,
+`torch.compile`, and the custom operator for the same scale-mask-softmax work.
+The 256-thread default is provisional: no launch size has been selected from
+measurements.
+
+This source has not yet been compiled or run on NVIDIA hardware. There is no
+CUDA correctness, latency, throughput, speedup, or profiler result. All such
+claims remain pending the documented Linux/NVIDIA execution workflow.
 
 `tests/test_cuda_operator.py` is the device correctness gate. It covers normal,
 large-magnitude, structured, irregular-width, block-boundary, and flattened-row
 wrap cases using fixed tolerances, probability invariants, and selected invalid-
-input paths. These tests skip visibly unless both an NVIDIA CUDA device and the
-compiled extension are available.
+input paths plus causal prefixes around warp boundaries. Static CUDA contract
+checks run everywhere; device cases skip visibly unless both an NVIDIA CUDA
+device and the compiled extension are available.
 
 ## Development platforms
 
@@ -60,6 +63,18 @@ python3 scripts/check_environment.py --require-cuda
 ```
 
 On macOS the build script reports `SKIP` and exits without invoking a compiler.
+
+After CUDA correctness passes, launch tuning and framework timing use:
+
+```bash
+python3 benchmarks/benchmark_launch_configs.py --block-size 128 --output results/raw/launch_128.csv
+python3 benchmarks/benchmark_launch_configs.py --block-size 256 --output results/raw/launch_256.csv
+python3 benchmarks/benchmark_launch_configs.py --block-size 512 --output results/raw/launch_512.csv
+python3 benchmarks/benchmark_softmax.py --implementation all --output results/raw/framework_comparison.csv
+```
+
+These commands must run in one controlled NVIDIA environment. Do not commit
+partial or fabricated artifacts.
 
 ## Layout
 

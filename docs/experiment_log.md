@@ -350,3 +350,226 @@ No performance or profiling experiment has been recorded yet.
   benchmarking, expose block size as an experimental variable, measure
   128/256/512 only on NVIDIA hardware, choose from evidence, and add strong
   `torch.compile` comparisons through Commit 080.
+
+## Warp-reduction CUDA validation attempt — Commit 067
+
+- **Date/time:** 2026-08-22, America/Toronto
+- **Git commit:** Commit 067 — `validate warp-reduction kernel correctness`
+- **Hardware:** Apple Silicon arm64; no NVIDIA GPU
+- **Software:** Darwin, Python 3.11.15, PyTorch 2.13.0 without CUDA
+- **Research question:** Does the completed compact warp-reduction kernel match
+  the trusted PyTorch path for every required correctness length and input
+  family?
+- **HYPOTHESIS:** Replacing the shared trees with two-level shuffle reductions
+  preserves causal scaled-softmax semantics within `rtol=1e-5`, `atol=1e-6`.
+- **Independent variable:** Custom warp-reduction CUDA output versus PyTorch
+  reference output
+- **Controlled variables:** FP32, existing deterministic seeds and scales,
+  required lengths, stress families, and fixed tolerances
+- **Metrics:** Numerical closeness, row sums, exact masked zeros, finiteness,
+  non-negativity, shape, dtype, and device
+- **Command/script:** `.venv/bin/python -m pytest -q
+  tests/test_cuda_operator.py -rs`
+- **Raw result file:** None; correctness test console only
+- **MEASUREMENT:** The CPU-safe coverage-contract test passed. All CUDA kernel
+  cases skipped because no NVIDIA device is available, so no CUDA output was
+  compared.
+- **INTERPRETATION:** The intended CUDA regression matrix is complete and
+  discoverable, but warp-kernel correctness is not established.
+- **Limitations:** No extension build, kernel launch, synchronization, or device
+  arithmetic occurred on this host.
+- **NEXT EXPERIMENT:** Run the exact test module after building the extension in
+  Google Colab, and treat any failure as a blocker before benchmarking.
+- **Student reflection:** `TODO(student): Explain why preserving tolerances is
+  more scientifically useful than relaxing them after an optimization.`
+
+## Shared-tree versus warp-reduction benchmark attempt — Commit 070
+
+- **Date/time:** 2026-08-22, America/Toronto
+- **Git commit:** Commit 070 — `benchmark warp-reduction optimization against prior commit`
+- **Hardware:** Apple Silicon arm64; no NVIDIA GPU
+- **Software:** Darwin, Python 3.11.15, PyTorch 2.13.0 without CUDA
+- **Research question:** Does compact warp communication change latency and
+  throughput relative to the stabilized shared-tree block milestone?
+- **HYPOTHESIS:** Warp shuffles and eight shared partials may lower reduction
+  overhead, especially where row work is large enough to amortize launch and
+  barrier costs.
+- **Independent variable:** Git revision: block milestone `f9420de` versus the
+  warp-reduction revision produced after Commit 069
+- **Controlled variables:** One GPU/session, FP32, `batch_heads=8`, required
+  shapes, seed, warmups, iterations, scale, input construction, and timed region
+- **Metrics:** Median, p25, p75 microseconds, elements/second, and derived speedup
+- **Command/script:** `.venv/bin/python benchmarks/benchmark_softmax.py
+  --implementation custom --sequence-length 128 --warmups 2 --iterations 3
+  --output results/raw/warp_reduction.csv`
+- **Raw result file:** None
+- **MEASUREMENT:** The harness exited with “CUDA benchmark requires Linux with
+  an NVIDIA GPU.” It created no result artifact.
+- **INTERPRETATION:** No before/after result exists. The mechanism remains a
+  hypothesis until both commits are timed on the same NVIDIA environment.
+- **Limitations:** This host cannot compile or execute either CUDA revision.
+- **NEXT EXPERIMENT:** In one Colab GPU runtime, build/test `f9420de`, save its
+  raw CSV outside the checkout, then build/test the Commit 069 revision with
+  identical controls and run comparison preflight.
+- **Student reflection:** `TODO(student): Explain why measuring only the current
+  revision would not answer the optimization question.`
+
+## 128-thread launch measurement attempt — Commit 072
+
+- **Date/time:** 2026-08-22, America/Toronto
+- **Git commit:** Commit 072 — `benchmark 128-thread launch configuration`
+- **Hardware/software:** Apple Silicon arm64; PyTorch 2.13.0 without CUDA
+- **Research question:** What latency distribution does the 128-thread launch
+  produce across the required FP32 shape registry?
+- **HYPOTHESIS:** Fewer threads may reduce coordination cost on short rows but
+  require more strided work per thread on long rows.
+- **Independent variable:** `launch_block_size=128`
+- **Controlled variables:** Required shapes, `batch_heads=8`, FP32, seed,
+  warmups, iterations, kernel revision, and intended NVIDIA session
+- **Metrics:** Median, p25, p75 microseconds and elements/second
+- **Command/script:** `.venv/bin/python benchmarks/benchmark_launch_configs.py
+  --block-size 128 --output results/raw/launch_128.csv`
+- **Raw result file:** None
+- **MEASUREMENT:** The CUDA guard rejected the run and no CSV was created.
+- **INTERPRETATION:** Nothing is known yet about the 128-thread configuration's
+  latency or throughput.
+- **Limitations:** No NVIDIA runtime on this host.
+- **NEXT EXPERIMENT:** Run this unchanged command in the same Colab runtime as
+  the 256- and 512-thread experiments.
+- **Student reflection:** `TODO(student): Predict which sequence lengths might
+  favor fewer threads and explain why.`
+
+## 256-thread launch measurement attempt — Commit 073
+
+- **Date/time:** 2026-08-22, America/Toronto
+- **Git commit:** Commit 073 — `benchmark 256-thread launch configuration`
+- **Hardware/software:** Apple Silicon arm64; PyTorch 2.13.0 without CUDA
+- **Research question:** What latency distribution does the provisional
+  256-thread launch produce across the required FP32 shape registry?
+- **HYPOTHESIS:** The middle configuration may balance column parallelism with
+  per-block coordination, but that balance may vary with sequence length.
+- **Independent variable:** `launch_block_size=256`
+- **Controlled variables:** Identical to the 128-thread experiment
+- **Metrics:** Median, p25, p75 microseconds and elements/second
+- **Command/script:** `.venv/bin/python benchmarks/benchmark_launch_configs.py
+  --block-size 256 --output results/raw/launch_256.csv`
+- **Raw result file:** None
+- **MEASUREMENT:** The CUDA guard rejected the run and no CSV was created.
+- **INTERPRETATION:** The existing 256-thread default is still provisional, not
+  a measured selection.
+- **Limitations:** No NVIDIA runtime on this host.
+- **NEXT EXPERIMENT:** Run this command beside the 128- and 512-thread commands
+  without changing the Colab runtime or software environment.
+- **Student reflection:** `TODO(student): Explain why a familiar default is not
+  evidence that it is optimal.`
+
+## 512-thread launch measurement attempt — Commit 074
+
+- **Date/time:** 2026-08-22, America/Toronto
+- **Git commit:** Commit 074 — `benchmark 512-thread launch configuration`
+- **Hardware/software:** Apple Silicon arm64; PyTorch 2.13.0 without CUDA
+- **Research question:** What latency distribution does the 512-thread launch
+  produce across the required FP32 shape registry?
+- **HYPOTHESIS:** More threads may expose additional parallelism on long rows,
+  while extra warps and idle lanes may hurt short or early causal rows.
+- **Independent variable:** `launch_block_size=512`
+- **Controlled variables:** Identical to the 128- and 256-thread experiments
+- **Metrics:** Median, p25, p75 microseconds and elements/second
+- **Command/script:** `.venv/bin/python benchmarks/benchmark_launch_configs.py
+  --block-size 512 --output results/raw/launch_512.csv`
+- **Raw result file:** None
+- **MEASUREMENT:** The CUDA guard rejected the run and no CSV was created.
+- **INTERPRETATION:** No claim can be made about increased parallelism or its
+  overhead.
+- **Limitations:** No NVIDIA runtime on this host.
+- **NEXT EXPERIMENT:** Complete all three commands in one Colab session, then
+  summarize results by shape before choosing any default.
+- **Student reflection:** `TODO(student): Explain why more threads can increase
+  overhead even when the maximum block size is supported.`
+
+## Launch-default selection gate — Commit 075
+
+- **Date/time:** 2026-08-22, America/Toronto
+- **Git commit:** Commit 075 — `select launch configuration from measured results`
+- **Hardware/software:** CPU-only analysis path on Apple Silicon
+- **Research question:** Which supported block size gives the best robust result
+  across the complete planned sequence-length set?
+- **HYPOTHESIS:** The winner may be shape-dependent, so a per-shape normalized
+  score is safer than summing raw latency across unlike workloads.
+- **Independent variable:** Launch block size 128, 256, or 512
+- **Controlled variables:** One Git revision, GPU/software environment, and the
+  complete identical shape set
+- **Metrics:** Median relative latency across shapes and per-shape win count
+- **Command/script:** `.venv/bin/python benchmarks/benchmark_launch_configs.py
+  --select-from results/raw/launch_128.csv results/raw/launch_256.csv
+  results/raw/launch_512.csv --output results/summary/launch_selection.json`
+- **Raw result file:** None
+- **MEASUREMENT:** Selection stopped at the missing 128-thread CSV. No summary
+  or selected-default artifact was written.
+- **INTERPRETATION:** The data requirement works as intended; 256 remains the
+  historical provisional default, not a research result.
+- **Limitations:** Only synthetic unit fixtures exercised the ranking formula.
+- **NEXT EXPERIMENT:** Generate all three real CSVs in one Colab session, run
+  the selector, inspect per-shape tradeoffs, and only then call a size tuned.
+- **Student reflection:** `TODO(student): Explain why normalizing within each
+  sequence length prevents the longest workloads from deciding the result by
+  scale alone.`
+
+## Eager versus compiled versus custom comparison attempt — Commit 078
+
+- **Date/time:** 2026-08-22, America/Toronto
+- **Git commit:** Commit 078 — `compare custom CUDA against eager and compiled PyTorch`
+- **Hardware/software:** Apple Silicon arm64; PyTorch 2.13.0 without CUDA
+- **Research question:** How does the custom fused operator compare with eager
+  composition and `torch.compile` for identical causal scaled-softmax work?
+- **HYPOTHESIS:** Compilation may narrow the eager/custom gap by reducing
+  framework dispatches or fusing operations, but the outcome is GPU- and
+  shape-dependent.
+- **Independent variable:** Eager, compiled, or custom implementation path
+- **Controlled variables:** Identical deterministic inputs, causal semantics,
+  scale, FP32, shape registry, one Git/GPU environment, warmups, iterations,
+  allocations outside timing, and compile startup outside steady state
+- **Metrics:** Median, p25, p75 microseconds and elements/second
+- **Command/script:** `.venv/bin/python benchmarks/benchmark_softmax.py
+  --implementation all --output results/raw/framework_comparison.csv`
+- **Raw result file:** None
+- **MEASUREMENT:** The CUDA guard rejected the benchmark. Framework-summary
+  preflight then rejected the absent raw CSV; neither artifact was created.
+- **INTERPRETATION:** No framework ranking or speedup is supported. CPU tests
+  establish comparison-schema behavior and small-case compiled semantics only.
+- **Limitations:** No CUDA compiler backend or custom extension ran.
+- **NEXT EXPERIMENT:** Build and pass CUDA correctness in Colab, run the full
+  command once, then use `--frameworks` summary preflight before interpreting.
+- **Student reflection:** `TODO(student): Explain why eager, compiled, and custom
+  paths must normalize the same scores with the same causal rule.`
+
+## Day 5 checkpoint — Commit 080
+
+- **What was implemented:** The denominator now uses the same compact two-level
+  warp reduction as the maximum, and the obsolete full shared trees are absent
+  from the active source. Tests explicitly cover required lengths, partial data
+  around warp boundaries, and the fused kernel boundary. Block sizes 128, 256,
+  and 512 flow through Python, C++, one CUDA kernel launch, benchmark controls,
+  and CSV metadata. Complete-data launch selection and eager/compiled/custom
+  comparison preflights are implemented. `torch.compile` startup is separated
+  from steady-state CUDA timing.
+- **What was actually measured:** No CUDA compilation, custom output, latency,
+  throughput, speedup, launch winner, compiled CUDA behavior, or profiler metric
+  was measured. All benchmark commands stopped at the non-CUDA platform guard
+  and produced no artifacts. On Apple Silicon, 92 tests pass and 54 GPU-only
+  cases plus nine block-size/irregular-width cases skip (63 GPU-only skips in
+  total); Python compilation, shell syntax, diff checks, package/environment
+  checks, and the graceful build skip pass. Test duration is not a benchmark.
+- **What I learned:** `TODO(student): Explain the two-level warp reduction and
+  why launch size must be selected from measurements rather than intuition.`
+- **What surprised me:** `TODO(student): Record your own observation after
+  reviewing the code and, later, after running Colab; none is inferred here.`
+- **Unresolved questions:** Whether the extension compiles; whether all fixed-
+  tolerance CUDA gates pass for 128/256/512; whether warp reductions outperform
+  the shared-tree and row-serial milestones; which launch size wins by shape;
+  whether `torch.compile` fuses the expression; and how custom compares with
+  eager and compiled PyTorch.
+- **Next day:** Integrate the custom softmax into explicit transformer attention,
+  validate against PyTorch SDPA, benchmark kernel versus end-to-end behavior,
+  and add PyTorch Profiler and optional Nsight Compute workflows through Commit
+  096. GPU-dependent Day 6 conclusions must wait for actual NVIDIA artifacts.

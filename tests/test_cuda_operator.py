@@ -6,6 +6,7 @@ for CPU development without pretending that MPS validates CUDA behavior.
 """
 
 import math
+from pathlib import Path
 
 import pytest
 import torch
@@ -16,6 +17,10 @@ from cuda_attention.reference import causal_allowed_mask, causal_scaled_softmax
 
 RTOL = 1e-5
 ATOL = 1e-6
+# This union is the explicit regression contract from AGENTS.md. Keeping it
+# visible in the CUDA gate prevents later optimization work from silently
+# dropping an awkward length merely because another parametrized group changed.
+REQUIRED_SEQUENCE_LENGTHS = (31, 32, 33, 63, 64, 127, 128, 255, 511, 768, 1023)
 CORE_SEQUENCE_LENGTHS = (32, 64, 128)
 IRREGULAR_SEQUENCE_LENGTHS = (
     1,
@@ -36,6 +41,36 @@ IRREGULAR_SEQUENCE_LENGTHS = (
 STRESS_MAGNITUDES = (10.0, 100.0, 1000.0)
 STRESS_SEQUENCE_LENGTHS = (31, 128, 511)
 ROW_WRAP_SHAPES = ((1, 31), (30, 31), (31, 31), (32, 31), (260, 257))
+PARTIAL_WARP_ALLOWED_COLUMNS = (1, 2, 31, 32, 33, 63, 64, 65, 95, 96, 97)
+LAUNCH_CONFIGURATION_SEQUENCE_LENGTHS = (33, 255, 1023)
+SUPPORTED_LAUNCH_BLOCK_SIZES = (128, 256, 512)
+
+
+@pytest.mark.cuda_static
+def test_cuda_gate_covers_every_required_sequence_length() -> None:
+    covered = set(CORE_SEQUENCE_LENGTHS) | set(IRREGULAR_SEQUENCE_LENGTHS)
+
+    assert set(REQUIRED_SEQUENCE_LENGTHS) <= covered
+
+
+@pytest.mark.cuda_static
+def test_cuda_source_keeps_scale_mask_and_softmax_in_one_kernel() -> None:
+    source_path = Path(__file__).resolve().parents[1] / "csrc" / "fused_causal_softmax.cu"
+    source = source_path.read_text(encoding="utf-8")
+
+    assert source.count("__global__ void") == 1
+    assert "row % sequence_length" in source
+    assert "scores[row_offset + column] * scale" in source
+    assert "column < allowed_columns" in source
+    assert "probabilities[row_offset + column] = 0.0f" in source
+    assert "expf(shifted_value)" in source
+
+
+@pytest.mark.cuda_static
+@pytest.mark.parametrize("block_size", [0, 64, 129, 1024, True])
+def test_python_dispatch_rejects_unsupported_block_sizes(block_size: int) -> None:
+    with pytest.raises(ValueError, match="128, 256, or 512"):
+        fused_causal_softmax(torch.randn(2, 2), scale=1.0, block_size=block_size)
 
 
 def _cuda_test_unavailable_reason() -> str | None:
@@ -47,10 +82,16 @@ def _cuda_test_unavailable_reason() -> str | None:
 
 
 CUDA_TEST_UNAVAILABLE_REASON = _cuda_test_unavailable_reason()
-pytestmark = pytest.mark.skipif(
-    CUDA_TEST_UNAVAILABLE_REASON is not None,
-    reason=CUDA_TEST_UNAVAILABLE_REASON or "CUDA test prerequisites unavailable",
-)
+
+
+@pytest.fixture(autouse=True)
+def require_cuda_for_device_cases(request: pytest.FixtureRequest) -> None:
+    """Skip device execution while allowing static coverage gates to run."""
+
+    if request.node.get_closest_marker("cuda_static") is not None:
+        return
+    if CUDA_TEST_UNAVAILABLE_REASON is not None:
+        pytest.skip(CUDA_TEST_UNAVAILABLE_REASON)
 
 
 @pytest.mark.parametrize("sequence_length", CORE_SEQUENCE_LENGTHS)
@@ -86,8 +127,12 @@ def test_cuda_operator_matches_pytorch_reference(sequence_length: int) -> None:
     assert torch.count_nonzero(actual.masked_select(~allowed)) == 0
 
 
-def _assert_cuda_matches_reference(scores: torch.Tensor, scale: float = 1.0) -> None:
-    actual = fused_causal_softmax(scores, scale)
+def _assert_cuda_matches_reference(
+    scores: torch.Tensor,
+    scale: float = 1.0,
+    block_size: int = 256,
+) -> None:
+    actual = fused_causal_softmax(scores, scale, block_size=block_size)
     expected = causal_scaled_softmax(scores, scale)
     allowed = causal_allowed_mask(
         scores.shape[0],
@@ -108,6 +153,29 @@ def _assert_cuda_matches_reference(scores: torch.Tensor, scale: float = 1.0) -> 
     assert torch.all(actual >= 0)
     assert torch.isfinite(actual).all()
     assert torch.count_nonzero(actual.masked_select(~allowed)) == 0
+
+
+@pytest.mark.parametrize("block_size", SUPPORTED_LAUNCH_BLOCK_SIZES)
+@pytest.mark.parametrize("sequence_length", LAUNCH_CONFIGURATION_SEQUENCE_LENGTHS)
+def test_every_launch_configuration_matches_reference_on_irregular_widths(
+    block_size: int,
+    sequence_length: int,
+) -> None:
+    generator = torch.Generator(device="cuda").manual_seed(
+        block_size + sequence_length
+    )
+    scores = torch.randn(
+        sequence_length,
+        sequence_length,
+        generator=generator,
+        device="cuda",
+    )
+
+    _assert_cuda_matches_reference(
+        scores,
+        scale=0.125,
+        block_size=block_size,
+    )
 
 
 @pytest.mark.parametrize("sequence_length", STRESS_SEQUENCE_LENGTHS)
@@ -166,6 +234,31 @@ def test_cuda_operator_handles_partial_and_wrapped_query_cycles(
     sequence_length: int,
 ) -> None:
     generator = torch.Generator(device="cuda").manual_seed(rows + sequence_length)
+    scores = torch.randn(
+        rows,
+        sequence_length,
+        generator=generator,
+        device="cuda",
+    )
+
+    _assert_cuda_matches_reference(scores, scale=0.125)
+
+
+@pytest.mark.parametrize("allowed_columns", PARTIAL_WARP_ALLOWED_COLUMNS)
+def test_warp_reductions_handle_partially_populated_column_groups(
+    allowed_columns: int,
+) -> None:
+    """Exercise both sides of 32-column boundaries in the causal prefix.
+
+    The CUDA block always consists of complete hardware warps. For a causal row,
+    however, lanes whose starting column is beyond ``allowed_columns`` own no
+    data. They must enter shuffle reductions with max/sum identity values while
+    still executing the shuffle instructions under the full-warp mask.
+    """
+
+    sequence_length = 97
+    rows = allowed_columns
+    generator = torch.Generator(device="cuda").manual_seed(680 + allowed_columns)
     scores = torch.randn(
         rows,
         sequence_length,

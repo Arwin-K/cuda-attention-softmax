@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 import statistics
 import sys
+from typing import Sequence
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -22,6 +23,8 @@ CONTROL_FIELDS = (
     "rows",
     "columns",
     "dtype",
+    "launch_block_size",
+    "compile_warmups",
     "warmups",
     "iterations",
     "gpu_name",
@@ -37,6 +40,8 @@ SUMMARY_FIELDS = (
     "rows",
     "columns",
     "dtype",
+    "launch_block_size",
+    "compile_warmups",
     "warmups",
     "iterations",
     "median_us",
@@ -98,6 +103,70 @@ def validate_comparison_pair(
         "baseline_commit": next(iter(baseline_commits)),
         "candidate_commit": next(iter(candidate_commits)),
         "controlled_cases": len(baseline_controls),
+        "status": "ready_for_summary",
+    }
+
+
+def _framework_name(description: str) -> str:
+    if description.startswith("PyTorch eager"):
+        return "eager"
+    if description.startswith("torch.compile"):
+        return "compiled"
+    if description.startswith("warp-reduction custom CUDA"):
+        return "custom"
+    raise ValueError(f"unrecognized framework implementation: {description}")
+
+
+def validate_framework_comparison(
+    records: list[dict[str, str]],
+) -> dict[str, object]:
+    """Require eager, compiled, and custom samples for every controlled case."""
+
+    expected_frameworks = {"eager", "compiled", "custom"}
+    commits = {record["git_commit"] for record in records}
+    environments = {
+        tuple(
+            record[field]
+            for field in (
+                "gpu_name",
+                "compute_capability",
+                "pytorch_version",
+                "cuda_version",
+            )
+        )
+        for record in records
+    }
+    if len(commits) != 1 or len(environments) != 1:
+        raise ValueError("framework comparison requires one Git and GPU environment")
+
+    case_fields = (
+        "sequence_length",
+        "rows",
+        "columns",
+        "dtype",
+        "warmups",
+        "iterations",
+    )
+    by_case: dict[tuple[str, ...], set[str]] = {}
+    for record in records:
+        framework = _framework_name(record["implementation_description"])
+        if framework == "compiled" and record["compile_warmups"] != "1":
+            raise ValueError("compiled framework rows require compile_warmups=1")
+        if framework != "compiled" and record["compile_warmups"] != "0":
+            raise ValueError("only compiled framework rows may have compile warmups")
+        if framework == "custom" and not record["launch_block_size"]:
+            raise ValueError("custom framework rows require a launch block size")
+        if framework != "custom" and record["launch_block_size"]:
+            raise ValueError("framework baselines must not record a CUDA block size")
+        case = tuple(record[field] for field in case_fields)
+        by_case.setdefault(case, set()).add(framework)
+
+    if not by_case or any(found != expected_frameworks for found in by_case.values()):
+        raise ValueError("every workload must contain eager, compiled, and custom samples")
+    return {
+        "git_commit": next(iter(commits)),
+        "controlled_cases": len(by_case),
+        "frameworks": sorted(expected_frameworks),
         "status": "ready_for_summary",
     }
 
@@ -168,18 +237,107 @@ def write_summary_csv(
         writer.writerows(records)
 
 
+def select_launch_configuration(
+    summaries: Sequence[dict[str, object]],
+) -> dict[str, object]:
+    """Select among complete 128/256/512 results without overweighting long rows.
+
+    For each sequence length, latency is divided by the fastest configuration's
+    latency at that same length. The configuration with the lowest median
+    relative latency wins. This gives every planned shape one vote-like weight
+    while retaining the magnitude of slowdowns.
+    """
+
+    expected_sizes = {128, 256, 512}
+    by_size: dict[int, dict[int, float]] = {}
+    provenance: set[tuple[str, ...]] = set()
+    for record in summaries:
+        raw_size = str(record.get("launch_block_size", ""))
+        if not raw_size:
+            raise ValueError("launch selection requires a block size on every row")
+        block_size = int(raw_size)
+        sequence_length = int(record["sequence_length"])
+        latency = float(record["median_us"])
+        if latency <= 0.0:
+            raise ValueError("launch selection requires positive median latency")
+        if sequence_length in by_size.setdefault(block_size, {}):
+            raise ValueError("launch selection requires one summary per size and shape")
+        by_size[block_size][sequence_length] = latency
+        provenance.add(
+            tuple(
+                str(record[field])
+                for field in (
+                    "git_commit",
+                    "gpu_name",
+                    "compute_capability",
+                    "pytorch_version",
+                    "cuda_version",
+                )
+            )
+        )
+
+    if set(by_size) != expected_sizes:
+        raise ValueError("launch selection requires complete 128/256/512 results")
+    if len(provenance) != 1:
+        raise ValueError("launch selection requires one Git and GPU environment")
+    shape_sets = {tuple(sorted(results)) for results in by_size.values()}
+    if len(shape_sets) != 1:
+        raise ValueError("launch configurations must cover identical sequence lengths")
+
+    sequence_lengths = next(iter(shape_sets))
+    relative_latency: dict[int, list[float]] = {size: [] for size in expected_sizes}
+    wins = {size: 0 for size in expected_sizes}
+    for sequence_length in sequence_lengths:
+        best_latency = min(
+            by_size[size][sequence_length] for size in expected_sizes
+        )
+        winners = [
+            size
+            for size in expected_sizes
+            if by_size[size][sequence_length] == best_latency
+        ]
+        for size in winners:
+            wins[size] += 1
+        for size in expected_sizes:
+            relative_latency[size].append(
+                by_size[size][sequence_length] / best_latency
+            )
+
+    scores = {
+        size: statistics.median(relative_latency[size]) for size in expected_sizes
+    }
+    selected = min(expected_sizes, key=lambda size: (scores[size], size))
+    return {
+        "selected_block_size": selected,
+        "median_relative_latency": scores,
+        "per_sequence_wins": wins,
+        "sequence_lengths": list(sequence_lengths),
+        "selection_rule": "lowest median per-shape relative latency",
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--baseline", type=Path, required=True)
-    parser.add_argument("--candidate", type=Path, required=True)
+    parser.add_argument("--baseline", type=Path)
+    parser.add_argument("--candidate", type=Path)
+    parser.add_argument("--frameworks", type=Path)
     parser.add_argument("--output", type=Path, required=True)
     arguments = parser.parse_args()
 
     try:
-        baseline = load_raw_benchmark_csv(arguments.baseline)
-        candidate = load_raw_benchmark_csv(arguments.candidate)
-        report = validate_comparison_pair(baseline, candidate)
-        summaries = summarize_raw_records(baseline) + summarize_raw_records(candidate)
+        if arguments.frameworks is not None:
+            if arguments.baseline is not None or arguments.candidate is not None:
+                raise ValueError("use --frameworks alone or --baseline/--candidate")
+            framework_records = load_raw_benchmark_csv(arguments.frameworks)
+            report = validate_framework_comparison(framework_records)
+            summaries = summarize_raw_records(framework_records)
+        else:
+            if arguments.baseline is None or arguments.candidate is None:
+                raise ValueError("historical comparison requires --baseline and --candidate")
+            baseline = load_raw_benchmark_csv(arguments.baseline)
+            candidate = load_raw_benchmark_csv(arguments.candidate)
+            report = validate_comparison_pair(baseline, candidate)
+            summaries = summarize_raw_records(baseline) + summarize_raw_records(candidate)
         write_summary_csv(arguments.output, summaries)
     except (FileNotFoundError, ValueError) as error:
         print(str(error), file=sys.stderr)

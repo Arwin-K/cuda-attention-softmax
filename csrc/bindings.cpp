@@ -6,7 +6,8 @@
 
 torch::Tensor fused_causal_softmax(
     const torch::Tensor& scores,
-    double scale) {
+    double scale,
+    int64_t block_size) {
   // Validate the public contract before indexing sizes or launching device
   // code. TORCH_CHECK turns a violated assumption into a Python exception near
   // the caller instead of a later illegal access or misleading CUDA failure.
@@ -29,8 +30,11 @@ torch::Tensor fused_causal_softmax(
   TORCH_CHECK(
       std::isfinite(scale) && scale > 0.0,
       "scale must be finite and positive");
+  TORCH_CHECK(
+      block_size == 128 || block_size == 256 || block_size == 512,
+      "block_size must be one of 128, 256, or 512");
 
-  return fused_causal_softmax_cuda(scores, scale);
+  return fused_causal_softmax_cuda(scores, scale, block_size);
 }
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, module) {
@@ -39,5 +43,6 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, module) {
       &fused_causal_softmax,
       "Fused causal scaled softmax over [rows, sequence_length] CUDA scores",
       pybind11::arg("scores"),
-      pybind11::arg("scale"));
+      pybind11::arg("scale"),
+      pybind11::arg("block_size") = 256);
 }

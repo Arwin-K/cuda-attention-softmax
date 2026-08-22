@@ -8,10 +8,12 @@ import torch
 
 from benchmarks.config import (
     BENCHMARK_SEQUENCE_LENGTHS,
+    SUPPORTED_BLOCK_SIZES,
     SoftmaxBenchmarkConfig,
     softmax_benchmark_registry,
 )
 from benchmarks.benchmark_softmax import (
+    compile_causal_softmax,
     prepare_custom_case,
     pytorch_eager_causal_softmax,
 )
@@ -19,13 +21,16 @@ from benchmarks.summarize_results import (
     SUMMARY_FIELDS,
     load_raw_benchmark_csv,
     percentile,
+    select_launch_configuration,
     summarize_raw_records,
     validate_comparison_pair,
+    validate_framework_comparison,
     write_summary_csv,
 )
 from cuda_attention.benchmark import (
     RAW_BENCHMARK_FIELDS,
     raw_benchmark_records,
+    run_untimed_warmups,
     time_cuda_callable,
     write_raw_benchmark_csv,
 )
@@ -51,6 +56,14 @@ def test_softmax_registry_contains_required_shapes_in_order() -> None:
     assert all(case.rows == 8 * case.sequence_length for case in registry)
     assert all(case.columns == case.sequence_length for case in registry)
     assert all(case.dtype == "float32" for case in registry)
+    assert all(case.block_size == 256 for case in registry)
+
+
+@pytest.mark.parametrize("block_size", SUPPORTED_BLOCK_SIZES)
+def test_softmax_registry_applies_one_controlled_block_size(block_size: int) -> None:
+    registry = softmax_benchmark_registry(block_size=block_size)
+
+    assert all(case.block_size == block_size for case in registry)
 
 
 @pytest.mark.parametrize(
@@ -62,6 +75,8 @@ def test_softmax_registry_contains_required_shapes_in_order() -> None:
         {"sequence_length": 128, "iterations": 0},
         {"sequence_length": 128, "seed": -1},
         {"sequence_length": 128, "dtype": "float64"},
+        {"sequence_length": 128, "block_size": 64},
+        {"sequence_length": 128, "block_size": 1024},
     ],
 )
 def test_softmax_config_rejects_invalid_controls(overrides: dict[str, object]) -> None:
@@ -80,6 +95,18 @@ def test_cuda_timer_does_not_fall_back_without_cuda(monkeypatch: pytest.MonkeyPa
 
     with pytest.raises(RuntimeError, match="NVIDIA GPU"):
         time_cuda_callable(lambda: None, warmups=1, iterations=1)
+
+
+def test_explicit_untimed_warmups_have_a_separate_call_count() -> None:
+    calls: list[int] = []
+
+    result = run_untimed_warmups(
+        lambda: calls.append(len(calls)) or len(calls),
+        iterations=2,
+    )
+
+    assert result == 2
+    assert calls == [0, 1]
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="requires NVIDIA CUDA")
@@ -103,6 +130,18 @@ def test_eager_benchmark_operation_matches_reference_on_cpu() -> None:
 
     actual = pytorch_eager_causal_softmax(scores, scale=0.125, allowed=allowed)
     expected = causal_scaled_softmax(scores, scale=0.125)
+
+    torch.testing.assert_close(actual, expected, rtol=1e-5, atol=1e-6)
+
+
+def test_compiled_baseline_matches_same_expression_on_cpu() -> None:
+    generator = torch.Generator().manual_seed(76)
+    scores = torch.randn(12, 6, generator=generator)
+    allowed = causal_allowed_mask(12, 6)
+    compiled = compile_causal_softmax(backend="eager")
+
+    actual = compiled(scores, 0.125, allowed)
+    expected = pytorch_eager_causal_softmax(scores, 0.125, allowed)
 
     torch.testing.assert_close(actual, expected, rtol=1e-5, atol=1e-6)
 
@@ -147,6 +186,8 @@ def test_raw_benchmark_csv_preserves_samples_and_provenance(tmp_path) -> None:
     assert [row["sample_us"] for row in saved] == ["1.0", "2.0", "3.0"]
     assert all(row["git_commit"] == "a" * 40 for row in saved)
     assert all(row["gpu_name"] == "test GPU" for row in saved)
+    assert all(row["launch_block_size"] == "" for row in saved)
+    assert all(row["compile_warmups"] == "0" for row in saved)
 
 
 def test_raw_record_count_must_match_iterations() -> None:
@@ -216,6 +257,75 @@ def test_comparison_preflight_rejects_missing_artifact(tmp_path) -> None:
         load_raw_benchmark_csv(tmp_path / "missing.csv")
 
 
+def test_framework_preflight_requires_equal_work_for_all_three_paths() -> None:
+    metadata = {
+        "git_commit": "f" * 40,
+        "gpu_name": "fixture GPU",
+        "compute_capability": "9.0",
+        "pytorch_version": "fixture torch",
+        "cuda_version": "fixture CUDA",
+        "timestamp": "2026-08-22T00:00:00+00:00",
+    }
+    descriptions = (
+        ("PyTorch eager scale + causal mask + softmax", None, 0),
+        ("torch.compile scale + causal mask + softmax", None, 1),
+        (
+            "warp-reduction custom CUDA fused scale + mask + softmax; block_size=256",
+            256,
+            0,
+        ),
+    )
+    records = []
+    for description, block_size, compile_warmups in descriptions:
+        records.extend(
+            raw_benchmark_records(
+                metadata=metadata,
+                implementation_description=description,
+                sequence_length=128,
+                rows=1024,
+                columns=128,
+                dtype="float32",
+                warmups=2,
+                iterations=1,
+                samples_us=[1.0],
+                launch_block_size=block_size,
+                compile_warmups=compile_warmups,
+            )
+        )
+    string_records = [
+        {key: str(value) for key, value in record.items()} for record in records
+    ]
+
+    report = validate_framework_comparison(string_records)
+
+    assert report["frameworks"] == ["compiled", "custom", "eager"]
+    assert report["controlled_cases"] == 1
+
+
+def test_framework_preflight_rejects_incomplete_path_set() -> None:
+    records = [
+        {
+            "git_commit": "f" * 40,
+            "implementation_description": "PyTorch eager scale + causal mask + softmax",
+            "sequence_length": "128",
+            "rows": "1024",
+            "columns": "128",
+            "dtype": "float32",
+            "launch_block_size": "",
+            "compile_warmups": "0",
+            "warmups": "2",
+            "iterations": "1",
+            "gpu_name": "fixture GPU",
+            "compute_capability": "9.0",
+            "pytorch_version": "fixture torch",
+            "cuda_version": "fixture CUDA",
+        }
+    ]
+
+    with pytest.raises(ValueError, match="eager, compiled, and custom"):
+        validate_framework_comparison(records)
+
+
 def test_summary_statistics_and_throughput_come_from_raw_samples(tmp_path) -> None:
     metadata = {
         "git_commit": "c" * 40,
@@ -259,6 +369,48 @@ def test_summary_statistics_and_throughput_come_from_raw_samples(tmp_path) -> No
 def test_percentile_rejects_empty_samples() -> None:
     with pytest.raises(ValueError, match="empty"):
         percentile([], 0.5)
+
+
+def _launch_summary(block_size: int, sequence_length: int, median_us: float) -> dict[str, object]:
+    return {
+        "git_commit": "e" * 40,
+        "gpu_name": "fixture GPU",
+        "compute_capability": "9.0",
+        "pytorch_version": "fixture torch",
+        "cuda_version": "fixture CUDA",
+        "launch_block_size": str(block_size),
+        "sequence_length": str(sequence_length),
+        "median_us": median_us,
+    }
+
+
+def test_launch_selection_uses_complete_per_shape_relative_latencies() -> None:
+    summaries = [
+        _launch_summary(128, 128, 1.0),
+        _launch_summary(256, 128, 1.1),
+        _launch_summary(512, 128, 1.4),
+        _launch_summary(128, 2048, 8.0),
+        _launch_summary(256, 2048, 6.0),
+        _launch_summary(512, 2048, 7.0),
+        _launch_summary(128, 768, 4.0),
+        _launch_summary(256, 768, 3.0),
+        _launch_summary(512, 768, 3.5),
+    ]
+
+    selection = select_launch_configuration(summaries)
+
+    assert selection["selected_block_size"] == 256
+    assert selection["per_sequence_wins"] == {128: 1, 256: 2, 512: 0}
+
+
+def test_launch_selection_rejects_missing_configuration() -> None:
+    summaries = [
+        _launch_summary(128, 128, 1.0),
+        _launch_summary(256, 128, 1.1),
+    ]
+
+    with pytest.raises(ValueError, match="complete 128/256/512"):
+        select_launch_configuration(summaries)
 
 
 def test_plot_series_remain_commit_specific_and_shape_ordered(tmp_path) -> None:

@@ -80,22 +80,22 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 
 ## Day 5 — Completing warp reductions and tuning the fused kernel
 
-065. I combined warp sums into the final denominator with only a small shared array.
-066. I removed the old full shared-memory reduction path, letting Git history preserve it while the source stays singular.
-067. I re-ran full correctness validation after the warp-reduction rewrite.
-068. I tested partial final warps, where lane participation is easy to get subtly wrong.
-069. I verified that scaling and causal masking are still fused inside the kernel after the reduction changes.
-070. I measured the warp-reduction kernel against the prior block-reduction milestone.
-071. I made block size a controlled experimental variable rather than a hidden launch constant.
-072. I measured the 128-thread configuration under the shared protocol.
-073. I measured the 256-thread configuration under the shared protocol.
-074. I measured the 512-thread configuration under the shared protocol.
-075. I selected the default launch configuration from results, documenting any shape-dependent tradeoff.
-076. I added torch.compile as a stronger framework baseline for the same operation.
-077. I separated compilation warmup from steady-state timing so startup cost does not distort latency.
-078. I compared eager PyTorch, compiled PyTorch, and the custom CUDA route on equal work.
-079. I documented the launch-tuning and framework results with their source artifacts and limitations.
-080. I stabilized the tuned kernel and captured the fifth-day checkpoint.
+065. Completed — `combine warp sums through compact shared memory`: lane zero now publishes one denominator partial per warp into eight shared slots, and the first warp combines them with a second shuffle reduction. Static inspection and the CPU-safe suite pass; NVIDIA compilation and numerical validation remain pending.
+066. Completed — `replace shared-memory block reductions with warp reductions`: the active source now uses the same two-level shuffle-plus-compact-shared-memory hierarchy for maximum and sum. I removed the obsolete shared-tree power-of-two assumption and documented that correctness and speed still require NVIDIA evidence.
+067. Completed — `validate warp-reduction kernel correctness`: I made the required shape set an explicit test contract and reran the regression suite. The coverage check passes locally, while every device comparison skips without NVIDIA; this records readiness, not CUDA correctness.
+068. Completed — `stress test warp reductions on partial final warps`: I added targeted causal-prefix cases around 32-column boundaries and documented why lanes with no data still execute full-mask shuffles using identity values. The cases collect and skip locally; Colab must produce their CUDA results.
+069. Completed — `verify fused scaling and causal masking remain in-kernel`: a CPU-safe source contract now checks that one CUDA kernel still owns query-position recovery, scaling, causal exclusion, stable exponentiation, and normalization. This guards equal work for later timing without claiming runtime evidence.
+070. Completed — `benchmark warp-reduction optimization against prior commit`: I identified the stabilized shared-tree revision and attempted the controlled custom benchmark. The Mac guard refused execution and created no CSV, so the warp-versus-block result remains a Colab experiment rather than a claimed measurement.
+071. Completed — `add benchmark support for configurable block sizes`: 128, 256, and 512 threads now flow through the Python API, C++ validation, one runtime-configurable CUDA kernel, benchmark registry, and raw CSV provenance. The unchanged 256 default is explicitly provisional until NVIDIA measurements exist.
+072. Completed — `benchmark 128-thread launch configuration`: I attempted the full-registry 128-thread run, but the platform guard found no NVIDIA CUDA runtime and wrote no CSV. Its short-row-overhead versus long-row-work hypothesis remains untested until Colab execution.
+073. Completed — `benchmark 256-thread launch configuration`: the controlled 256-thread command was attempted and correctly refused on the non-CUDA Mac. No CSV exists, so 256 remains only the provisional default rather than a measured optimum.
+074. Completed — `benchmark 512-thread launch configuration`: the 512-thread experiment also stopped at the CUDA guard and produced no artifact. Its added-parallelism versus extra-warps hypothesis remains open, preserving an honest three-configuration tuning gap for Colab.
+075. Completed — `select launch configuration from measured results`: no selection was possible because the 128/256/512 CUDA artifacts do not exist. I added a complete-data selector based on median per-shape relative latency and left 256 explicitly provisional; synthetic tests validate the policy, not kernel performance.
+076. Completed — `add torch compile softmax baseline`: the benchmark now offers a torch.compile path over the exact eager scale-mask-softmax expression, and a CPU-safe compiled semantic check passes. CUDA compilation behavior and latency remain unmeasured.
+077. Completed — `separate compile warmup from steady-state measurements`: each compiled shape now has an explicit untimed first call, a correctness check, ordinary CUDA warmups, and only then event-timed samples. Raw provenance distinguishes one compile warmup from zero on eager/custom paths.
+078. Completed — `compare custom CUDA against eager and compiled PyTorch`: one benchmark mode now emits all three paths, and analysis rejects any workload missing eager, compiled, or custom samples. The local CUDA guard produced no CSV, so this commit establishes comparison integrity rather than a winner.
+079. Completed — `document launch tuning and framework comparison results`: I documented the expected artifact map, guarded comparison methodology, hypotheses, and evidence gaps. No launch size or framework path is called faster; every quantitative conclusion remains pending Colab CSVs.
+080. Completed — `stabilize tuned fused kernel and Day 5 checkpoint`: the final local audit reports 92 passes and 63 explicit GPU-only skips, including all 128/256/512 configurations on irregular widths. Python/shell/static checks and graceful Mac build behavior remain intact; the kernel is configurable, not measured-tuned.
 
 ## Day 6 — Does the microkernel change attention?
 
