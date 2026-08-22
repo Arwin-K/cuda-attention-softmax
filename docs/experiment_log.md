@@ -438,3 +438,27 @@ No performance or profiling experiment has been recorded yet.
   the 256- and 512-thread experiments.
 - **Student reflection:** `TODO(student): Predict which sequence lengths might
   favor fewer threads and explain why.`
+
+## 256-thread launch measurement attempt — Commit 073
+
+- **Date/time:** 2026-08-22, America/Toronto
+- **Git commit:** Commit 073 — `benchmark 256-thread launch configuration`
+- **Hardware/software:** Apple Silicon arm64; PyTorch 2.13.0 without CUDA
+- **Research question:** What latency distribution does the provisional
+  256-thread launch produce across the required FP32 shape registry?
+- **HYPOTHESIS:** The middle configuration may balance column parallelism with
+  per-block coordination, but that balance may vary with sequence length.
+- **Independent variable:** `launch_block_size=256`
+- **Controlled variables:** Identical to the 128-thread experiment
+- **Metrics:** Median, p25, p75 microseconds and elements/second
+- **Command/script:** `.venv/bin/python benchmarks/benchmark_launch_configs.py
+  --block-size 256 --output results/raw/launch_256.csv`
+- **Raw result file:** None
+- **MEASUREMENT:** The CUDA guard rejected the run and no CSV was created.
+- **INTERPRETATION:** The existing 256-thread default is still provisional, not
+  a measured selection.
+- **Limitations:** No NVIDIA runtime on this host.
+- **NEXT EXPERIMENT:** Run this command beside the 128- and 512-thread commands
+  without changing the Colab runtime or software environment.
+- **Student reflection:** `TODO(student): Explain why a familiar default is not
+  evidence that it is optimal.`
