@@ -14,13 +14,11 @@ dist/
 *.so
 *.dylib
 
-# Generated research artifacts; tracked .gitkeep files preserve directories.
-results/raw/*.csv
-results/summary/*.csv
-figures/*
-!figures/.gitkeep
+# Measured CSVs and publication figures are intentionally not ignored. Their
+# Git commit, environment metadata, and review diff are part of the research
+# provenance. Large profiler traces remain local unless a later planned commit
+# explicitly chooses a compact artifact.
 
 # Local tooling
 .DS_Store
 .ipynb_checkpoints/
-

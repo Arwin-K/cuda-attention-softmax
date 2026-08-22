@@ -95,7 +95,7 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 077. Completed — `separate compile warmup from steady-state measurements`: each compiled shape now has an explicit untimed first call, a correctness check, ordinary CUDA warmups, and only then event-timed samples. Raw provenance distinguishes one compile warmup from zero on eager/custom paths.
 078. Completed — `compare custom CUDA against eager and compiled PyTorch`: one benchmark mode now emits all three paths, and analysis rejects any workload missing eager, compiled, or custom samples. The local CUDA guard produced no CSV, so this commit establishes comparison integrity rather than a winner.
 079. Completed — `document launch tuning and framework comparison results`: I documented the expected artifact map, guarded comparison methodology, hypotheses, and evidence gaps. No launch size or framework path is called faster; every quantitative conclusion remains pending Colab CSVs.
-080. I stabilized the tuned kernel and captured the fifth-day checkpoint.
+080. Completed — `stabilize tuned fused kernel and Day 5 checkpoint`: the final local audit reports 92 passes and 63 explicit GPU-only skips, including all 128/256/512 configurations on irregular widths. Python/shell/static checks and graceful Mac build behavior remain intact; the kernel is configurable, not measured-tuned.
 
 ## Day 6 — Does the microkernel change attention?
 

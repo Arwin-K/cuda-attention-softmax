@@ -42,6 +42,8 @@ STRESS_MAGNITUDES = (10.0, 100.0, 1000.0)
 STRESS_SEQUENCE_LENGTHS = (31, 128, 511)
 ROW_WRAP_SHAPES = ((1, 31), (30, 31), (31, 31), (32, 31), (260, 257))
 PARTIAL_WARP_ALLOWED_COLUMNS = (1, 2, 31, 32, 33, 63, 64, 65, 95, 96, 97)
+LAUNCH_CONFIGURATION_SEQUENCE_LENGTHS = (33, 255, 1023)
+SUPPORTED_LAUNCH_BLOCK_SIZES = (128, 256, 512)
 
 
 @pytest.mark.cuda_static
@@ -125,8 +127,12 @@ def test_cuda_operator_matches_pytorch_reference(sequence_length: int) -> None:
     assert torch.count_nonzero(actual.masked_select(~allowed)) == 0
 
 
-def _assert_cuda_matches_reference(scores: torch.Tensor, scale: float = 1.0) -> None:
-    actual = fused_causal_softmax(scores, scale)
+def _assert_cuda_matches_reference(
+    scores: torch.Tensor,
+    scale: float = 1.0,
+    block_size: int = 256,
+) -> None:
+    actual = fused_causal_softmax(scores, scale, block_size=block_size)
     expected = causal_scaled_softmax(scores, scale)
     allowed = causal_allowed_mask(
         scores.shape[0],
@@ -147,6 +153,29 @@ def _assert_cuda_matches_reference(scores: torch.Tensor, scale: float = 1.0) -> 
     assert torch.all(actual >= 0)
     assert torch.isfinite(actual).all()
     assert torch.count_nonzero(actual.masked_select(~allowed)) == 0
+
+
+@pytest.mark.parametrize("block_size", SUPPORTED_LAUNCH_BLOCK_SIZES)
+@pytest.mark.parametrize("sequence_length", LAUNCH_CONFIGURATION_SEQUENCE_LENGTHS)
+def test_every_launch_configuration_matches_reference_on_irregular_widths(
+    block_size: int,
+    sequence_length: int,
+) -> None:
+    generator = torch.Generator(device="cuda").manual_seed(
+        block_size + sequence_length
+    )
+    scores = torch.randn(
+        sequence_length,
+        sequence_length,
+        generator=generator,
+        device="cuda",
+    )
+
+    _assert_cuda_matches_reference(
+        scores,
+        scale=0.125,
+        block_size=block_size,
+    )
 
 
 @pytest.mark.parametrize("sequence_length", STRESS_SEQUENCE_LENGTHS)

@@ -542,3 +542,34 @@ No performance or profiling experiment has been recorded yet.
   command once, then use `--frameworks` summary preflight before interpreting.
 - **Student reflection:** `TODO(student): Explain why eager, compiled, and custom
   paths must normalize the same scores with the same causal rule.`
+
+## Day 5 checkpoint — Commit 080
+
+- **What was implemented:** The denominator now uses the same compact two-level
+  warp reduction as the maximum, and the obsolete full shared trees are absent
+  from the active source. Tests explicitly cover required lengths, partial data
+  around warp boundaries, and the fused kernel boundary. Block sizes 128, 256,
+  and 512 flow through Python, C++, one CUDA kernel launch, benchmark controls,
+  and CSV metadata. Complete-data launch selection and eager/compiled/custom
+  comparison preflights are implemented. `torch.compile` startup is separated
+  from steady-state CUDA timing.
+- **What was actually measured:** No CUDA compilation, custom output, latency,
+  throughput, speedup, launch winner, compiled CUDA behavior, or profiler metric
+  was measured. All benchmark commands stopped at the non-CUDA platform guard
+  and produced no artifacts. On Apple Silicon, 92 tests pass and 54 GPU-only
+  cases plus nine block-size/irregular-width cases skip (63 GPU-only skips in
+  total); Python compilation, shell syntax, diff checks, package/environment
+  checks, and the graceful build skip pass. Test duration is not a benchmark.
+- **What I learned:** `TODO(student): Explain the two-level warp reduction and
+  why launch size must be selected from measurements rather than intuition.`
+- **What surprised me:** `TODO(student): Record your own observation after
+  reviewing the code and, later, after running Colab; none is inferred here.`
+- **Unresolved questions:** Whether the extension compiles; whether all fixed-
+  tolerance CUDA gates pass for 128/256/512; whether warp reductions outperform
+  the shared-tree and row-serial milestones; which launch size wins by shape;
+  whether `torch.compile` fuses the expression; and how custom compares with
+  eager and compiled PyTorch.
+- **Next day:** Integrate the custom softmax into explicit transformer attention,
+  validate against PyTorch SDPA, benchmark kernel versus end-to-end behavior,
+  and add PyTorch Profiler and optional Nsight Compute workflows through Commit
+  096. GPU-dependent Day 6 conclusions must wait for actual NVIDIA artifacts.
