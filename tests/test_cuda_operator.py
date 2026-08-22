@@ -64,6 +64,13 @@ def test_cuda_source_keeps_scale_mask_and_softmax_in_one_kernel() -> None:
     assert "expf(shifted_value)" in source
 
 
+@pytest.mark.cuda_static
+@pytest.mark.parametrize("block_size", [0, 64, 129, 1024, True])
+def test_python_dispatch_rejects_unsupported_block_sizes(block_size: int) -> None:
+    with pytest.raises(ValueError, match="128, 256, or 512"):
+        fused_causal_softmax(torch.randn(2, 2), scale=1.0, block_size=block_size)
+
+
 def _cuda_test_unavailable_reason() -> str | None:
     if not torch.cuda.is_available():
         return "requires an NVIDIA CUDA device; MPS is not a CUDA substitute"

@@ -8,6 +8,7 @@ import torch
 
 from benchmarks.config import (
     BENCHMARK_SEQUENCE_LENGTHS,
+    SUPPORTED_BLOCK_SIZES,
     SoftmaxBenchmarkConfig,
     softmax_benchmark_registry,
 )
@@ -51,6 +52,14 @@ def test_softmax_registry_contains_required_shapes_in_order() -> None:
     assert all(case.rows == 8 * case.sequence_length for case in registry)
     assert all(case.columns == case.sequence_length for case in registry)
     assert all(case.dtype == "float32" for case in registry)
+    assert all(case.block_size == 256 for case in registry)
+
+
+@pytest.mark.parametrize("block_size", SUPPORTED_BLOCK_SIZES)
+def test_softmax_registry_applies_one_controlled_block_size(block_size: int) -> None:
+    registry = softmax_benchmark_registry(block_size=block_size)
+
+    assert all(case.block_size == block_size for case in registry)
 
 
 @pytest.mark.parametrize(
@@ -62,6 +71,8 @@ def test_softmax_registry_contains_required_shapes_in_order() -> None:
         {"sequence_length": 128, "iterations": 0},
         {"sequence_length": 128, "seed": -1},
         {"sequence_length": 128, "dtype": "float64"},
+        {"sequence_length": 128, "block_size": 64},
+        {"sequence_length": 128, "block_size": 1024},
     ],
 )
 def test_softmax_config_rejects_invalid_controls(overrides: dict[str, object]) -> None:
@@ -147,6 +158,7 @@ def test_raw_benchmark_csv_preserves_samples_and_provenance(tmp_path) -> None:
     assert [row["sample_us"] for row in saved] == ["1.0", "2.0", "3.0"]
     assert all(row["git_commit"] == "a" * 40 for row in saved)
     assert all(row["gpu_name"] == "test GPU" for row in saved)
+    assert all(row["launch_block_size"] == "" for row in saved)
 
 
 def test_raw_record_count_must_match_iterations() -> None:

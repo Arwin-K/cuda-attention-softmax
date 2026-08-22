@@ -6,4 +6,5 @@
 // by bindings.cpp. A shared declaration keeps both translation units aligned.
 torch::Tensor fused_causal_softmax_cuda(
     const torch::Tensor& scores,
-    double scale);
+    double scale,
+    int64_t block_size);

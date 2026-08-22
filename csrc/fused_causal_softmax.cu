@@ -10,16 +10,8 @@
 
 namespace {
 
-constexpr int kThreadsPerBlock = 256;
 constexpr int kWarpSize = 32;
-constexpr int kWarpsPerBlock = kThreadsPerBlock / kWarpSize;
 constexpr unsigned int kFullWarpMask = 0xffffffffu;
-static_assert(
-    kThreadsPerBlock > 0 && kThreadsPerBlock % kWarpSize == 0,
-    "warp reduction stages require complete 32-thread warps");
-static_assert(
-    kWarpsPerBlock <= kWarpSize,
-    "one warp must be able to combine all per-warp partials");
 
 // A warp is the hardware group of 32 threads that executes instructions
 // together. The lane identifies a thread inside its warp; the warp ID
@@ -110,6 +102,7 @@ __global__ void fused_causal_softmax_kernel(
   // shared value per thread to one value per warp.
   const unsigned int lane = lane_id();
   const unsigned int warp = warp_id();
+  const unsigned int warps_per_block = blockDim.x / kWarpSize;
   const float warp_maximum = warp_reduce_max(thread_maximum);
   extern __shared__ float shared_values[];
   if (lane == 0) {
@@ -117,13 +110,13 @@ __global__ void fused_causal_softmax_kernel(
   }
   __syncthreads();
 
-  // The first warp performs the second reduction level. Its first eight lanes
-  // load valid warp maxima; the remaining lanes contribute negative infinity.
-  // Calling the helper from every lane in warp 0 keeps the full shuffle mask
-  // valid even though only eight lanes carry block data.
+  // The first warp performs the second reduction level. Its first
+  // warps_per_block lanes load valid warp maxima; the remaining lanes
+  // contribute negative infinity. Calling the helper from every lane in warp 0
+  // keeps the full shuffle mask valid even when few lanes carry block data.
   if (warp == 0) {
     float block_maximum =
-        lane < kWarpsPerBlock ? shared_values[lane] : -CUDART_INF_F;
+        lane < warps_per_block ? shared_values[lane] : -CUDART_INF_F;
     block_maximum = warp_reduce_max(block_maximum);
     if (lane == 0) {
       shared_values[0] = block_maximum;
@@ -152,8 +145,8 @@ __global__ void fused_causal_softmax_kernel(
   }
 
   // Each warp first reduces its 32 register-local sums. Lane 0 publishes one
-  // value, so the cross-warp bridge needs only eight shared slots rather than
-  // one slot per thread.
+  // value, so the cross-warp bridge needs only one shared slot per warp rather
+  // than one slot per thread.
   const float warp_exponential_sum = warp_reduce_sum(thread_exponential_sum);
   if (lane == 0) {
     shared_values[warp] = warp_exponential_sum;
@@ -165,7 +158,7 @@ __global__ void fused_causal_softmax_kernel(
   // lane still executes each shuffle because the helper uses a full-warp mask.
   if (warp == 0) {
     float block_exponential_sum =
-        lane < kWarpsPerBlock ? shared_values[lane] : 0.0f;
+        lane < warps_per_block ? shared_values[lane] : 0.0f;
     block_exponential_sum = warp_reduce_sum(block_exponential_sum);
     if (lane == 0) {
       shared_values[0] = block_exponential_sum;
@@ -190,7 +183,8 @@ __global__ void fused_causal_softmax_kernel(
 
 torch::Tensor fused_causal_softmax_cuda(
     const torch::Tensor& scores,
-    double scale) {
+    double scale,
+    int64_t block_size) {
   const int64_t rows = scores.size(0);
   const int64_t sequence_length = scores.size(1);
   TORCH_CHECK(
@@ -204,13 +198,15 @@ torch::Tensor fused_causal_softmax_cuda(
   auto probabilities = torch::empty_like(scores);
 
   const int blocks = static_cast<int>(rows);
+  const int threads = static_cast<int>(block_size);
+  const int warps_per_block = threads / kWarpSize;
   const size_t shared_memory_bytes =
-      static_cast<size_t>(kWarpsPerBlock) * sizeof(float);
+      static_cast<size_t>(warps_per_block) * sizeof(float);
   const cudaStream_t stream =
       c10::cuda::getCurrentCUDAStream(scores.get_device());
   fused_causal_softmax_kernel<<<
       blocks,
-      kThreadsPerBlock,
+      threads,
       shared_memory_bytes,
       stream>>>(
       scores.data_ptr<float>(),

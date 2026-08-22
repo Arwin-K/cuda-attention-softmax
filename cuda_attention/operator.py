@@ -10,6 +10,8 @@ from torch import Tensor
 
 
 EXTENSION_MODULE = "cuda_attention._C"
+SUPPORTED_BLOCK_SIZES = (128, 256, 512)
+DEFAULT_BLOCK_SIZE = 256
 
 
 class CudaExtensionUnavailableError(RuntimeError):
@@ -36,8 +38,14 @@ def _load_cuda_extension() -> ModuleType:
         ) from error
 
 
-def fused_causal_softmax(scores: Tensor, scale: float) -> Tensor:
+def fused_causal_softmax(
+    scores: Tensor,
+    scale: float,
+    block_size: int = DEFAULT_BLOCK_SIZE,
+) -> Tensor:
     """Dispatch to the compiled fused causal scaled-softmax CUDA operator."""
 
+    if block_size not in SUPPORTED_BLOCK_SIZES or isinstance(block_size, bool):
+        raise ValueError("block_size must be one of 128, 256, or 512")
     extension = _load_cuda_extension()
-    return extension.fused_causal_softmax(scores, scale)
+    return extension.fused_causal_softmax(scores, scale, block_size)

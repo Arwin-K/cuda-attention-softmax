@@ -91,7 +91,11 @@ def prepare_custom_case(
         device="cuda",
     )
     scale = 1.0 / math.sqrt(64)
-    return scores, lambda: fused_causal_softmax(scores, scale)
+    return scores, lambda: fused_causal_softmax(
+        scores,
+        scale,
+        block_size=config.block_size,
+    )
 
 
 def run_custom_case(config: SoftmaxBenchmarkConfig) -> list[float]:
@@ -115,6 +119,7 @@ def main() -> int:
     parser.add_argument("--sequence-length", type=int)
     parser.add_argument("--warmups", type=int)
     parser.add_argument("--iterations", type=int)
+    parser.add_argument("--block-size", type=int, choices=(128, 256, 512), default=256)
     parser.add_argument(
         "--implementation",
         choices=("eager", "custom", "both"),
@@ -127,13 +132,14 @@ def main() -> int:
         print("CUDA benchmark requires Linux with an NVIDIA GPU.", file=sys.stderr)
         return 2
 
-    registry = softmax_benchmark_registry()
+    registry = softmax_benchmark_registry(block_size=arguments.block_size)
     if arguments.sequence_length is not None:
         registry = (
             SoftmaxBenchmarkConfig(
                 sequence_length=arguments.sequence_length,
                 warmups=arguments.warmups or registry[0].warmups,
                 iterations=arguments.iterations or registry[0].iterations,
+                block_size=arguments.block_size,
             ),
         )
 
@@ -151,6 +157,9 @@ def main() -> int:
         for config in registry:
             for description, runner in implementations[arguments.implementation]:
                 samples_us = runner(config)
+                is_custom = runner is run_custom_case
+                if is_custom:
+                    description = f"{description}; block_size={config.block_size}"
                 records.extend(
                     raw_benchmark_records(
                         metadata=metadata,
@@ -162,6 +171,7 @@ def main() -> int:
                         warmups=config.warmups,
                         iterations=config.iterations,
                         samples_us=samples_us,
+                        launch_block_size=(config.block_size if is_custom else None),
                     )
                 )
     except CudaExtensionUnavailableError as error:

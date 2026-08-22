@@ -24,6 +24,7 @@ RAW_BENCHMARK_FIELDS = (
     "rows",
     "columns",
     "dtype",
+    "launch_block_size",
     "warmups",
     "iterations",
     "sample_index",
@@ -77,6 +78,7 @@ def raw_benchmark_records(
     warmups: int,
     iterations: int,
     samples_us: Sequence[float],
+    launch_block_size: int | None = None,
 ) -> list[dict[str, object]]:
     """Combine raw samples with enough context to reproduce their workload."""
 
@@ -92,6 +94,9 @@ def raw_benchmark_records(
                 "rows": rows,
                 "columns": columns,
                 "dtype": dtype,
+                "launch_block_size": (
+                    "" if launch_block_size is None else launch_block_size
+                ),
                 "warmups": warmups,
                 "iterations": iterations,
                 "sample_index": sample_index,
