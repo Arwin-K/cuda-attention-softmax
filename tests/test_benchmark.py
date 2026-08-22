@@ -29,6 +29,7 @@ from benchmarks.summarize_results import (
 from cuda_attention.benchmark import (
     RAW_BENCHMARK_FIELDS,
     raw_benchmark_records,
+    run_untimed_warmups,
     time_cuda_callable,
     write_raw_benchmark_csv,
 )
@@ -93,6 +94,18 @@ def test_cuda_timer_does_not_fall_back_without_cuda(monkeypatch: pytest.MonkeyPa
 
     with pytest.raises(RuntimeError, match="NVIDIA GPU"):
         time_cuda_callable(lambda: None, warmups=1, iterations=1)
+
+
+def test_explicit_untimed_warmups_have_a_separate_call_count() -> None:
+    calls: list[int] = []
+
+    result = run_untimed_warmups(
+        lambda: calls.append(len(calls)) or len(calls),
+        iterations=2,
+    )
+
+    assert result == 2
+    assert calls == [0, 1]
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="requires NVIDIA CUDA")
@@ -173,6 +186,7 @@ def test_raw_benchmark_csv_preserves_samples_and_provenance(tmp_path) -> None:
     assert all(row["git_commit"] == "a" * 40 for row in saved)
     assert all(row["gpu_name"] == "test GPU" for row in saved)
     assert all(row["launch_block_size"] == "" for row in saved)
+    assert all(row["compile_warmups"] == "0" for row in saved)
 
 
 def test_raw_record_count_must_match_iterations() -> None:

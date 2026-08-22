@@ -21,6 +21,7 @@ from cuda_attention.benchmark import (
     collect_cuda_run_metadata,
     make_score_tensor,
     raw_benchmark_records,
+    run_untimed_warmups,
     time_cuda_callable,
     write_raw_benchmark_csv,
 )
@@ -109,10 +110,13 @@ def prepare_compiled_case(
 
 
 def run_compiled_case(config: SoftmaxBenchmarkConfig) -> list[float]:
-    """Correctness-check then measure the compiled framework baseline."""
+    """Compile outside the timed path, correctness-check, then measure."""
 
     scores, operation = prepare_compiled_case(config)
-    actual = operation()
+    # The first invocation can compile code and is intentionally separated from
+    # both ordinary CUDA warmups and steady-state CUDA-event samples.
+    actual = run_untimed_warmups(operation, iterations=1)
+    assert isinstance(actual, torch.Tensor)
     expected = causal_scaled_softmax(scores, 1.0 / math.sqrt(64))
     torch.testing.assert_close(actual, expected, rtol=1e-5, atol=1e-6)
     torch.cuda.synchronize()
@@ -213,6 +217,7 @@ def main() -> int:
             for description, runner in implementations[arguments.implementation]:
                 samples_us = runner(config)
                 is_custom = runner is run_custom_case
+                is_compiled = runner is run_compiled_case
                 if is_custom:
                     description = f"{description}; block_size={config.block_size}"
                 records.extend(
@@ -227,6 +232,7 @@ def main() -> int:
                         iterations=config.iterations,
                         samples_us=samples_us,
                         launch_block_size=(config.block_size if is_custom else None),
+                        compile_warmups=(1 if is_compiled else 0),
                     )
                 )
     except CudaExtensionUnavailableError as error:

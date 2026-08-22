@@ -80,6 +80,7 @@ def main() -> int:
                     iterations=config.iterations,
                     samples_us=samples_us,
                     launch_block_size=block_size,
+                    compile_warmups=0,
                 )
             )
     except CudaExtensionUnavailableError as error:
