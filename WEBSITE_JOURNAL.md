@@ -85,7 +85,7 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 067. Completed — `validate warp-reduction kernel correctness`: I made the required shape set an explicit test contract and reran the regression suite. The coverage check passes locally, while every device comparison skips without NVIDIA; this records readiness, not CUDA correctness.
 068. Completed — `stress test warp reductions on partial final warps`: I added targeted causal-prefix cases around 32-column boundaries and documented why lanes with no data still execute full-mask shuffles using identity values. The cases collect and skip locally; Colab must produce their CUDA results.
 069. Completed — `verify fused scaling and causal masking remain in-kernel`: a CPU-safe source contract now checks that one CUDA kernel still owns query-position recovery, scaling, causal exclusion, stable exponentiation, and normalization. This guards equal work for later timing without claiming runtime evidence.
-070. I measured the warp-reduction kernel against the prior block-reduction milestone.
+070. Completed — `benchmark warp-reduction optimization against prior commit`: I identified the stabilized shared-tree revision and attempted the controlled custom benchmark. The Mac guard refused execution and created no CSV, so the warp-versus-block result remains a Colab experiment rather than a claimed measurement.
 071. I made block size a controlled experimental variable rather than a hidden launch constant.
 072. I measured the 128-thread configuration under the shared protocol.
 073. I measured the 256-thread configuration under the shared protocol.

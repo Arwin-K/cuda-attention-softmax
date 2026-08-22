@@ -139,10 +139,10 @@ def main() -> int:
 
     implementations = {
         "eager": (("PyTorch eager scale + causal mask + softmax", run_eager_case),),
-        "custom": (("row-serial custom CUDA fused scale + mask + softmax", run_custom_case),),
+        "custom": (("warp-reduction custom CUDA fused scale + mask + softmax", run_custom_case),),
         "both": (
             ("PyTorch eager scale + causal mask + softmax", run_eager_case),
-            ("row-serial custom CUDA fused scale + mask + softmax", run_custom_case),
+            ("warp-reduction custom CUDA fused scale + mask + softmax", run_custom_case),
         ),
     }
     metadata = collect_cuda_run_metadata(PROJECT_ROOT)

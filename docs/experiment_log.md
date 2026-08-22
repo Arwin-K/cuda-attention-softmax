@@ -382,3 +382,34 @@ No performance or profiling experiment has been recorded yet.
   Google Colab, and treat any failure as a blocker before benchmarking.
 - **Student reflection:** `TODO(student): Explain why preserving tolerances is
   more scientifically useful than relaxing them after an optimization.`
+
+## Shared-tree versus warp-reduction benchmark attempt — Commit 070
+
+- **Date/time:** 2026-08-22, America/Toronto
+- **Git commit:** Commit 070 — `benchmark warp-reduction optimization against prior commit`
+- **Hardware:** Apple Silicon arm64; no NVIDIA GPU
+- **Software:** Darwin, Python 3.11.15, PyTorch 2.13.0 without CUDA
+- **Research question:** Does compact warp communication change latency and
+  throughput relative to the stabilized shared-tree block milestone?
+- **HYPOTHESIS:** Warp shuffles and eight shared partials may lower reduction
+  overhead, especially where row work is large enough to amortize launch and
+  barrier costs.
+- **Independent variable:** Git revision: block milestone `f9420de` versus the
+  warp-reduction revision produced after Commit 069
+- **Controlled variables:** One GPU/session, FP32, `batch_heads=8`, required
+  shapes, seed, warmups, iterations, scale, input construction, and timed region
+- **Metrics:** Median, p25, p75 microseconds, elements/second, and derived speedup
+- **Command/script:** `.venv/bin/python benchmarks/benchmark_softmax.py
+  --implementation custom --sequence-length 128 --warmups 2 --iterations 3
+  --output results/raw/warp_reduction.csv`
+- **Raw result file:** None
+- **MEASUREMENT:** The harness exited with “CUDA benchmark requires Linux with
+  an NVIDIA GPU.” It created no result artifact.
+- **INTERPRETATION:** No before/after result exists. The mechanism remains a
+  hypothesis until both commits are timed on the same NVIDIA environment.
+- **Limitations:** This host cannot compile or execute either CUDA revision.
+- **NEXT EXPERIMENT:** In one Colab GPU runtime, build/test `f9420de`, save its
+  raw CSV outside the checkout, then build/test the Commit 069 revision with
+  identical controls and run comparison preflight.
+- **Student reflection:** `TODO(student): Explain why measuring only the current
+  revision would not answer the optimization question.`
