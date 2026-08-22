@@ -76,6 +76,17 @@ python3 benchmarks/benchmark_softmax.py --implementation all --output results/ra
 These commands must run in one controlled NVIDIA environment. Do not commit
 partial or fabricated artifacts.
 
+## Google Colab experiment notebook
+
+[![Open the research notebook in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Arwin-K/cuda-attention-softmax/blob/day-five-pt-2/notebooks/04_colab_research_experiments.ipynb)
+
+The [Colab experiment guide](docs/colab_experiments.md) explains the exact run,
+recovery, evidence-validation, and ZIP handoff workflow. The notebook connects
+to this repository, builds through `scripts/build_extension.sh`, uses existing
+CUDA tests and benchmark entry points, and adds notebook-local orchestration for
+attention, profiling, figures, tables, and research-paper artifacts. It contains
+no precomputed or fabricated measurements.
+
 ## Layout
 
 - `cuda_attention/`: Python package, environment detection, and future
