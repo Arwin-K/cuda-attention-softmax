@@ -573,3 +573,29 @@ No performance or profiling experiment has been recorded yet.
   validate against PyTorch SDPA, benchmark kernel versus end-to-end behavior,
   and add PyTorch Profiler and optional Nsight Compute workflows through Commit
   096. GPU-dependent Day 6 conclusions must wait for actual NVIDIA artifacts.
+
+## Supplemental Colab notebook handoff
+
+- **Date/time:** 2026-08-22, America/Toronto
+- **Git branch:** `day-five-pt-2`
+- **Purpose:** Convert the complete remote NVIDIA procedure into one connected,
+  restart-aware Colab notebook while preserving the 112 planned commit numbers.
+- **What was implemented:** A deterministic notebook generator and one Colab
+  notebook covering runtime validation, repository checkout, extension build,
+  CUDA correctness, historical kernels, launch tuning, framework and attention
+  benchmarks, profiling, plots, tables, validation, manifest generation, Drive
+  backup, and ZIP export. The notebook calls the repository's existing build,
+  test, and benchmark interfaces instead of embedding a second implementation.
+- **What was actually measured:** No CUDA result. This development host has no
+  NVIDIA CUDA runtime. Only notebook generation, JSON structure, Python syntax,
+  CPU-safe tests, shell syntax, import behavior, and artifact-integrity rules
+  were checked locally. The checked-in notebook has no execution outputs.
+- **Interpretation:** The repository now has a single auditable execution path
+  for collecting the missing evidence, but its presence is not evidence that
+  the kernel compiles, is correct, or is faster on any GPU.
+- **NEXT EXPERIMENT:** Push `day-five-pt-2`, open
+  `notebooks/04_colab_research_experiments.ipynb` on an NVIDIA Colab runtime,
+  run it top to bottom, resolve any critical validation failure, and preserve
+  `cuda_softmax_research_artifacts.zip` before interpreting results.
+- **Student reflection:** `TODO(student): After the Colab run, explain which
+  controls made comparisons fair and which limitations remain.`

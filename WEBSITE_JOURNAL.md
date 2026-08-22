@@ -135,6 +135,36 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 111. I performed a final evidence and scope audit, retaining TODOs wherever proof is absent.
 112. I finished with a seven-day checkpoint that verifies coherence among code, tests, results, and the public narrative.
 
+## Supplemental Day 5 Colab handoff
+
+These unnumbered commits were explicitly requested after the 112-commit roadmap.
+They package the planned NVIDIA work into one reproducible Colab notebook without
+changing the numbering or meaning of Commits 001–112.
+
+- Completed — `add Colab experiment notebook foundation`: I added one
+  deterministic, reviewable notebook with configuration, NVIDIA runtime checks,
+  source acquisition, Git provenance, build logging, and artifact safeguards.
+- Completed — `add reproducible CUDA experiment workflows`: I connected the
+  notebook to the repository's CUDA tests and benchmark entry points, added the
+  structured correctness gate, launch-size comparison, framework comparison,
+  and verified historical-revision workflow.
+- Completed — `add attention benchmarks and profiler capture`: I added explicit
+  eager/custom/SDPA attention experiments, kernel-versus-attention analysis,
+  PyTorch Profiler exports, and an optional Nsight Compute attempt with honest
+  unavailable markers.
+- Completed — `add paper artifact generation and experiment packaging`: I added
+  evidence-derived figures, CSV and LaTeX tables, hypothesis status summaries,
+  artifact validation, a manifest, optional Drive backup, and a downloadable
+  experiment ZIP.
+- Completed — `document and validate Colab research workflow`: I documented the
+  run and recovery procedure and added CPU-safe structural tests that reject
+  stale notebook generation, saved outputs, embedded secrets, missing stages,
+  and absent evidence-integrity guards.
+
+No NVIDIA experiment was executed while creating these commits. CUDA
+correctness, performance, profiler observations, and hypothesis outcomes remain
+pending the generated notebook's execution on an NVIDIA Colab runtime.
+
 ## Completion template
 
 For each completed entry, append only evidence you can support:
