@@ -604,3 +604,69 @@ without changing the fixed-tolerance output contract?
 ### Git commit
 
 Commit 064 — `implement warp-level sum reduction with shuffle operations`
+
+## Complete compact warp-reduction structure
+
+### Problem
+
+The Day 4 denominator path reduced values inside each warp but then padded the
+eight warp sums back into a 256-entry shared-memory tree. That left two active
+reduction strategies and retained shared storage and barriers that the warp
+design was intended to avoid.
+
+### Existing evidence
+
+Static inspection establishes that the fixed 256-thread launch has eight full
+warps. Local tests establish only that CPU behavior and CUDA skip guards remain
+stable; the kernel has not compiled or executed on NVIDIA hardware.
+
+### Hypothesis
+
+A two-level shuffle reduction can produce the same maximum and denominator
+while communicating only one value per warp through shared memory.
+
+### Proposed change
+
+Use an intra-warp shuffle reduction, publish lane-zero partials to an eight-slot
+array, and have the first warp perform the final reduction. Remove the old
+power-of-two tree assumption from the active source.
+
+### Implementation
+
+Both maximum and sum now follow the same hierarchy:
+
+```text
+thread-local partial
+-> 32-lane shuffle reduction
+-> one shared value per warp
+-> first-warp shuffle reduction
+-> one block-wide value
+```
+
+The identities are negative infinity for maximum and zero for addition. A
+block barrier separates every cross-warp publish/consume boundary. The launcher
+allocates eight floats of dynamic shared memory for the fixed configuration.
+
+### Correctness result
+
+The CPU-safe suite passes and CUDA-only tests skip on Apple Silicon. NVIDIA
+compilation and output comparison remain unperformed.
+
+### Performance result
+
+Not measured. No claim is made about latency, shared-memory occupancy, or
+synchronization savings until matched CUDA artifacts exist.
+
+### Interpretation
+
+The source now contains one reduction strategy and its invariants are explicit.
+This is an implementation fact, not evidence that the strategy is faster.
+
+### Next question
+
+Does the completed warp hierarchy compile and match PyTorch across normal,
+stress, and irregular-width cases on NVIDIA hardware?
+
+### Git commit
+
+Commit 066 — `replace shared-memory block reductions with warp reductions`

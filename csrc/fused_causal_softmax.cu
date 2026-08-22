@@ -15,12 +15,11 @@ constexpr int kWarpSize = 32;
 constexpr int kWarpsPerBlock = kThreadsPerBlock / kWarpSize;
 constexpr unsigned int kFullWarpMask = 0xffffffffu;
 static_assert(
-    kThreadsPerBlock > 0 &&
-        (kThreadsPerBlock & (kThreadsPerBlock - 1)) == 0,
-    "shared-memory tree reduction requires a power-of-two block size");
-static_assert(
-    kThreadsPerBlock % kWarpSize == 0,
+    kThreadsPerBlock > 0 && kThreadsPerBlock % kWarpSize == 0,
     "warp reduction stages require complete 32-thread warps");
+static_assert(
+    kWarpsPerBlock <= kWarpSize,
+    "one warp must be able to combine all per-warp partials");
 
 // A warp is the hardware group of 32 threads that executes instructions
 // together. The lane identifies a thread inside its warp; the warp ID
@@ -132,9 +131,9 @@ __global__ void fused_causal_softmax_kernel(
   }
   __syncthreads();
 
-  // Every thread captures the completed maximum before shared_values is reused
-  // for denominator partials. The handoff barrier prevents thread 0 from
-  // overwriting element 0 before slower peers have loaded it.
+  // Every thread captures the completed maximum before the compact array is
+  // reused for denominator partials. The handoff barrier prevents a fast warp
+  // from overwriting element 0 before slower peers have loaded it.
   const float row_maximum = shared_values[0];
   __syncthreads();
 
