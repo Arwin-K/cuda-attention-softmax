@@ -84,7 +84,7 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 066. Completed — `replace shared-memory block reductions with warp reductions`: the active source now uses the same two-level shuffle-plus-compact-shared-memory hierarchy for maximum and sum. I removed the obsolete shared-tree power-of-two assumption and documented that correctness and speed still require NVIDIA evidence.
 067. Completed — `validate warp-reduction kernel correctness`: I made the required shape set an explicit test contract and reran the regression suite. The coverage check passes locally, while every device comparison skips without NVIDIA; this records readiness, not CUDA correctness.
 068. Completed — `stress test warp reductions on partial final warps`: I added targeted causal-prefix cases around 32-column boundaries and documented why lanes with no data still execute full-mask shuffles using identity values. The cases collect and skip locally; Colab must produce their CUDA results.
-069. I verified that scaling and causal masking are still fused inside the kernel after the reduction changes.
+069. Completed — `verify fused scaling and causal masking remain in-kernel`: a CPU-safe source contract now checks that one CUDA kernel still owns query-position recovery, scaling, causal exclusion, stable exponentiation, and normalization. This guards equal work for later timing without claiming runtime evidence.
 070. I measured the warp-reduction kernel against the prior block-reduction milestone.
 071. I made block size a controlled experimental variable rather than a hidden launch constant.
 072. I measured the 128-thread configuration under the shared protocol.

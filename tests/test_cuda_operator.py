@@ -6,6 +6,7 @@ for CPU development without pretending that MPS validates CUDA behavior.
 """
 
 import math
+from pathlib import Path
 
 import pytest
 import torch
@@ -48,6 +49,19 @@ def test_cuda_gate_covers_every_required_sequence_length() -> None:
     covered = set(CORE_SEQUENCE_LENGTHS) | set(IRREGULAR_SEQUENCE_LENGTHS)
 
     assert set(REQUIRED_SEQUENCE_LENGTHS) <= covered
+
+
+@pytest.mark.cuda_static
+def test_cuda_source_keeps_scale_mask_and_softmax_in_one_kernel() -> None:
+    source_path = Path(__file__).resolve().parents[1] / "csrc" / "fused_causal_softmax.cu"
+    source = source_path.read_text(encoding="utf-8")
+
+    assert source.count("__global__ void") == 1
+    assert "row % sequence_length" in source
+    assert "scores[row_offset + column] * scale" in source
+    assert "column < allowed_columns" in source
+    assert "probabilities[row_offset + column] = 0.0f" in source
+    assert "expf(shifted_value)" in source
 
 
 def _cuda_test_unavailable_reason() -> str | None:

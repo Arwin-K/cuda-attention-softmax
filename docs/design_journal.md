@@ -670,3 +670,60 @@ stress, and irregular-width cases on NVIDIA hardware?
 ### Git commit
 
 Commit 066 — `replace shared-memory block reductions with warp reductions`
+
+## Fusion-boundary audit after warp reductions
+
+### Problem
+
+Changing reduction mechanics can accidentally move work outside the custom
+kernel, making a faster-looking kernel incomparable because it performs less
+of the original scale-mask-softmax operation.
+
+### Existing evidence
+
+Source inspection shows one `__global__` function. It restores query position
+with `row % sequence_length`, multiplies allowed scores by `scale`, writes
+future columns to zero, computes stable exponentials, reduces their denominator,
+and normalizes allowed probabilities. Python dispatch calls one extension
+function and C++ dispatch calls one CUDA launcher.
+
+### Hypothesis
+
+Warp communication changes only how maximum and sum partials combine; it should
+not change the fused operation boundary.
+
+### Proposed change
+
+Add a CPU-safe source-contract test that fails if the primary scale, causal
+boundary, masked write, exponential, or single-kernel structure disappears.
+
+### Implementation
+
+The audit test checks structural markers in the one evolving CUDA source. The
+existing device comparisons remain the numerical gate for the full fused
+semantics.
+
+### Correctness result
+
+The source-contract test passes locally. Numerical CUDA validation remains
+pending because device tests skip without NVIDIA hardware.
+
+### Performance result
+
+Not measured. Fusion integrity keeps future comparisons fair but does not imply
+a speedup.
+
+### Interpretation
+
+The active source still performs the intended amount of work in one kernel.
+Static inspection cannot establish generated code, runtime correctness, or
+latency.
+
+### Next question
+
+How does this exact warp-reduction commit compare with the historical
+shared-tree milestone under identical NVIDIA controls?
+
+### Git commit
+
+Commit 069 — `verify fused scaling and causal masking remain in-kernel`
