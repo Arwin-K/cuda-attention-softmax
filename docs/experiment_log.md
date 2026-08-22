@@ -462,3 +462,27 @@ No performance or profiling experiment has been recorded yet.
   without changing the Colab runtime or software environment.
 - **Student reflection:** `TODO(student): Explain why a familiar default is not
   evidence that it is optimal.`
+
+## 512-thread launch measurement attempt — Commit 074
+
+- **Date/time:** 2026-08-22, America/Toronto
+- **Git commit:** Commit 074 — `benchmark 512-thread launch configuration`
+- **Hardware/software:** Apple Silicon arm64; PyTorch 2.13.0 without CUDA
+- **Research question:** What latency distribution does the 512-thread launch
+  produce across the required FP32 shape registry?
+- **HYPOTHESIS:** More threads may expose additional parallelism on long rows,
+  while extra warps and idle lanes may hurt short or early causal rows.
+- **Independent variable:** `launch_block_size=512`
+- **Controlled variables:** Identical to the 128- and 256-thread experiments
+- **Metrics:** Median, p25, p75 microseconds and elements/second
+- **Command/script:** `.venv/bin/python benchmarks/benchmark_launch_configs.py
+  --block-size 512 --output results/raw/launch_512.csv`
+- **Raw result file:** None
+- **MEASUREMENT:** The CUDA guard rejected the run and no CSV was created.
+- **INTERPRETATION:** No claim can be made about increased parallelism or its
+  overhead.
+- **Limitations:** No NVIDIA runtime on this host.
+- **NEXT EXPERIMENT:** Complete all three commands in one Colab session, then
+  summarize results by shape before choosing any default.
+- **Student reflection:** `TODO(student): Explain why more threads can increase
+  overhead even when the maximum block size is supported.`

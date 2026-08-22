@@ -89,7 +89,7 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 071. Completed — `add benchmark support for configurable block sizes`: 128, 256, and 512 threads now flow through the Python API, C++ validation, one runtime-configurable CUDA kernel, benchmark registry, and raw CSV provenance. The unchanged 256 default is explicitly provisional until NVIDIA measurements exist.
 072. Completed — `benchmark 128-thread launch configuration`: I attempted the full-registry 128-thread run, but the platform guard found no NVIDIA CUDA runtime and wrote no CSV. Its short-row-overhead versus long-row-work hypothesis remains untested until Colab execution.
 073. Completed — `benchmark 256-thread launch configuration`: the controlled 256-thread command was attempted and correctly refused on the non-CUDA Mac. No CSV exists, so 256 remains only the provisional default rather than a measured optimum.
-074. I measured the 512-thread configuration under the shared protocol.
+074. Completed — `benchmark 512-thread launch configuration`: the 512-thread experiment also stopped at the CUDA guard and produced no artifact. Its added-parallelism versus extra-warps hypothesis remains open, preserving an honest three-configuration tuning gap for Colab.
 075. I selected the default launch configuration from results, documenting any shape-dependent tradeoff.
 076. I added torch.compile as a stronger framework baseline for the same operation.
 077. I separated compilation warmup from steady-state timing so startup cost does not distort latency.
