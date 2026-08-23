@@ -127,7 +127,7 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 103. I added and ran one CPU-only verification command for imports, deterministic notebooks, the full CPU/static suite, schema auditing, and provenance; it hides CUDA deliberately and never compiles or benchmarks the kernel.
 104. I wrote a stop-aware NVIDIA handoff that separates exact T4 replication from a latest-commit rerun and covers plain-URL checkout, clean build, fixed-tolerance correctness, benchmarking, profiling, unique artifacts, hashing, and return validation.
 105. I documented and automated checks for the actual Git milestones from serial row ownership through shared-tree and warp reductions, tying three measured endpoints to artifacts while enforcing one primary `.cu` source.
-106. I shaped the research journey into a website-ready narrative for readers outside the repository.
+106. I shaped the seven-part research journey into a website-ready narrative that explains the kernel evolution, failures, measured T4 outcome, negative SDPA result, evidence links, limitations, and an untouched student-reflection prompt.
 107. I completed this per-commit journal index so each of the 112 steps has a public learning context.
 108. I audited public-facing prose against artifacts so plans and interpretations cannot masquerade as measurements.
 109. I collected reproducibility commands with clear platform requirements and expected outputs.
