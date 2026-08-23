@@ -1,33 +1,41 @@
 # CUDA Optimization of Fused Causal Softmax for Transformer Attention
 
-An educational CUDA and ML-systems research project. The repository follows one
-implementation in `csrc/fused_causal_softmax.cu` as it evolves through Git
-history; it does not maintain parallel kernel versions.
+An educational CUDA/ML-systems case study that evolves one fused causal
+scaled-softmax kernel from serial row processing to warp-shuffle reductions.
+The repository keeps one primary implementation in
+`csrc/fused_causal_softmax.cu`; Git history, commit-tagged measurements, and a
+full experiment archive preserve the evolution.
 
-## Current status
+## Measured outcome
 
-Day 5 through Commit 080 is complete. The one-block-per-row source now performs
-maximum and denominator reductions in two levels: warp-local register shuffles,
-then one compact shared value per warp combined by the first warp. Scaling,
-causal masking, stable exponentiation, and normalization remain inside the same
-kernel. The launch accepts 128, 256, or 512 threads without duplicating source.
+A complete Colab run is preserved under
+[`results/runs/2026-08-23_tesla-t4_ca87722`](results/runs/2026-08-23_tesla-t4_ca87722).
+It records a clean `ca87722a` checkout on one NVIDIA Tesla T4, PyTorch
+2.11.0+cu128, CUDA toolkit 12.8, FP32 inputs, 25 warmups, and 100 timed samples
+per implementation and shape.
 
-The benchmark path records raw CUDA-event samples, Git/hardware/software
-provenance, launch block size, and compile warmups. It supports PyTorch eager,
-`torch.compile`, and the custom operator for the same scale-mask-softmax work.
-The 256-thread default is provisional: no launch size has been selected from
-measurements.
+- All 88 structured softmax comparisons passed at fixed `rtol=1e-5` and
+  `atol=1e-6`; maximum absolute error was `3.5763e-7`.
+- The warp kernel was 3.22--8.92x faster than the historical row-serial kernel
+  and 1.07--1.91x faster than the shared-tree block kernel.
+- Custom softmax was 1.40--3.94x faster than equivalent PyTorch eager work.
+- Explicit attention using custom softmax was 1.54--2.31x faster than explicit
+  eager attention, but PyTorch SDPA beat the explicit custom path at every
+  tested shape.
+- Launch tuning selected 128 threads by the aggregate rule, although 256
+  threads won the two longest individual shapes.
 
-This source has not yet been compiled or run on NVIDIA hardware. There is no
-CUDA correctness, latency, throughput, speedup, or profiler result. All such
-claims remain pending the documented Linux/NVIDIA execution workflow.
+These are results from one GPU session, not universal CUDA claims. See the
+[paper](docs/mini_paper.md), [limitations](docs/limitations.md), and
+[raw artifacts](results/runs/2026-08-23_tesla-t4_ca87722/artifacts).
 
-`tests/test_cuda_operator.py` is the device correctness gate. It covers normal,
-large-magnitude, structured, irregular-width, block-boundary, and flattened-row
-wrap cases using fixed tolerances, probability invariants, and selected invalid-
-input paths plus causal prefixes around warp boundaries. Static CUDA contract
-checks run everywhere; device cases skip visibly unless both an NVIDIA CUDA
-device and the compiled extension are available.
+## What the kernel teaches
+
+The implementation makes stable maximum subtraction, flattened causal row
+indexing, thread-strided access, warp-shuffle reductions, compact per-warp
+shared state, synchronization, and final normalization inspectable. Its main
+application lesson is just as important: a faster softmax does not remove the
+`QK^T` and `probabilities @ V` matrix multiplications.
 
 ## Development platforms
 
@@ -64,7 +72,7 @@ python3 scripts/check_environment.py --require-cuda
 
 On macOS the build script reports `SKIP` and exits without invoking a compiler.
 
-After CUDA correctness passes, launch tuning and framework timing use:
+After CUDA correctness passes, launch tuning and framework timing can use:
 
 ```bash
 python3 benchmarks/benchmark_launch_configs.py --block-size 128 --output results/raw/launch_128.csv
@@ -73,8 +81,9 @@ python3 benchmarks/benchmark_launch_configs.py --block-size 512 --output results
 python3 benchmarks/benchmark_softmax.py --implementation all --output results/raw/framework_comparison.csv
 ```
 
-These commands must run in one controlled NVIDIA environment. Do not commit
-partial or fabricated artifacts.
+These commands must run in one controlled NVIDIA environment. The checked-in
+Colab notebook is the recommended complete workflow; never substitute CPU/MPS
+timings or fabricate missing values.
 
 ## Google Colab experiment notebook
 
@@ -84,8 +93,20 @@ The [Colab experiment guide](docs/colab_experiments.md) explains the exact run,
 recovery, evidence-validation, and ZIP handoff workflow. The notebook connects
 to this repository, builds through `scripts/build_extension.sh`, uses existing
 CUDA tests and benchmark entry points, and adds notebook-local orchestration for
-attention, profiling, figures, tables, and research-paper artifacts. It contains
-no precomputed or fabricated measurements.
+attention, profiling, figures, tables, and research-paper artifacts. The
+reusable notebook is output-free; the exact executed notebook is preserved with
+the measured run.
+
+## Research outputs
+
+- [Markdown paper](docs/mini_paper.md) and
+  [LaTeX source](docs/mini_paper.tex)
+- [Educational optimization story](docs/blog_post.md)
+- [Design journal](docs/design_journal.md),
+  [experiment log](docs/experiment_log.md), and
+  [learning journal](docs/learning_journal.md)
+- [Interview and defense notes](docs/interview_notes.md)
+- [112-commit public journal](WEBSITE_JOURNAL.md)
 
 ## Layout
 
