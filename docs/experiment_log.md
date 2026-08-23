@@ -632,3 +632,35 @@ No performance or profiling experiment has been recorded yet.
   gate before benchmarking.
 - **Student reflection:** `TODO(student): Explain why a failed compilation is
   useful experimental evidence but cannot answer a performance hypothesis.`
+
+## End-to-end attention execution evidence — Commit 086
+
+- **Date/time:** 2026-08-22, after the corrected extension build
+- **Git commit:** `d1b3fd38b28075c7fbfcff2b03cde4a2a6b02f1d`
+- **Hardware/software:** Tesla T4, compute capability 7.5, PyTorch
+  2.11.0+cu128, CUDA 12.8, Python 3.13.15
+- **Research question:** How does complete explicit attention with the custom
+  softmax scale across the planned sequence lengths?
+- **HYPOTHESIS:** Softmax acceleration will translate to a smaller complete-
+  attention improvement because both matrix multiplications remain.
+- **Independent variable:** Attention implementation and sequence length
+- **Controlled variables:** B=1, H=8, D=64, FP32, one T4/runtime, identical Q/K/V,
+  25 warmups, 100 CUDA-event samples, allocations outside timing
+- **Metrics:** Per-iteration complete-attention latency in microseconds
+- **Command/script:** Colab notebook attention stage; repository equivalent is
+  `python benchmarks/benchmark_attention.py --implementation all --output
+  results/raw/attention_raw.csv`
+- **Raw result file:** The executed notebook reported
+  `attention/attention_raw.csv`, `attention_summary.csv`, and
+  `attention_correctness.json` in its generated ZIP. That ZIP has not been
+  supplied to this workspace, so the CSV values are not available here.
+- **MEASUREMENT:** The saved notebook output reports `Attention benchmarks:
+  COMPLETE` and `CUDA correctness: PASS`. No attention latency value is copied
+  into the repository without the raw artifact.
+- **INTERPRETATION:** Execution completion establishes that the workflow ran; it
+  does not support a quantitative speedup claim without the CSV.
+- **Limitations:** Raw samples and summaries are unavailable to this checkout.
+- **NEXT EXPERIMENT:** Import `cuda_softmax_research_artifacts.zip`, validate its
+  manifest and raw schemas, then compute attention statistics from those rows.
+- **Student reflection:** `TODO(student): Explain why a completion label is not
+  a substitute for raw timing samples.`

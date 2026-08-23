@@ -17,6 +17,7 @@ from benchmarks.config import (
 from benchmarks.benchmark_attention import (
     ATTENTION_RAW_FIELDS,
     attention_raw_records,
+    checkpoint_attention_records,
     prepare_attention_operations,
     validate_attention_operations,
     write_attention_raw_csv,
@@ -128,6 +129,20 @@ def test_attention_raw_csv_preserves_full_workload_provenance(tmp_path) -> None:
     assert [row["sample_us"] for row in saved] == ["1.0", "2.0"]
     assert all(row["git_commit"] == "d" * 40 for row in saved)
     assert all(row["block_size"] == "128" for row in saved)
+
+
+def test_attention_checkpoint_rewrites_complete_accumulated_sample_set(tmp_path) -> None:
+    output = tmp_path / "attention.csv"
+    first = [{field: "" for field in ATTENTION_RAW_FIELDS}]
+    first[0]["sample_index"] = 0
+    second = [*first, {**first[0], "sample_index": 1}]
+
+    checkpoint_attention_records(output, first)
+    checkpoint_attention_records(output, second)
+
+    with output.open(newline="", encoding="utf-8") as output_file:
+        saved = list(csv.DictReader(output_file))
+    assert [row["sample_index"] for row in saved] == ["0", "1"]
 
 
 @pytest.mark.parametrize("block_size", SUPPORTED_BLOCK_SIZES)

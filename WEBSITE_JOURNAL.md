@@ -104,7 +104,7 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 083. Completed — I added PyTorch SDPA as a production-oriented full-attention baseline with causal semantics and zero dropout. CPU tests compare it against the transparent explicit reference so later speed comparisons do not trade away mathematical equivalence.
 084. Completed — I added direct custom-versus-SDPA CUDA comparisons on 31/33/64-token inputs, keeping the fixed FP32 tolerances. The tests recognize that reduction order may differ while still rejecting causal, indexing, shape, dtype, device, or non-finite errors.
 085. Completed — I built a CUDA-event harness that measures whole explicit-eager, custom-softmax, and SDPA attention paths on identical preallocated Q/K/V tensors. It performs correctness checks before timing and stores every raw sample with B/H/S/D, Git, GPU, and software provenance.
-086. I benchmarked custom attention across sequence lengths only on actual NVIDIA hardware.
+086. Completed with evidence pending import — The T4 Colab workflow reported complete attention benchmarks across the planned lengths and created raw/summary artifacts. The ZIP is not present in this checkout, so I recorded the controlled execution but made no latency or speedup claim; the repository harness now checkpoints every completed case.
 087. I compared kernel-level and end-to-end speedups to test the Amdahl's Law lesson in this system.
 088. I instrumented representative softmax and attention runs with PyTorch Profiler.
 089. I exported profile traces and summary timings as inspectable artifacts.

@@ -153,6 +153,15 @@ def write_attention_raw_csv(
         writer.writerows(rows)
 
 
+def checkpoint_attention_records(
+    output_path: Path,
+    rows: Sequence[Mapping[str, object]],
+) -> None:
+    """Persist every completed case so a remote-runtime loss keeps evidence."""
+
+    write_attention_raw_csv(output_path, rows)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--sequence-length", type=int)
@@ -169,6 +178,9 @@ def main() -> int:
 
     if not torch.cuda.is_available():
         print("attention benchmark requires Linux with an NVIDIA GPU", file=sys.stderr)
+        return 2
+    if arguments.output.exists():
+        print(f"refusing to overwrite existing artifact: {arguments.output}", file=sys.stderr)
         return 2
 
     registry = attention_benchmark_registry(block_size=arguments.block_size)
@@ -206,11 +218,11 @@ def main() -> int:
                         samples_us=samples,
                     )
                 )
+                checkpoint_attention_records(arguments.output, records)
     except (CudaExtensionUnavailableError, AssertionError) as error:
         print(str(error), file=sys.stderr)
         return 2
 
-    write_attention_raw_csv(arguments.output, records)
     print(f"wrote {len(records)} raw attention samples to {arguments.output}")
     return 0
 
