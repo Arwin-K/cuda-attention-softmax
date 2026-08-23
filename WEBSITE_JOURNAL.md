@@ -1,6 +1,9 @@
 # CUDA Attention Softmax — Website Journal
 
-This is a publication-ready **planned** journal for the 112-commit investigation. Each entry states the question I am taking into the commit, not a claim that it has already succeeded. After completing a commit, I will replace its planned wording only with evidence from its diff, tests, measurements, and experiment log. Personal reflections remain my own words.
+This is a publication-ready, status-aware journal for the 112-commit
+investigation. `Completed` entries describe evidence from their diff, tests,
+measurements, and experiment log; `Planned` entries describe future intent and
+make no completion claim. Personal reflections remain my own words.
 
 ## Day 1 — A trustworthy CPU foundation
 
@@ -118,22 +121,22 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 
 ## Day 7 — Making the work auditable and shareable
 
-097. I assembled a LaTeX-ready paper outline whose figures, tables, and references remain traceable.
-098. I translated the work into a technical blog and recruiter-facing README without turning hypotheses into marketing claims.
-099. I prepared interview and project-defense questions tied to real implementation choices.
-100. I checked the publication material for coherence before the final reproducibility pass.
-101. I audited benchmark schemas so every performance record either has its required provenance or a visible gap.
-102. I linked figures back to source CSV files and commits, making visual claims reproducible.
-103. I verified the CPU-only workflow on Apple Silicon, including what must deliberately skip without CUDA.
-104. I wrote an NVIDIA handoff checklist for rebuilding, testing, benchmarking, and profiling remotely.
-105. I documented the kernel's evolution through Git milestones, keeping one implementation file and a readable history.
-106. I shaped the research journey into a website-ready narrative for readers outside the repository.
-107. I completed this per-commit journal index so each of the 112 steps has a public learning context.
-108. I audited public-facing prose against artifacts so plans and interpretations cannot masquerade as measurements.
-109. I collected reproducibility commands with clear platform requirements and expected outputs.
-110. I reviewed CUDA comments to ensure they teach the reasoning behind reductions, synchronization, and memory access.
-111. I performed a final evidence and scope audit, retaining TODOs wherever proof is absent.
-112. I finished with a seven-day checkpoint that verifies coherence among code, tests, results, and the public narrative.
+097. Completed — `complete LaTeX-ready white paper source outline and references`: I completed a paper and reference library whose claims point to the imported T4 evidence, while preserving limitations and student-fillable author details.
+098. Completed — `complete technical blog post and recruiter-focused README`: I translated the measured evolution into an educational blog and recruiter-facing README, including the negative SDPA comparison and single-T4 scope.
+099. Completed — `add NVIDIA interview notes and project defense questions`: I tied interview and defense notes to the implemented mapping, reductions, measurements, negative results, limitations, and reproducibility evidence.
+100. Completed — `complete publication checkpoint before final audit work`: I reconciled publication documents with the recovered T4 archive and recorded each public claim's direct evidence and remaining audit work.
+101. Completed — `audit benchmark schema completeness across all result paths`: I added a standard-library audit for schemas, provenance, sample indices, shape and implementation matrices, profiler fields, and raw-to-summary statistics.
+102. Completed — `add result provenance links from figures to source CSV files`: I linked all 12 PNG/PDF figures to hashes of their exact source CSVs, output bytes, experiment manifest, and measured Git commits.
+103. Completed — `add CPU-only reproducibility verification workflow`: I ran one CPU-only command for imports, notebook determinism, the full CPU/static suite, schema auditing, and provenance while hiding CUDA and avoiding GPU execution.
+104. Completed — `add NVIDIA execution handoff checklist`: I separated exact T4 replication from a latest-commit rerun and documented checkout, clean build, correctness, benchmarking, profiling, unique artifacts, hashing, and handoff validation.
+105. Completed — `document complete kernel evolution through Git milestones`: I audited actual Git milestones from serial row ownership through shared-tree and warp reductions, tied measured endpoints to artifacts, and enforced one `.cu` source.
+106. Completed — `add website-ready research journey narrative`: I explained the kernel evolution, failures, measured outcome, negative SDPA result, evidence links, limitations, and untouched student-reflection prompt for website readers.
+107. Completed — `add website-ready per-commit journal index`: I added an automated completeness contract requiring entries 001--112 exactly once with explicit `Completed` or `Planned` status language.
+108. Completed — `cross-check website narrative against research artifacts`: I derived correctness, historical, framework, launch, attention, translation, and profiler claims from the imported artifacts and required every website-facing range to match the generated evidence registry.
+109. Completed — `add reproducibility commands to publication documentation`: I collected setup, CPU verification, evidence audits, history checks, analysis regeneration, NVIDIA execution, profiling, and paper-build commands with platform, execution status, expected artifacts, and evidence boundaries.
+110. Completed — `review educational comments in final CUDA implementation`: I preserved executable CUDA behavior while clarifying the full-warp mask contract, block-versus-global indexing, fused scratch use, reduction definition, dynamic shared-memory scope, stability algebra, and launch resource mapping.
+111. Completed — `perform final evidence and scope audit`: I combined schema, provenance, claims, history, structure, notebook, hash, stale-prose, measured-revision, scope, and model-boundary checks into one machine-readable gate without creating new GPU evidence.
+112. Completed — `finalize reproducibility audit and seven-day research checkpoint`: I ran the complete CPU-safe verification and all evidence audits, recorded exactly what Day 7 implemented versus what the supplied T4 session measured, preserved student-owned reflection, and closed the 16-commit day with unresolved replication and training work explicit.
 
 ## Supplemental Day 5 Colab handoff
 

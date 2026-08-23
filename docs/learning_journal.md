@@ -427,3 +427,62 @@ PyTorch alone.`
 
 - Does compilation fuse this particular expression on the assigned Colab GPU?
 - How large is first-call compilation time relative to steady-state latency?
+
+## Artifact provenance and evidence boundaries
+
+### Concept
+
+Provenance links a public claim to raw samples, derived summaries, environment,
+Git revision, and generated output. An evidence boundary states what those
+links can and cannot establish.
+
+### Why it matters
+
+A plausible figure can be stale, a correct summary can describe another code
+revision, and a completed workflow can still lack a required raw artifact.
+Performance research is defensible only when those relationships are explicit.
+
+### Mental model
+
+Treat a result as a chain of custody:
+
+```text
+measured code + environment
+  -> indexed raw samples
+  -> checked summary
+  -> figure/table
+  -> bounded public claim
+```
+
+Breaking or changing any link requires a new review; a SHA-256 detects byte
+changes but cannot prove that the experimental design was unbiased.
+
+### Where it appears in this project
+
+The imported run directory contains source hashes and the executed notebook.
+Schema auditing reconstructs statistics, figure provenance hashes direct
+inputs, public-claim auditing checks headline ranges, and the scope audit keeps
+the measured `ca87722a` revision separate from later documentation commits.
+
+### Experiment demonstrating it
+
+The Day 7 audit independently recomputed 84 benchmark-group summaries, linked
+12 figure files to sources, and rejected stale missing-ZIP language after the
+archive was imported.
+
+### Evidence/result
+
+All combined evidence/scope checks passed for the documented Commit 110 parent.
+This establishes internal consistency, not cross-GPU replication.
+
+### Explain it in my own words
+
+`TODO(student): Explain why a figure hash is valuable but insufficient evidence
+for a performance conclusion.`
+
+### Questions still open
+
+- How should multiple independent GPU sessions be aggregated without hiding
+  between-session variance?
+- Which provenance format would interoperate best with an external artifact
+  repository or paper supplement?

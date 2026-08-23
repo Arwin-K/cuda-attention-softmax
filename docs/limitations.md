@@ -1,89 +1,75 @@
 # Limitations
 
-## Scope of the operator
+## Operator and numerical scope
 
-The custom operator studies one forward-pass component: dense FP32 causal
-scaled softmax over a contiguous two-dimensional score tensor. It does not
-implement a backward kernel, autograd registration, dropout, arbitrary masks,
-padding masks, sparse attention, FP16, BF16, or FP8. Therefore, it is an
-educational forward operator rather than a drop-in training primitive.
+The operator implements contiguous FP32 forward causal scaled softmax. It does
+not provide backward/autograd support, dropout, arbitrary or padding masks,
+sparse attention, variable valid lengths, or mixed precision through
+FP16/BF16/FP8 policies. Parallel
+reduction order differs from PyTorch; fixed-tolerance success over 88 structured
+cases is strong tested evidence, not a proof for every floating-point input.
 
-The causal rule depends on `query_position = row_index % sequence_length`.
-That contract matches flattened `[batch, heads, sequence, sequence]` attention
-scores but does not encode batches with different valid lengths.
+The flattened causal contract assumes scores derived from
+`[batch, heads, sequence, sequence]`, with query position `row % sequence`.
+Other layouts require an explicit contract change.
 
-## Numerical scope
+## Experimental scope
 
-Correctness was measured in FP32 on one tested revision using `rtol=1e-5` and
-`atol=1e-6`, including 88 structured cases. Passing those inputs does not prove
-correct rounding for all floating-point values. Parallel reduction order differs
-from PyTorch, and different architectures or compiler settings may change the
-last few bits without changing the mathematical operation.
+All quantitative performance findings come from one Tesla T4 in one Google
+Colab session. The experiment covers seven sequence lengths, FP32,
+`batch_heads=8` for isolated softmax, and batch 1, eight heads, head dimension
+64 for attention. It does not establish run-to-run variability or transfer to
+Ampere, Ada, Hopper, or other architectures.
 
-## Performance evidence
+Colab is managed infrastructure. Clock state, background activity, driver
+policy, and future software images are not fully controlled. The raw quartiles
+describe within-session CUDA-event samples; they are not confidence intervals
+over machines or sessions.
 
-The preserved Tesla T4 notebook reports completed benchmark stages, but its raw
-artifact ZIP is missing. Latency distributions, throughput, historical
-speedups, framework speedups, and kernel-to-attention translation ratios cannot
-be audited or reported from this checkout. The reported 128-thread selection is
-also missing its per-shape source rows and remains specific to one run.
+Historical kernels required an explicitly recorded header include so their old
+source would compile with CUDA 12.8. The change was compatibility-only, but it
+means the rebuild is not byte-identical to the historical commit. Each adapted
+source hash and patch description is retained in metadata.
 
-Colab is a managed, potentially shared environment. GPU clocks, thermal state,
-background load, driver policy, and assigned GPU model are not fully controlled.
-One T4 run cannot establish external validity across Ampere, Ada, Hopper, or
-future GPUs.
+## Baseline scope
 
-## Baseline limitations
+Eager, compiled, and custom isolated-softmax paths perform equivalent scaling,
+causal masking, and softmax work. The complete explicit custom path is not
+implementation-equivalent to production SDPA: SDPA can select a backend fused
+across a larger portion of attention. Output comparison is mathematically
+valid; performance interpretation must name the different fusion boundary.
 
-The isolated eager, compiled, and custom softmax paths are designed to perform
-the same mathematical work. The explicit custom attention path, however, is not
-an implementation-equivalent replacement for PyTorch SDPA: SDPA may select a
-production fused backend spanning more of attention. Comparing their complete
-outputs is valid for correctness; interpreting a latency difference requires
-acknowledging the different optimization boundaries.
+The explicit paths materialize quadratic score and probability tensors. The
+study does not implement FlashAttention-style tiling that avoids those
+intermediates. `torch.compile` startup is excluded from steady-state timing and
+must be evaluated separately for short-lived workloads.
 
-The explicit path materializes the full score and probability matrices, so its
-memory footprint scales quadratically with sequence length. The study does not
-compare against FlashAttention-style tiled algorithms that avoid full
-materialization.
+## Profiling scope
 
-## Profiling limitations
-
-PyTorch Profiler completed in the saved run, but its trace is not available in
-this checkout. Nsight Compute failed at target import before any profiled kernel
-launch, leaving occupancy, memory-transaction, instruction, and warp-efficiency
-questions unanswered. The corrected target still needs an environment that
-permits hardware performance counters.
+PyTorch Profiler and Nsight each captured one configured length rather than the
+full shape registry. Four Nsight launches, including three warmups, are too few
+to characterize run-to-run latency. Peak DRAM and SM throughput percentages do
+not uniquely identify a bottleneck; the project lacks matched hardware metrics
+for row-serial and shared-tree versions.
 
 ## Future work
 
-The immediate next steps are evidence recovery and replication:
+1. Repeat the complete run in multiple independent sessions.
+2. Repeat on at least one Ampere-or-newer GPU with the same raw schema.
+3. Profile shared-tree and warp kernels under matched conditions.
+4. Study shape-aware launch dispatch rather than one global default.
+5. Add FP16/BF16 accumulation analysis and fixed error criteria.
+6. Add backward/autograd support as a separate correctness project.
+7. Vary batch, head count, head dimension, and masking forms.
+8. Compare with specialized library softmax and full-attention kernels under
+   explicitly equivalent boundaries.
 
-1. recover the original artifact ZIP or rerun the corrected notebook;
-2. verify its manifest, Git hash, schemas, sample counts, and correctness gate;
-3. regenerate every figure and LaTeX table from those CSVs;
-4. rerun Nsight with the corrected import path on an unrestricted NVIDIA host;
-5. repeat the complete experiment on at least one newer GPU architecture; and
-6. repeat sessions to estimate run-to-run variability, not only within-run
-   CUDA-event quartiles.
+## Evidence-bounded conclusion
 
-Technical extensions should remain separate research questions: shape-aware
-block-size dispatch, FP16/BF16 accumulation policy, vectorized loads where
-alignment permits, backward/autograd support, variable-length masking, and
-fusion strategies that reduce or avoid score-matrix materialization.
-
-## Research conclusion
-
-This project establishes a correct, inspectable path from serial row ownership
-to cooperative block work and compact two-level warp reductions in one evolving
-CUDA source file. On the preserved T4 revision, the extension compiled after a
-portability fix and passed the fixed-tolerance CUDA correctness gates.
-
-The performance part of the research question is only partially answered. The
-notebook reports that launch tuning, softmax benchmarks, attention benchmarks,
-and PyTorch profiling completed, but the missing raw artifacts prevent a
-defensible statement about how much work decomposition, warp communication, or
-launch size changed latency—or how much any kernel improvement reached complete
-attention. The honest conclusion is therefore a verified implementation and a
-reproducible measurement pipeline with quantitative findings still pending
-artifact recovery or a controlled rerun.
+The measured case supports the value of block-per-row work and compact warp
+reductions, demonstrates a shape-dependent launch tradeoff, and shows partial
+translation from kernel speedup to explicit attention. It does not support a
+claim that the custom operator is universally faster, that 128 threads is
+universally optimal, or that the kernel has one proven hardware bottleneck.
+Production SDPA's consistent advantage is a central result, not an exception to
+hide.

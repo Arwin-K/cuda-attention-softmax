@@ -1,0 +1,111 @@
+{
+  "claims": {
+    "correctness": {
+      "evidence": [
+        "correctness/correctness_results.csv"
+      ],
+      "maximum_absolute_error": 3.5762786865234375e-07,
+      "passed_cases": 88,
+      "total_cases": 88
+    },
+    "custom_attention_vs_eager": {
+      "display": "1.54--2.31x",
+      "evidence": [
+        "attention/attention_summary.csv"
+      ],
+      "maximum": 2.3112639103189383,
+      "minimum": 1.539005268273278
+    },
+    "custom_attention_vs_sdpa": {
+      "comparisons": 7,
+      "display": "1.25--2.53x",
+      "evidence": [
+        "attention/attention_summary.csv"
+      ],
+      "maximum": 2.5285010589794443,
+      "minimum": 1.2487042092137635,
+      "sdpa_wins": 7
+    },
+    "custom_vs_compile": {
+      "comparisons": 7,
+      "custom_wins": 6,
+      "evidence": [
+        "benchmarks/summaries/softmax_summary.csv"
+      ]
+    },
+    "custom_vs_eager": {
+      "custom_wins": 7,
+      "display": "1.40--3.94x",
+      "evidence": [
+        "benchmarks/summaries/softmax_summary.csv"
+      ],
+      "maximum": 3.944791900541903,
+      "minimum": 1.3992894179138335
+    },
+    "historical_row_to_warp": {
+      "display": "3.22--8.92x",
+      "evidence": [
+        "benchmarks/summaries/historical_summary.csv"
+      ],
+      "maximum": 8.920527287239254,
+      "minimum": 3.2244054030193343
+    },
+    "kernel_vs_attention_translation": {
+      "comparisons": 7,
+      "evidence": [
+        "attention/amdahl_analysis.csv"
+      ],
+      "kernel_speedup_greater": 6
+    },
+    "launch_selection": {
+      "evidence": [
+        "benchmarks/summaries/launch_selection.json"
+      ],
+      "per_sequence_wins": {
+        "128": 5,
+        "256": 2,
+        "512": 0
+      },
+      "selected_block_size": 128
+    },
+    "nsight": {
+      "dram_peak_percent": {
+        "maximum": 48.792409,
+        "minimum": 48.330983
+      },
+      "duration_us": {
+        "maximum": 107.584,
+        "minimum": 106.976
+      },
+      "evidence": [
+        "profiler/nsight/ncu_raw_export.csv"
+      ],
+      "profiled_launches": 4,
+      "sm_peak_percent": {
+        "maximum": 57.00458,
+        "minimum": 56.718288
+      }
+    },
+    "pytorch_profiler": {
+      "custom_attention_us": 505.5650000000005,
+      "evidence": [
+        "profiler/pytorch_profiler_events.csv"
+      ],
+      "explicit_attention_us": 1095.1950000000002,
+      "fused_kernel_us": 110.20699999999943,
+      "sdpa_us": 408.22200000000066
+    },
+    "warp_vs_shared": {
+      "display": "1.07--1.91x",
+      "evidence": [
+        "benchmarks/summaries/historical_summary.csv"
+      ],
+      "maximum": 1.9055587380935264,
+      "minimum": 1.0679876212258357
+    }
+  },
+  "failures": [],
+  "measured_git_commit": "ca87722a00ebf585cd788c67949e7c0b32dca788",
+  "schema_version": 1,
+  "status": "PASS"
+}

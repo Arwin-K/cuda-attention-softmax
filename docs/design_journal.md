@@ -1333,3 +1333,247 @@ while making the project accessible to paper, blog, and interview audiences?
 ### Git commit
 
 Commit 096 — `write limitations future work and research conclusions`
+
+## Complete result-schema audit
+
+### Problem
+
+The recovered archive contains finished-looking summaries and figures, but a
+publication should not trust their presence without checking raw schemas,
+sample counts, provenance, and derived statistics.
+
+### Measurement
+
+The audit found four raw benchmark matrices with 2,100 rows each: seven lengths
+times three implementations/configurations times 100 indexed samples. It found
+88 correctness rows, 43 PyTorch-profiler event rows, and four Nsight data rows.
+
+### Hypothesis
+
+If the notebook handoff is complete and internally consistent, a standard-
+library audit should reconstruct every median and quartile from raw samples and
+find one current commit/GPU environment without repairing data.
+
+### Change
+
+`scripts/audit_results.py` now checks required fields, manifest inventory,
+positive latency, contiguous sample indices, expected shape and implementation
+matrices, current provenance, profiler schemas, and raw-to-summary statistics.
+It writes a machine-readable report and returns failure for any gap.
+
+### Correctness result
+
+All 35 checks passed against the supplied T4 artifact directory. Unit tests
+also cover actionable missing-field reporting and linear percentile behavior.
+
+### Performance result
+
+No new GPU measurement was performed. The audit validates existing sample and
+summary relationships; its runtime is not a CUDA performance result.
+
+### Interpretation
+
+The recovered summary tables are numerically consistent with their raw timing
+groups, and all required benchmark paths have complete traceability fields.
+
+### Next question
+
+Can every published figure be linked to the exact source CSV bytes and measured
+commit, rather than only to a human-readable directory?
+
+### Git commit
+
+Commit 101 — `audit benchmark schema completeness across all result paths`
+
+## Figure-to-source provenance
+
+### Problem
+
+A checked-in plot can look authoritative even after its input data changes.
+Directory proximity alone does not prove which CSV bytes produced which image.
+
+### Measurement
+
+The experiment manifest declares 12 publication figures: PNG and PDF variants
+of six plots. Their direct inputs span framework, historical, launch, attention,
+and profiler CSVs.
+
+### Hypothesis
+
+Hashing every output and direct source, while recording source-row Git commits,
+will make accidental replacement or stale images detectable in tests.
+
+### Change
+
+`scripts/generate_result_provenance.py` maps all declared figures to direct
+sources and writes deterministic SHA-256 records. Tests require exact manifest
+coverage and equality with a freshly generated report.
+
+### Correctness result
+
+All 12 declared figures have nonempty sources, output hashes, source hashes,
+and measured Git commits. Three provenance tests pass.
+
+### Performance result
+
+No measurement or image was regenerated. This commit records relationships
+among supplied artifacts and does not change their data.
+
+### Interpretation
+
+Reviewers can now distinguish an unchanged plot from one whose bytes or inputs
+changed, but hashes do not replace methodology review or independent reruns.
+
+### Next question
+
+Can the full project setup and analysis checks be reproduced on Apple Silicon
+while CUDA-only work skips explicitly?
+
+### Git commit
+
+Commit 102 — `add result provenance links from figures to source CSV files`
+
+## CPU-only reproducibility workflow
+
+### Problem
+
+Individual Mac commands worked, but a reviewer could accidentally omit notebook
+or result checks—or mistake skipped CUDA cases for incomplete validation.
+
+### Measurement
+
+The local host reports Darwin arm64, Python 3.11.15, PyTorch 2.13.0 CPU, no
+NVCC, no `nvidia-smi`, and no CUDA device.
+
+### Hypothesis
+
+One capability-forced command can validate every CPU-safe layer while making
+GPU skips and forbidden CUDA execution explicit.
+
+### Change
+
+`verify_cpu_reproducibility.sh` hides CUDA, checks environment and import,
+verifies notebook determinism, runs the full suite, and checks schema and figure
+provenance. A contract test prevents build, benchmark, and Nsight invocations.
+
+### Correctness result
+
+The workflow passed: 128 tests passed, 69 GPU-only tests skipped, and notebook,
+schema, and provenance checks passed.
+
+### Performance result
+
+No GPU work ran. Test duration and CPU execution are validation details, not
+substitute performance results.
+
+### Interpretation
+
+The repository remains useful and auditable on Apple Silicon while preserving
+a hard boundary around claims that require Linux/NVIDIA execution.
+
+### Next question
+
+What exact checklist should a second NVIDIA operator follow to rebuild or
+replicate the measured experiment without losing provenance?
+
+### Git commit
+
+Commit 103 — `add CPU-only reproducibility verification workflow`
+
+## Public quantitative claim cross-check
+
+### Problem
+
+The same speedup ranges appear in several public documents. Manual copying can
+silently round a different value, invert a baseline, or retain a stale result.
+
+### Measurement
+
+The source artifacts yield four headline ranges, 88 correctness passes, six
+custom wins over compiled softmax, seven SDPA wins, and six cases where kernel
+speedup exceeds explicit-attention speedup.
+
+### Hypothesis
+
+A generated claim registry plus document assertions can prevent headline
+numbers from drifting away from CSV and profiler evidence.
+
+### Change
+
+`audit_public_claims.py` derives quantitative claims and their source paths,
+checks expected rounded ranges in README/blog/paper/journey prose, and writes a
+machine-readable report.
+
+### Correctness result
+
+The audit passed with no public-document mismatch; four focused tests covering
+claim and journal status checks passed.
+
+### Performance result
+
+No new GPU measurement occurred. All values remain attached to the imported
+`ca87722a` T4 run.
+
+### Interpretation
+
+The selected public numbers are internally consistent. Automated phrase checks
+do not replace a scientific review of qualitative causal language.
+
+### Next question
+
+Can a single publication page give each platform's verified commands and
+expected outputs without inviting CPU/GPU evidence confusion?
+
+### Git commit
+
+Commit 108 — `cross-check website narrative against research artifacts`
+
+## Final CUDA teaching-comment audit
+
+### Problem
+
+The final source explained most mechanics, but some invariants remained implicit:
+why a full shuffle mask is legal, why block indexing replaces the historical
+global thread index, what dynamic shared memory can communicate, and why maximum
+subtraction preserves probabilities.
+
+### Measurement
+
+A vocabulary/source review covered kernel, thread, block, grid, global thread
+index, warp, lane, shared memory, synchronization, reduction, shuffle,
+coalescing, and numerical stability.
+
+### Hypothesis
+
+Reason-focused comments can expose the design without changing any executable
+statement or preserving duplicate implementations.
+
+### Change
+
+Comments now state participation, ownership, scratch-buffer, reduction,
+visibility, stability-algebra, and launch-resource reasoning. A static test
+guards the concept coverage.
+
+### Correctness result
+
+After stripping line comments, executable CUDA text exactly matches Commit 109.
+Fourteen applicable tests passed; 62 CUDA runtime cases skipped on the Mac.
+
+### Performance result
+
+There is no algorithm or launch change and no new GPU measurement. The imported
+`ca87722a` performance results remain the only reported measurements.
+
+### Interpretation
+
+The current file can serve as a teaching artifact without implying comments
+were part of the measured revision or changing the kernel's behavior.
+
+### Next question
+
+Does a final cross-document audit find any unsupported scope, stale evidence,
+or structural violation before the seven-day checkpoint?
+
+### Git commit
+
+Commit 110 — `review educational comments in final CUDA implementation`

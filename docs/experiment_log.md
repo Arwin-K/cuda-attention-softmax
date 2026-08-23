@@ -753,3 +753,68 @@ permission error and repeat on an unrestricted NVIDIA Linux host.
   Apple Silicon and NVIDIA handoffs, kernel history, public claims, CUDA
   comments, and final reproducibility through Commit 112. Quantitative prose
   must remain pending until raw artifacts are recovered or rerun.
+
+## Day 7 publication checkpoint — Commit 100
+
+- **Imported evidence:** The supplied archive and exact executed notebook are
+  preserved under `results/runs/2026-08-23_tesla-t4_ca87722/`. The archive
+  identifies a clean `ca87722a` run on one Tesla T4 and contains raw samples,
+  summaries, figures, tables, profiler exports, and validation metadata.
+- **What was actually measured:** 88/88 structured softmax cases and all seven
+  attention cases passed. The warp kernel improved on row serial by 3.22--8.92x,
+  on shared-tree reduction by 1.07--1.91x, and on eager softmax by 1.40--3.94x.
+  Custom explicit attention improved on explicit eager by 1.54--2.31x, while
+  SDPA was faster than custom at every tested length. Nsight successfully
+  profiled the length-512 target in this supplied run.
+- **Publication changes:** Paper, blog, README, results, discussion,
+  limitations, and interview notes now share the same evidence boundary and
+  name both favorable and unfavorable comparisons.
+- **Interpretation:** Work decomposition had the largest historical effect;
+  warp communication added a smaller consistent benefit; and unchanged or
+  more broadly fused attention work limits end-to-end translation. These
+  statements are restricted to the measured T4 workload.
+- **Student learning:** `TODO(student): Explain which evidence-boundary rule is
+  most important to you and why.`
+- **Remaining audit:** Automate schemas and provenance, verify Mac and NVIDIA
+  workflows, trace kernel history, audit website claims, review CUDA comments,
+  and complete the final reproducibility checkpoint.
+
+## Day 7 checkpoint — Commit 112
+
+- **What was implemented:** The supplied T4 archive and exact executed notebook
+  are preserved beside an output-free reusable notebook. The repository now has
+  a Markdown and LaTeX paper, educational blog, recruiter-facing README,
+  interview/defense guide, website journey, 112-entry status-aware journal,
+  Apple Silicon verification workflow, NVIDIA handoff, Git kernel history, and
+  automated schema, figure-provenance, public-claim, history, journal, and
+  evidence/scope audits. The primary implementation remains the single
+  `csrc/fused_causal_softmax.cu` file.
+- **What was actually measured:** The imported clean `ca87722a` run used one
+  Tesla T4, FP32, 25 warmups, and 100 timing samples per path and length. It
+  passed 88/88 structured softmax cases and all seven attention cases. Warp
+  reduction improved on row serial by 3.22--8.92x and shared-tree reduction by
+  1.07--1.91x; custom softmax improved on eager by 1.40--3.94x; custom explicit
+  attention improved on explicit eager by 1.54--2.31x; and SDPA remained faster
+  than custom explicit attention at all seven lengths. PyTorch Profiler and
+  Nsight artifacts are present. Day 7 performed no new GPU measurement.
+- **What changed in the project's understanding:** Work decomposition produced
+  the largest historical performance change; warp-local communication added a
+  smaller consistent improvement; launch preference varied by length; and an
+  isolated kernel gain only partially translated through unchanged matrix
+  multiplications. Production SDPA's broader fusion boundary matters as much as
+  the custom softmax's local speed.
+- **Final local verification:** On Darwin arm64 with Python 3.11.15 and PyTorch
+  2.13.0 CPU, `verify_cpu_reproducibility.sh` reported 146 passed and 69
+  explicit GPU-only skips. Package import, deterministic notebook, raw schema,
+  figure provenance, public claims, Git history, website index, and combined
+  evidence/scope gates passed. No CUDA or MPS work ran.
+- **Student understanding:** `TODO(student): Explain in your own words how the
+  result changed your mental model of GPU reductions and end-to-end speedup.`
+- **Unresolved questions:** Cross-architecture and independent-session
+  replication; matched historical Nsight metrics; shape-aware dispatch;
+  FP16/BF16 numerical policy; backward/autograd; other attention layouts and
+  head dimensions; and whole-attention IO-aware fusion.
+- **Next work:** Preserve this checkpoint, merge the Day 7 branch after review,
+  complete the student-owned reflection/affiliation fields, compile and inspect
+  the venue-formatted paper, then treat every further GPU run as a new
+  commit-tagged experiment rather than overwriting this T4 evidence.

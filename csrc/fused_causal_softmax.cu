@@ -14,6 +14,11 @@
 namespace {
 
 constexpr int kWarpSize = 32;
+// The full mask says all 32 lanes participate in each shuffle. The public
+// operator accepts only block sizes divisible by 32, and no thread exits inside
+// a valid row's reduction, so even lanes with no column data remain active with
+// an identity value. A mask naming inactive lanes would make shuffle behavior
+// invalid rather than merely waste work.
 constexpr unsigned int kFullWarpMask = 0xffffffffu;
 
 // A warp is the hardware group of 32 threads that executes instructions
@@ -52,7 +57,9 @@ __device__ __forceinline__ float warp_reduce_sum(float value) {
 // grid now contains one block for each softmax row, so blockIdx.x identifies
 // row ownership and threadIdx.x identifies a worker within that row. Threads
 // cooperate through strided column work, warp-local register reductions, and
-// shared-memory bridges between warps.
+// shared-memory bridges between warps. Unlike the historical one-thread-per-row
+// mapping, this kernel does not need a global thread index such as
+// blockIdx.x * blockDim.x + threadIdx.x: the block index alone owns the row.
 __global__ void fused_causal_softmax_kernel(
     const float* scores,
     float* probabilities,
@@ -72,6 +79,9 @@ __global__ void fused_causal_softmax_kernel(
   const int64_t thread_column = static_cast<int64_t>(threadIdx.x);
   const int64_t column_stride = static_cast<int64_t>(blockDim.x);
 
+  // Threads first fuse scaling into the output buffer, using it as scratch for
+  // later exponentials and probabilities. This avoids allocating a separate
+  // scaled-score or mask tensor while leaving the input scores unchanged.
   // Threads advance through the row in blockDim.x-sized strides. Every column
   // is owned by exactly one thread, and neighboring threads initially access
   // neighboring global-memory addresses, which is the pattern needed for
@@ -86,7 +96,9 @@ __global__ void fused_causal_softmax_kernel(
     probabilities[row_offset + column] = 0.0f;
   }
 
-  // No thread may consume staged values until every peer has finished writing;
+  // Synchronization is a block-wide meeting point: no thread may pass it until
+  // every peer arrives, and earlier writes become visible to those peers. No
+  // thread may consume staged values until every peer has finished writing, so
   // this barrier separates global-memory staging from local accumulation.
   __syncthreads();
 
@@ -100,13 +112,19 @@ __global__ void fused_causal_softmax_kernel(
         fmaxf(thread_maximum, probabilities[row_offset + column]);
   }
 
-  // The first reduction level happens inside each warp through register
+  // A reduction combines many partial values into one result using an
+  // associative operation such as maximum or addition. The first reduction
+  // level happens inside each warp through register
   // shuffles. Only lane 0 publishes, shrinking block communication from one
   // shared value per thread to one value per warp.
   const unsigned int lane = lane_id();
   const unsigned int warp = warp_id();
   const unsigned int warps_per_block = blockDim.x / kWarpSize;
   const float warp_maximum = warp_reduce_max(thread_maximum);
+  // This dynamically sized shared-memory array is allocated once per block by
+  // the launch configuration. Threads in this block can see it; other blocks
+  // cannot. Only warps_per_block floats are needed because lane 0 alone
+  // publishes each warp's partial result.
   extern __shared__ float shared_values[];
   if (lane == 0) {
     shared_values[warp] = warp_maximum;
@@ -135,8 +153,10 @@ __global__ void fused_causal_softmax_kernel(
 
   // Each thread converts its staged scaled values into stable exponentials and
   // accumulates one register-local denominator contribution. Maximum
-  // subtraction bounds the largest exponential at one while preserving the
-  // mathematical softmax result.
+  // subtraction gives numerical stability by bounding the largest exponential
+  // at one and preventing overflow. It preserves softmax
+  // because multiplying every numerator and the denominator by exp(-maximum)
+  // cancels in the ratio even for large positive logits.
   float thread_exponential_sum = 0.0f;
   for (int64_t column = thread_column; column < allowed_columns;
        column += column_stride) {
@@ -203,10 +223,16 @@ torch::Tensor fused_causal_softmax_cuda(
   const int blocks = static_cast<int>(rows);
   const int threads = static_cast<int>(block_size);
   const int warps_per_block = threads / kWarpSize;
+  // The third launch parameter requests one float of dynamic shared memory per
+  // warp. For the measured 128-thread launch that is four floats, or 16 bytes;
+  // the array is a communication bridge rather than storage for the whole row.
   const size_t shared_memory_bytes =
       static_cast<size_t>(warps_per_block) * sizeof(float);
   const cudaStream_t stream =
       c10::cuda::getCurrentCUDAStream(scores.get_device());
+  // CUDA's <<<grid, block, dynamic_shared_bytes, stream>>> syntax creates one
+  // block per row, the requested workers per block, one compact shared array
+  // per block, and enqueues the work on PyTorch's current device stream.
   fused_causal_softmax_kernel<<<
       blocks,
       threads,
