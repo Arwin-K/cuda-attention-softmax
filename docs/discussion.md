@@ -1,70 +1,86 @@
 # Discussion
 
-## What the available evidence establishes
+## What changed performance most?
 
-The strongest current research result is correctness, not speed. A Tesla T4
-compiled and imported the extension after an explicit-header portability fix,
-and the tested revision passed both its CUDA pytest suite and all 88 structured
-FP32 comparisons without changing the numerical tolerances. This supports the
-claim that causal indexing, maximum subtraction, two reductions, normalization,
-and masked-zero writes work together for the tested cases.
+The final warp kernel's 3.22--8.92x advantage over row serial shows that a GPU
+mapping can dominate performance even when the formula is unchanged. That
+comparison changes both row ownership and reduction strategy, so it cannot
+attribute the entire gain to warp shuffles. The 1.07--1.91x advantage over the
+block/shared-tree history is the cleaner communication comparison because both
+versions already distribute a row across one block.
 
-The failed first build is also informative. Depending on a transitive include
-made a CUDA version/toolchain change visible before numerical testing. Explicit
-dependencies are part of reproducibility, even when they do not alter the
-algorithm.
+The improvement varied with sequence length rather than increasing
+monotonically. More columns expose more work to distribute, but also change
+loop counts, active lanes, memory traffic, and reduction overhead. Historical
+growth trends support the bottleneck hypothesis but do not prove the mechanism
+without matched low-level profiling.
 
-## Launch configuration
+## Why did 128 threads win the aggregate rule?
 
-The executed notebook reported a 128-thread selection, which differs from the
-source's provisional 256-thread default. That is a useful prompt to inspect the
-raw per-shape tradeoffs, but not enough to claim that 128 is universally best.
-The missing CSV prevents checking whether the aggregate choice hides lengths
-that favor 256 or 512, and the result comes from one T4 environment.
+On the T4, 128 threads minimized median latency for five shorter and middle
+shapes, while 256 won both longest rows. With 128 threads, each thread performs
+more strided iterations at long lengths; with more threads, the kernel pays for
+additional warps and coordination. The result supports shape-dependent launch
+tradeoffs. It does not justify calling 128 universally optimal, and the current
+source default should not be silently changed from one architecture's study.
+
+## Framework results
+
+The custom kernel beat eager PyTorch for equivalent scale-mask-softmax work at
+all lengths. Its relationship with `torch.compile` changed with shape and
+reversed at 2048, supporting the decision to include a strong compiled baseline
+instead of comparing only with eager framework operations. Startup compilation
+was not included in the steady-state distribution, so the comparison answers a
+steady-state question rather than first-call latency.
 
 ## Kernel speedup versus application speedup
 
-The central application hypothesis remains unresolved. The custom integration
-changes only the middle operation:
+The custom explicit path changes only softmax:
 
 ```text
-QK^T -> custom fused causal softmax -> PV
+QK^T -> custom fused causal softmax -> probabilities @ V
 ```
 
-Even a large softmax improvement cannot accelerate the unchanged matrix
-multiplications. Amdahl's Law predicts that complete-attention speedup is
-limited by the fraction of eager attention originally spent in the replaceable
-softmax stage. PyTorch SDPA is a stronger production baseline because it may
-optimize the complete operation, not merely substitute the middle stage.
+Its 1.54--2.31x improvement over explicit eager attention is meaningful, but
+smaller than the softmax-only improvement at six of seven shapes. This is
+consistent with Amdahl's-law reasoning: the matrix multiplications remain. The
+provided Amdahl CSV is retained as a model, not relabeled as measurement,
+because its predictions differ materially from observed attention speedups at
+some shapes.
 
-This is an interpretation framework, not a reported finding. The raw softmax
-and attention CSVs are necessary to calculate both median ratios and the
-translation ratio for each sequence length.
+SDPA was faster than the explicit custom path everywhere. This does not
+contradict the isolated softmax result. SDPA can optimize a broader scope,
+including reducing score/probability materialization, while the custom exercise
+intentionally leaves both matrix multiplications explicit. The result points
+toward whole-attention IO optimization as future work.
 
 ## Profiling interpretation
 
-The PyTorch Profiler completion marker supports no claim about which operator
-dominated because the trace is unavailable. The Nsight attempt supports only
-the fact that package import failed before kernel launch. It would be incorrect
-to infer memory bandwidth, occupancy, divergence, or reduction efficiency from
-either fact.
+The 16-byte dynamic shared allocation at 128 threads matches four floats: one
+per warp. That supports, but does not independently prove, that the intended
+compact reduction path was executed. Nsight's simultaneous roughly 48% DRAM
+and 57% SM peak-throughput values are not enough to label the kernel solely
+memory-bound or compute-bound. Matched profiler data from the shared tree would
+better test whether fewer shared accesses and barriers explain its latency gap.
 
-The corrected follow-up should first recover named PyTorch regions and then use
-Nsight basic metrics to challenge a specific explanation. For example, an
-observed short-row penalty could motivate a hypothesis about coordination or
-inactive lanes, but hardware metrics and a controlled block-size comparison
-would be needed to test it.
+The PyTorch Profiler named-region totals are useful for locating the custom
+kernel inside attention. They exceed or differ from steady-state medians because
+profiling instrumentation and capture boundaries differ. Using them as a second
+latency table would mix methodologies.
 
-## Threats to interpretation
+## Hypothesis assessment
 
-- The retained execution evidence comes from one Tesla T4 and one software
-  environment.
-- The raw result ZIP is missing, preventing distribution and provenance audits.
-- The executed revision predates the latest documentation and harness commits.
-- Forward-only FP32 results do not establish behavior for FP16/BF16, backward
-  propagation, noncausal masks, or production training workloads.
-- Explicit custom attention is not equivalent implementation work to fused
-  production SDPA, even though outputs can be mathematically compared.
+- Intra-row parallelism is supported at the measured shapes, but causal
+  attribution combines mapping and reduction changes.
+- Warp reduction is supported relative to the block/shared-tree history at all
+  seven shapes; low-level mechanism attribution remains open.
+- Shape-dependent launch behavior is supported because both 128 and 256 win
+  at least one shape.
+- Framework ordering depends on shape: custom beats compiled PyTorch six times
+  but loses slightly at 2048.
+- Kernel speedup exceeds attention speedup in six of seven cases, so the
+  application-translation hypothesis is partially rather than universally
+  supported.
 
-`TODO(student): After importing and plotting the real data, describe one result
-that contradicted or refined your original hypothesis in your own words.`
+`TODO(student): In your own words, describe which result most changed your
+mental model and why. Do not replace this prompt with an inferred reflection.`

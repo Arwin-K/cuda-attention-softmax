@@ -753,3 +753,28 @@ permission error and repeat on an unrestricted NVIDIA Linux host.
   Apple Silicon and NVIDIA handoffs, kernel history, public claims, CUDA
   comments, and final reproducibility through Commit 112. Quantitative prose
   must remain pending until raw artifacts are recovered or rerun.
+
+## Day 7 publication checkpoint — Commit 100
+
+- **Imported evidence:** The supplied archive and exact executed notebook are
+  preserved under `results/runs/2026-08-23_tesla-t4_ca87722/`. The archive
+  identifies a clean `ca87722a` run on one Tesla T4 and contains raw samples,
+  summaries, figures, tables, profiler exports, and validation metadata.
+- **What was actually measured:** 88/88 structured softmax cases and all seven
+  attention cases passed. The warp kernel improved on row serial by 3.22--8.92x,
+  on shared-tree reduction by 1.07--1.91x, and on eager softmax by 1.40--3.94x.
+  Custom explicit attention improved on explicit eager by 1.54--2.31x, while
+  SDPA was faster than custom at every tested length. Nsight successfully
+  profiled the length-512 target in this supplied run.
+- **Publication changes:** Paper, blog, README, results, discussion,
+  limitations, and interview notes now share the same evidence boundary and
+  name both favorable and unfavorable comparisons.
+- **Interpretation:** Work decomposition had the largest historical effect;
+  warp communication added a smaller consistent benefit; and unchanged or
+  more broadly fused attention work limits end-to-end translation. These
+  statements are restricted to the measured T4 workload.
+- **Student learning:** `TODO(student): Explain which evidence-boundary rule is
+  most important to you and why.`
+- **Remaining audit:** Automate schemas and provenance, verify Mac and NVIDIA
+  workflows, trace kernel history, audit website claims, review CUDA comments,
+  and complete the final reproducibility checkpoint.
