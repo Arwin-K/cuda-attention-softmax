@@ -107,7 +107,21 @@ def build_report(root: Path) -> dict[str, object]:
     check("forbidden version files", not bad_paths, bad_paths or "none")
 
     head = git(root, "rev-parse", AUDITED_REPOSITORY_HEAD)
-    day7_subjects = git(root, "log", "--reverse", "--format=%s", f"main..{head}").splitlines()
+    # The audited Day 7 commits live on the first-parent chain ending at the
+    # fixed pre-audit revision.  Comparing that revision with ``main`` worked
+    # only before the day-seven branch was merged: after the merge, ``main``
+    # contains ``head`` and the range is empty.  Anchor the window to the fixed
+    # audited revision itself so the check remains reproducible from both the
+    # topic branch and the merged default branch.
+    day7_base = f"{head}~{len(DAY_7_BEFORE_SCOPE_AUDIT)}"
+    day7_subjects = git(
+        root,
+        "log",
+        "--first-parent",
+        "--reverse",
+        "--format=%s",
+        f"{day7_base}..{head}",
+    ).splitlines()
     check("Day 7 pre-audit sequence", day7_subjects == DAY_7_BEFORE_SCOPE_AUDIT, day7_subjects)
 
     workflow_notebook = json.loads((root / "notebooks/04_colab_research_experiments.ipynb").read_text())
