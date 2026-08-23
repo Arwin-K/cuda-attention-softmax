@@ -1144,3 +1144,48 @@ consistent shape-dependent story?
 ### Git commit
 
 Commit 092 — `generate final latency throughput and speedup figures`
+
+## Kernel versus attention speedup figure
+
+### Problem
+
+Separate charts make it too easy to discuss a microkernel improvement without
+showing how much reaches the complete attention operation.
+
+### Measurement
+
+The comparison CSV contains matched eager/custom median ratios for isolated
+softmax and explicit full attention at each sequence length.
+
+### Hypothesis
+
+Complete-attention speedup will generally be closer to one because QK^T and PV
+remain outside the custom softmax optimization.
+
+### Change
+
+The plotting layer now renders both speedups on identical axes after requiring
+one Git/GPU/software environment, positive values, and unique sequence lengths.
+
+### Correctness result
+
+Fixture rows verify sorting and the intended 2x/4x kernel versus 1x/2x attention
+series. A CSV fixture verifies the evidence-to-output path.
+
+### Performance result
+
+No project figure was generated; the real comparison CSV cannot be derived
+until the raw softmax and attention CSVs are imported.
+
+### Interpretation
+
+The fixture illustrates how to read the chart but predicts no T4 result.
+
+### Next question
+
+Does the measured gap widen or narrow as matrix multiplication accounts for a
+different fraction of total work with sequence length?
+
+### Git commit
+
+Commit 093 — `generate kernel versus attention speedup figure`

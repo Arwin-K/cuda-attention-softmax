@@ -27,6 +27,15 @@ PROVENANCE_FIELDS = (
     "cuda_version",
 )
 
+REQUIRED_SPEEDUP_COMPARISON_FIELDS = {
+    "git_commit",
+    "sequence_length",
+    "kernel_speedup",
+    "attention_speedup",
+    "translation_ratio",
+    *PROVENANCE_FIELDS,
+}
+
 
 @dataclass(frozen=True)
 class PlotSeries:
@@ -50,6 +59,21 @@ def load_summary_csv(path: Path) -> list[dict[str, str]]:
         records = list(reader)
     if not records:
         raise ValueError("summary CSV contains no measurements")
+    return records
+
+
+def load_speedup_comparison_csv(path: Path) -> list[dict[str, str]]:
+    """Load matched kernel/attention ratios without accepting partial schema."""
+
+    if not path.is_file():
+        raise FileNotFoundError(f"speedup comparison CSV does not exist: {path}")
+    with path.open(newline="", encoding="utf-8") as input_file:
+        reader = csv.DictReader(input_file)
+        if not REQUIRED_SPEEDUP_COMPARISON_FIELDS.issubset(reader.fieldnames or ()):
+            raise ValueError("speedup comparison CSV is missing required fields")
+        records = list(reader)
+    if not records:
+        raise ValueError("speedup comparison CSV contains no measurements")
     return records
 
 
@@ -134,6 +158,48 @@ def speedup_series(records: Iterable[dict[str, str]]) -> tuple[PlotSeries, ...]:
     )
 
 
+def kernel_attention_speedup_series(
+    records: Iterable[dict[str, str]],
+) -> tuple[PlotSeries, PlotSeries]:
+    """Prepare isolated-kernel and full-attention speedups on matched axes."""
+
+    materialized = list(records)
+    if not materialized:
+        raise ValueError("cannot plot an empty speedup comparison")
+    provenance = {
+        tuple(record[field] for field in ("git_commit", *PROVENANCE_FIELDS))
+        for record in materialized
+    }
+    if len(provenance) != 1:
+        raise ValueError("kernel/attention figure requires one matched environment")
+
+    points: dict[int, tuple[float, float]] = {}
+    for record in materialized:
+        sequence_length = int(record["sequence_length"])
+        kernel_speedup = float(record["kernel_speedup"])
+        attention_speedup = float(record["attention_speedup"])
+        if min(kernel_speedup, attention_speedup) <= 0.0:
+            raise ValueError("speedup values must be positive")
+        if sequence_length in points:
+            raise ValueError("speedup comparison requires one row per sequence length")
+        points[sequence_length] = (kernel_speedup, attention_speedup)
+
+    ordered = sorted(points.items())
+    x = tuple(point[0] for point in ordered)
+    return (
+        PlotSeries(
+            label="Isolated fused softmax",
+            x=x,
+            y=tuple(point[1][0] for point in ordered),
+        ),
+        PlotSeries(
+            label="Complete explicit attention",
+            x=x,
+            y=tuple(point[1][1] for point in ordered),
+        ),
+    )
+
+
 def plot_summary_metric(
     records: list[dict[str, str]],
     *,
@@ -204,6 +270,37 @@ def plot_speedup(records: list[dict[str, str]], output_path: Path) -> None:
     axis.set_xlabel("Sequence length")
     axis.set_ylabel("Speedup over PyTorch eager (x)")
     axis.set_title("Fused causal softmax speedup")
+    axis.grid(True, alpha=0.3)
+    axis.legend()
+    figure.tight_layout()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    figure.savefig(output_path, dpi=160)
+    plt.close(figure)
+
+
+def plot_kernel_attention_speedup(
+    records: list[dict[str, str]],
+    output_path: Path,
+) -> None:
+    """Plot microkernel and application speedup from matched measurements."""
+
+    try:
+        import matplotlib
+
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+    except ImportError as error:
+        raise RuntimeError(
+            "plot generation requires the matplotlib development dependency"
+        ) from error
+
+    figure, axis = plt.subplots(figsize=(7.0, 4.5))
+    for series in kernel_attention_speedup_series(records):
+        axis.plot(series.x, series.y, marker="o", label=series.label)
+    axis.axhline(1.0, color="black", linestyle="--", linewidth=1.0)
+    axis.set_xlabel("Sequence length")
+    axis.set_ylabel("Speedup over equivalent eager path (x)")
+    axis.set_title("Kernel speedup versus complete-attention speedup")
     axis.grid(True, alpha=0.3)
     axis.legend()
     figure.tight_layout()

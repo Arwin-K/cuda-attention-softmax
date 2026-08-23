@@ -51,7 +51,12 @@ from cuda_attention.benchmark import (
     write_raw_benchmark_csv,
 )
 from cuda_attention.operator import CudaExtensionUnavailableError
-from cuda_attention.plotting import load_summary_csv, metric_series, speedup_series
+from cuda_attention.plotting import (
+    kernel_attention_speedup_series,
+    load_summary_csv,
+    metric_series,
+    speedup_series,
+)
 from cuda_attention.reference import causal_allowed_mask, causal_scaled_softmax
 from profiling.profile_pytorch import (
     PROFILE_REGION_NAMES,
@@ -61,7 +66,7 @@ from profiling.profile_pytorch import (
     prepare_profile_operations,
     profiler_summary_rows,
 )
-from scripts.generate_figures import generate_figures
+from scripts.generate_figures import generate_figures, generate_kernel_attention_figure
 
 
 def test_softmax_registry_contains_required_shapes_in_order() -> None:
@@ -809,3 +814,45 @@ def test_speedup_series_uses_matched_eager_median() -> None:
 
     assert series[0].x == (128,)
     assert series[0].y == (3.0,)
+
+
+def test_kernel_attention_series_contrasts_matched_ratios() -> None:
+    common = {
+        "git_commit": "f" * 40,
+        "gpu_name": "fixture GPU",
+        "compute_capability": "7.5",
+        "pytorch_version": "torch",
+        "cuda_version": "CUDA",
+        "translation_ratio": "0.5",
+    }
+    records = [
+        {
+            **common,
+            "sequence_length": str(length),
+            "kernel_speedup": str(kernel),
+            "attention_speedup": str(attention),
+        }
+        for length, kernel, attention in ((512, 4.0, 2.0), (128, 2.0, 1.0))
+    ]
+
+    kernel, attention = kernel_attention_speedup_series(records)
+
+    assert kernel.x == attention.x == (128, 512)
+    assert kernel.y == (2.0, 4.0)
+    assert attention.y == (1.0, 2.0)
+
+
+def test_kernel_attention_figure_reads_comparison_csv(tmp_path) -> None:
+    comparison = tmp_path / "speedups.csv"
+    comparison.write_text(
+        "git_commit,sequence_length,kernel_speedup,attention_speedup,"
+        "translation_ratio,gpu_name,compute_capability,pytorch_version,cuda_version\n"
+        + f"{'a' * 40},128,2.0,1.5,0.75,GPU,7.5,torch,CUDA\n",
+        encoding="utf-8",
+    )
+
+    with patch("scripts.generate_figures.plot_kernel_attention_speedup") as plot:
+        output = generate_kernel_attention_figure(comparison, tmp_path / "figures")
+
+    assert output.name == "kernel_vs_attention_speedup.png"
+    plot.assert_called_once_with(plot.call_args.args[0], output)
