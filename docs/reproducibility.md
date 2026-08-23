@@ -35,8 +35,8 @@ package imports. This does not install an NVIDIA driver or prove CUDA support.
 ./scripts/verify_cpu_reproducibility.sh
 ```
 
-Expected final marker: `CPU_ONLY_REPRODUCIBILITY: PASS`. On the Commit 109 Mac
-run, 142 tests passed and 69 GPU-only tests skipped. The command validates
+Expected final marker: `CPU_ONLY_REPRODUCIBILITY: PASS`. On the Commit 112 Mac
+run, 146 tests passed and 69 GPU-only tests skipped. The command validates
 imports, notebook determinism, CPU/static tests, schema, and provenance; it
 deliberately hides CUDA and never builds the extension.
 
