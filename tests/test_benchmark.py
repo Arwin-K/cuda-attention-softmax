@@ -27,6 +27,10 @@ from benchmarks.benchmark_softmax import (
     prepare_custom_case,
     pytorch_eager_causal_softmax,
 )
+from benchmarks.compare_speedups import (
+    compare_kernel_and_attention_speedups,
+    summarize_attention_records,
+)
 from benchmarks.summarize_results import (
     SUMMARY_FIELDS,
     load_raw_benchmark_csv,
@@ -143,6 +147,116 @@ def test_attention_checkpoint_rewrites_complete_accumulated_sample_set(tmp_path)
     with output.open(newline="", encoding="utf-8") as output_file:
         saved = list(csv.DictReader(output_file))
     assert [row["sample_index"] for row in saved] == ["0", "1"]
+
+
+def test_kernel_and_attention_speedups_use_matched_median_ratios() -> None:
+    provenance = {
+        "git_commit": "a" * 40,
+        "gpu_name": "fixture GPU",
+        "compute_capability": "7.5",
+        "pytorch_version": "fixture torch",
+        "cuda_version": "fixture CUDA",
+    }
+    softmax = [
+        {
+            **provenance,
+            "implementation_description": "PyTorch eager scale + causal mask + softmax",
+            "sequence_length": 128,
+            "median_us": 8.0,
+        },
+        {
+            **provenance,
+            "implementation_description": "warp-reduction custom CUDA fused scale + mask + softmax",
+            "sequence_length": 128,
+            "median_us": 2.0,
+        },
+    ]
+    attention = [
+        {
+            **provenance,
+            "implementation": "explicit_eager",
+            "sequence_length": 128,
+            "median_us": 20.0,
+        },
+        {
+            **provenance,
+            "implementation": "custom_cuda",
+            "sequence_length": 128,
+            "median_us": 10.0,
+        },
+    ]
+
+    comparison = compare_kernel_and_attention_speedups(
+        softmax,
+        attention,
+        required_lengths=(128,),
+    )
+
+    assert comparison[0]["kernel_speedup"] == 4.0
+    assert comparison[0]["attention_speedup"] == 2.0
+    assert comparison[0]["translation_ratio"] == 0.5
+
+
+def test_kernel_attention_comparison_rejects_mismatched_gpu() -> None:
+    common = {
+        "git_commit": "a" * 40,
+        "compute_capability": "7.5",
+        "pytorch_version": "torch",
+        "cuda_version": "CUDA",
+        "sequence_length": 128,
+        "median_us": 1.0,
+    }
+    softmax = [
+        {**common, "gpu_name": "GPU A", "implementation_description": name}
+        for name in (
+            "PyTorch eager scale + causal mask + softmax",
+            "warp-reduction custom CUDA fused scale + mask + softmax",
+        )
+    ]
+    attention = [
+        {**common, "gpu_name": "GPU B", "implementation": name}
+        for name in ("explicit_eager", "custom_cuda")
+    ]
+
+    with pytest.raises(ValueError, match="matched provenance"):
+        compare_kernel_and_attention_speedups(
+            softmax,
+            attention,
+            required_lengths=(128,),
+        )
+
+
+def test_attention_summary_aggregates_raw_samples() -> None:
+    base = {field: "" for field in ATTENTION_RAW_FIELDS}
+    base.update(
+        {
+            "git_commit": "b" * 40,
+            "implementation": "custom_cuda",
+            "sequence_length": "128",
+            "batch": "1",
+            "heads": "8",
+            "head_dimension": "64",
+            "dtype": "float32",
+            "block_size": "128",
+            "warmups": "1",
+            "iterations": "3",
+            "gpu_name": "fixture GPU",
+            "compute_capability": "7.5",
+            "pytorch_version": "torch",
+            "cuda_version": "CUDA",
+            "timestamp": "2026-08-23T00:00:00+00:00",
+        }
+    )
+    rows = [
+        {**base, "sample_index": str(index), "sample_us": str(sample)}
+        for index, sample in enumerate((2.0, 4.0, 8.0))
+    ]
+
+    summary = summarize_attention_records(rows)
+
+    assert summary[0]["median_us"] == 4.0
+    assert summary[0]["p25_us"] == 3.0
+    assert summary[0]["p75_us"] == 6.0
 
 
 @pytest.mark.parametrize("block_size", SUPPORTED_BLOCK_SIZES)

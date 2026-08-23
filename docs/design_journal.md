@@ -901,3 +901,56 @@ representative CUDA shapes?
 ### Git commit
 
 Commit 081 — `integrate custom fused softmax into explicit transformer attention`
+
+## Kernel-to-attention speedup translation
+
+### Problem
+
+A microkernel speedup can be mistaken for an application speedup even though
+attention still performs two matrix multiplications.
+
+### Existing evidence
+
+The project has separate raw schemas for softmax-only and complete-attention
+CUDA-event samples. The executed Colab notebook reported both stages complete,
+but its raw artifact ZIP is not in this checkout.
+
+### Hypothesis
+
+The complete-attention speedup will be smaller than the isolated softmax
+speedup because unchanged work limits the benefit, consistent with Amdahl's
+Law.
+
+### Proposed change
+
+Compute both median ratios per sequence length only after requiring all four
+paths and identical Git, GPU, compute capability, PyTorch, and CUDA provenance.
+
+### Implementation
+
+`benchmarks/compare_speedups.py` summarizes raw attention samples and emits the
+kernel speedup, attention speedup, and their translation ratio. It refuses
+incomplete planned lengths and incompatible environments.
+
+### Correctness result
+
+Synthetic fixtures verify 4x kernel and 2x attention ratios produce a 0.5
+translation ratio; mismatched GPU metadata is rejected.
+
+### Performance result
+
+No project ratio is computed because the raw Colab ZIP is unavailable.
+
+### Interpretation
+
+The analysis encodes the Amdahl question without assuming its answer. Fixture
+values test arithmetic, not GPU behavior.
+
+### Next question
+
+After importing the raw artifacts, how does translation change with sequence
+length and the growing share of matrix-multiplication work?
+
+### Git commit
+
+Commit 087 — `compare kernel speedup with end-to-end attention speedup`
