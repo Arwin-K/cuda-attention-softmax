@@ -1,22 +1,40 @@
 """CPU-safe checks for benchmark controls and derived shapes."""
 
 import csv
+from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
 import torch
 
 from benchmarks.config import (
+    AttentionBenchmarkConfig,
     BENCHMARK_SEQUENCE_LENGTHS,
     SUPPORTED_BLOCK_SIZES,
     SoftmaxBenchmarkConfig,
+    attention_benchmark_registry,
     softmax_benchmark_registry,
+)
+from benchmarks.benchmark_attention import (
+    ATTENTION_RAW_FIELDS,
+    attention_raw_records,
+    checkpoint_attention_records,
+    prepare_attention_operations,
+    validate_attention_operations,
+    write_attention_raw_csv,
 )
 from benchmarks.benchmark_softmax import (
     compile_causal_softmax,
     prepare_custom_case,
     pytorch_eager_causal_softmax,
 )
+from benchmarks.compare_speedups import (
+    SPEEDUP_COMPARISON_FIELDS,
+    compare_kernel_and_attention_speedups,
+    summarize_attention_records,
+)
+from benchmarks.generate_tables import generate_results_tables, render_latex_table
 from benchmarks.summarize_results import (
     SUMMARY_FIELDS,
     load_raw_benchmark_csv,
@@ -35,9 +53,22 @@ from cuda_attention.benchmark import (
     write_raw_benchmark_csv,
 )
 from cuda_attention.operator import CudaExtensionUnavailableError
-from cuda_attention.plotting import load_summary_csv, metric_series
+from cuda_attention.plotting import (
+    kernel_attention_speedup_series,
+    load_summary_csv,
+    metric_series,
+    speedup_series,
+)
 from cuda_attention.reference import causal_allowed_mask, causal_scaled_softmax
-from scripts.generate_figures import generate_figures
+from profiling.profile_pytorch import (
+    PROFILE_REGION_NAMES,
+    ProfilerConfig,
+    export_profile_artifacts,
+    execute_profile_regions,
+    prepare_profile_operations,
+    profiler_summary_rows,
+)
+from scripts.generate_figures import generate_figures, generate_kernel_attention_figure
 
 
 def test_softmax_registry_contains_required_shapes_in_order() -> None:
@@ -57,6 +88,279 @@ def test_softmax_registry_contains_required_shapes_in_order() -> None:
     assert all(case.columns == case.sequence_length for case in registry)
     assert all(case.dtype == "float32" for case in registry)
     assert all(case.block_size == 256 for case in registry)
+
+
+def test_attention_registry_uses_planned_complete_attention_shapes() -> None:
+    registry = attention_benchmark_registry()
+
+    assert tuple(case.sequence_length for case in registry) == BENCHMARK_SEQUENCE_LENGTHS
+    assert all(case.shape == (1, 8, case.sequence_length, 64) for case in registry)
+    assert all(case.dtype == "float32" for case in registry)
+
+
+def test_attention_noncustom_paths_share_inputs_and_match_on_cpu() -> None:
+    config = AttentionBenchmarkConfig(
+        sequence_length=7,
+        heads=2,
+        head_dimension=8,
+        warmups=1,
+        iterations=2,
+    )
+    operations = prepare_attention_operations(
+        config,
+        device="cpu",
+        include_custom=False,
+    )
+
+    validate_attention_operations(operations)
+
+    assert set(operations) == {"explicit_eager", "pytorch_sdpa"}
+
+
+def test_profiler_regions_cover_softmax_and_complete_attention_on_cpu() -> None:
+    config = ProfilerConfig(
+        sequence_length=4,
+        batch=1,
+        heads=2,
+        head_dimension=8,
+        warmups=0,
+        repeats=1,
+    )
+    operations = prepare_profile_operations(
+        config,
+        device="cpu",
+        include_custom=False,
+    )
+
+    results = execute_profile_regions(operations, repeats=1)
+
+    assert tuple(operations) == tuple(
+        name for name in PROFILE_REGION_NAMES if "custom_cuda" not in name
+    )
+    assert set(results) == set(operations)
+    assert results["softmax/pytorch_eager"].shape == (8, 4)
+    assert results["attention/explicit_eager"].output.shape == (1, 2, 4, 8)
+    assert results["attention/pytorch_sdpa"].shape == (1, 2, 4, 8)
+
+
+def test_profiler_configuration_rejects_nonpositive_repeats() -> None:
+    with pytest.raises(ValueError, match="positive"):
+        ProfilerConfig(repeats=0)
+
+
+def test_profiler_summary_exports_cuda_totals_with_provenance() -> None:
+    events = [
+        SimpleNamespace(
+            key=name,
+            count=3,
+            cpu_time_total=20.0,
+            self_cpu_time_total=5.0,
+            device_time_total=10.0,
+            self_device_time_total=2.0,
+        )
+        for name in PROFILE_REGION_NAMES
+    ]
+    captured = SimpleNamespace(key_averages=lambda: events)
+    metadata = {
+        "git_commit": "c" * 40,
+        "gpu_name": "fixture GPU",
+        "compute_capability": "7.5",
+        "pytorch_version": "fixture torch",
+        "cuda_version": "fixture CUDA",
+        "timestamp": "2026-08-23T00:00:00+00:00",
+    }
+
+    rows = profiler_summary_rows(
+        captured,
+        config=ProfilerConfig(repeats=3),
+        metadata=metadata,
+    )
+
+    assert [row["region"] for row in rows] == list(PROFILE_REGION_NAMES)
+    assert all(row["cuda_time_total_us"] == 10.0 for row in rows)
+    assert all(row["git_commit"] == "c" * 40 for row in rows)
+
+
+def test_profiler_artifact_export_refuses_existing_output(tmp_path) -> None:
+    (tmp_path / "pytorch_trace.json").write_text("existing", encoding="utf-8")
+    captured = SimpleNamespace()
+
+    with pytest.raises(FileExistsError, match="refusing to overwrite"):
+        export_profile_artifacts(
+            captured,
+            config=ProfilerConfig(),
+            metadata={},
+            output_directory=tmp_path,
+        )
+
+
+def test_nsight_helper_preserves_repository_import_path() -> None:
+    helper = (Path(__file__).parents[1] / "profiling" / "run_ncu.sh").read_text(
+        encoding="utf-8"
+    )
+
+    assert 'PYTHONPATH="$PROJECT_ROOT${PYTHONPATH:+:$PYTHONPATH}"' in helper
+    assert "fused_causal_softmax_kernel" in helper
+    assert "--set basic" in helper
+
+
+def test_attention_raw_csv_preserves_full_workload_provenance(tmp_path) -> None:
+    config = AttentionBenchmarkConfig(
+        sequence_length=4,
+        heads=2,
+        head_dimension=8,
+        warmups=1,
+        iterations=2,
+        block_size=128,
+    )
+    metadata = {
+        "git_commit": "d" * 40,
+        "gpu_name": "fixture GPU",
+        "compute_capability": "7.5",
+        "pytorch_version": "fixture torch",
+        "cuda_version": "fixture CUDA",
+        "timestamp": "2026-08-23T00:00:00+00:00",
+    }
+    records = attention_raw_records(
+        metadata=metadata,
+        config=config,
+        implementation="custom_cuda",
+        samples_us=[1.0, 2.0],
+    )
+    output = tmp_path / "attention.csv"
+
+    write_attention_raw_csv(output, records)
+
+    with output.open(newline="", encoding="utf-8") as output_file:
+        saved = list(csv.DictReader(output_file))
+    assert tuple(saved[0]) == ATTENTION_RAW_FIELDS
+    assert [row["sample_us"] for row in saved] == ["1.0", "2.0"]
+    assert all(row["git_commit"] == "d" * 40 for row in saved)
+    assert all(row["block_size"] == "128" for row in saved)
+
+
+def test_attention_checkpoint_rewrites_complete_accumulated_sample_set(tmp_path) -> None:
+    output = tmp_path / "attention.csv"
+    first = [{field: "" for field in ATTENTION_RAW_FIELDS}]
+    first[0]["sample_index"] = 0
+    second = [*first, {**first[0], "sample_index": 1}]
+
+    checkpoint_attention_records(output, first)
+    checkpoint_attention_records(output, second)
+
+    with output.open(newline="", encoding="utf-8") as output_file:
+        saved = list(csv.DictReader(output_file))
+    assert [row["sample_index"] for row in saved] == ["0", "1"]
+
+
+def test_kernel_and_attention_speedups_use_matched_median_ratios() -> None:
+    provenance = {
+        "git_commit": "a" * 40,
+        "gpu_name": "fixture GPU",
+        "compute_capability": "7.5",
+        "pytorch_version": "fixture torch",
+        "cuda_version": "fixture CUDA",
+    }
+    softmax = [
+        {
+            **provenance,
+            "implementation_description": "PyTorch eager scale + causal mask + softmax",
+            "sequence_length": 128,
+            "median_us": 8.0,
+        },
+        {
+            **provenance,
+            "implementation_description": "warp-reduction custom CUDA fused scale + mask + softmax",
+            "sequence_length": 128,
+            "median_us": 2.0,
+        },
+    ]
+    attention = [
+        {
+            **provenance,
+            "implementation": "explicit_eager",
+            "sequence_length": 128,
+            "median_us": 20.0,
+        },
+        {
+            **provenance,
+            "implementation": "custom_cuda",
+            "sequence_length": 128,
+            "median_us": 10.0,
+        },
+    ]
+
+    comparison = compare_kernel_and_attention_speedups(
+        softmax,
+        attention,
+        required_lengths=(128,),
+    )
+
+    assert comparison[0]["kernel_speedup"] == 4.0
+    assert comparison[0]["attention_speedup"] == 2.0
+    assert comparison[0]["translation_ratio"] == 0.5
+
+
+def test_kernel_attention_comparison_rejects_mismatched_gpu() -> None:
+    common = {
+        "git_commit": "a" * 40,
+        "compute_capability": "7.5",
+        "pytorch_version": "torch",
+        "cuda_version": "CUDA",
+        "sequence_length": 128,
+        "median_us": 1.0,
+    }
+    softmax = [
+        {**common, "gpu_name": "GPU A", "implementation_description": name}
+        for name in (
+            "PyTorch eager scale + causal mask + softmax",
+            "warp-reduction custom CUDA fused scale + mask + softmax",
+        )
+    ]
+    attention = [
+        {**common, "gpu_name": "GPU B", "implementation": name}
+        for name in ("explicit_eager", "custom_cuda")
+    ]
+
+    with pytest.raises(ValueError, match="matched provenance"):
+        compare_kernel_and_attention_speedups(
+            softmax,
+            attention,
+            required_lengths=(128,),
+        )
+
+
+def test_attention_summary_aggregates_raw_samples() -> None:
+    base = {field: "" for field in ATTENTION_RAW_FIELDS}
+    base.update(
+        {
+            "git_commit": "b" * 40,
+            "implementation": "custom_cuda",
+            "sequence_length": "128",
+            "batch": "1",
+            "heads": "8",
+            "head_dimension": "64",
+            "dtype": "float32",
+            "block_size": "128",
+            "warmups": "1",
+            "iterations": "3",
+            "gpu_name": "fixture GPU",
+            "compute_capability": "7.5",
+            "pytorch_version": "torch",
+            "cuda_version": "CUDA",
+            "timestamp": "2026-08-23T00:00:00+00:00",
+        }
+    )
+    rows = [
+        {**base, "sample_index": str(index), "sample_us": str(sample)}
+        for index, sample in enumerate((2.0, 4.0, 8.0))
+    ]
+
+    summary = summarize_attention_records(rows)
+
+    assert summary[0]["median_us"] == 4.0
+    assert summary[0]["p25_us"] == 3.0
+    assert summary[0]["p75_us"] == 6.0
 
 
 @pytest.mark.parametrize("block_size", SUPPORTED_BLOCK_SIZES)
@@ -421,6 +725,10 @@ def test_plot_series_remain_commit_specific_and_shape_ordered(tmp_path) -> None:
             "sequence_length": "512",
             "median_us": "3.0",
             "elements_per_second": "4.0",
+            "gpu_name": "fixture GPU",
+            "compute_capability": "7.5",
+            "pytorch_version": "torch",
+            "cuda_version": "CUDA",
         },
         {
             "git_commit": "b" * 40,
@@ -428,6 +736,10 @@ def test_plot_series_remain_commit_specific_and_shape_ordered(tmp_path) -> None:
             "sequence_length": "128",
             "median_us": "1.0",
             "elements_per_second": "2.0",
+            "gpu_name": "fixture GPU",
+            "compute_capability": "7.5",
+            "pytorch_version": "torch",
+            "cuda_version": "CUDA",
         },
     ]
 
@@ -440,7 +752,8 @@ def test_plot_series_remain_commit_specific_and_shape_ordered(tmp_path) -> None:
 
     empty_path = tmp_path / "empty.csv"
     empty_path.write_text(
-        "git_commit,implementation_description,sequence_length,median_us,elements_per_second\n",
+        "git_commit,implementation_description,sequence_length,median_us,"
+        "elements_per_second,gpu_name,compute_capability,pytorch_version,cuda_version\n",
         encoding="utf-8",
     )
     with pytest.raises(ValueError, match="no measurements"):
@@ -450,8 +763,10 @@ def test_plot_series_remain_commit_specific_and_shape_ordered(tmp_path) -> None:
 def test_figure_generation_maps_summary_to_expected_outputs(tmp_path) -> None:
     summary_path = tmp_path / "summary.csv"
     summary_path.write_text(
-        "git_commit,implementation_description,sequence_length,median_us,elements_per_second\n"
-        + f"{'d' * 40},fixture only,128,1.0,2.0\n",
+        "git_commit,implementation_description,sequence_length,median_us,"
+        "elements_per_second,gpu_name,compute_capability,pytorch_version,cuda_version\n"
+        + f"{'d' * 40},PyTorch eager fixture,128,2.0,2.0,GPU,7.5,torch,CUDA\n"
+        + f"{'d' * 40},custom fixture,128,1.0,4.0,GPU,7.5,torch,CUDA\n",
         encoding="utf-8",
     )
     output_directory = tmp_path / "figures"
@@ -459,13 +774,191 @@ def test_figure_generation_maps_summary_to_expected_outputs(tmp_path) -> None:
     with (
         patch("scripts.generate_figures.plot_latency") as latency,
         patch("scripts.generate_figures.plot_throughput") as throughput,
+        patch("scripts.generate_figures.plot_speedup") as speedup,
     ):
         generated = generate_figures(summary_path, output_directory)
 
     assert generated == (
         output_directory / "softmax_latency.png",
         output_directory / "softmax_throughput.png",
+        output_directory / "softmax_speedup.png",
     )
     assert latency.call_args.args[0] == throughput.call_args.args[0]
     latency.assert_called_once_with(latency.call_args.args[0], generated[0])
     throughput.assert_called_once_with(throughput.call_args.args[0], generated[1])
+    speedup.assert_called_once_with(speedup.call_args.args[0], generated[2])
+
+
+def test_speedup_series_uses_matched_eager_median() -> None:
+    common = {
+        "git_commit": "e" * 40,
+        "sequence_length": "128",
+        "elements_per_second": "1.0",
+        "gpu_name": "fixture GPU",
+        "compute_capability": "7.5",
+        "pytorch_version": "torch",
+        "cuda_version": "CUDA",
+    }
+    records = [
+        {
+            **common,
+            "implementation_description": "PyTorch eager fixture",
+            "median_us": "6.0",
+        },
+        {
+            **common,
+            "implementation_description": "custom CUDA fixture",
+            "median_us": "2.0",
+        },
+    ]
+
+    series = speedup_series(records)
+
+    assert series[0].x == (128,)
+    assert series[0].y == (3.0,)
+
+
+def test_kernel_attention_series_contrasts_matched_ratios() -> None:
+    common = {
+        "git_commit": "f" * 40,
+        "gpu_name": "fixture GPU",
+        "compute_capability": "7.5",
+        "pytorch_version": "torch",
+        "cuda_version": "CUDA",
+        "translation_ratio": "0.5",
+    }
+    records = [
+        {
+            **common,
+            "sequence_length": str(length),
+            "kernel_speedup": str(kernel),
+            "attention_speedup": str(attention),
+        }
+        for length, kernel, attention in ((512, 4.0, 2.0), (128, 2.0, 1.0))
+    ]
+
+    kernel, attention = kernel_attention_speedup_series(records)
+
+    assert kernel.x == attention.x == (128, 512)
+    assert kernel.y == (2.0, 4.0)
+    assert attention.y == (1.0, 2.0)
+
+
+def test_kernel_attention_figure_reads_comparison_csv(tmp_path) -> None:
+    comparison = tmp_path / "speedups.csv"
+    comparison.write_text(
+        "git_commit,sequence_length,kernel_speedup,attention_speedup,"
+        "translation_ratio,gpu_name,compute_capability,pytorch_version,cuda_version\n"
+        + f"{'a' * 40},128,2.0,1.5,0.75,GPU,7.5,torch,CUDA\n",
+        encoding="utf-8",
+    )
+
+    with patch("scripts.generate_figures.plot_kernel_attention_speedup") as plot:
+        output = generate_kernel_attention_figure(comparison, tmp_path / "figures")
+
+    assert output.name == "kernel_vs_attention_speedup.png"
+    plot.assert_called_once_with(plot.call_args.args[0], output)
+
+
+def test_latex_table_escapes_labels_and_rejects_empty_rows() -> None:
+    document = render_latex_table(
+        headers=("Path", "Median_us"),
+        rows=(("custom_cuda", "2.000"),),
+        caption="Measured & derived",
+        label="tab:fixture_results",
+    )
+
+    assert r"custom\_cuda" in document
+    assert r"Measured \& derived" in document
+    with pytest.raises(ValueError, match="empty"):
+        render_latex_table(headers=("A",), rows=(), caption="x", label="x")
+
+
+def test_results_tables_are_generated_from_complete_fixture_csvs(tmp_path) -> None:
+    metadata = {
+        "git_commit": "a" * 40,
+        "gpu_name": "fixture GPU",
+        "compute_capability": "7.5",
+        "pytorch_version": "fixture torch",
+        "cuda_version": "fixture CUDA",
+        "timestamp": "2026-08-23T00:00:00+00:00",
+    }
+    softmax_path = tmp_path / "softmax_summary.csv"
+    softmax_fields = (
+        "git_commit,implementation_description,sequence_length,median_us,p25_us,"
+        "p75_us,elements_per_second,gpu_name,compute_capability,pytorch_version,"
+        "cuda_version\n"
+    )
+    descriptions = (
+        "PyTorch eager fixture",
+        "torch.compile fixture",
+        "warp-reduction custom CUDA fixture",
+    )
+    softmax_path.write_text(
+        softmax_fields
+        + "".join(
+            f"{'a' * 40},{description},128,2.0,1.0,3.0,4.0,fixture GPU,7.5,"
+            "fixture torch,fixture CUDA\n"
+            for description in descriptions
+        ),
+        encoding="utf-8",
+    )
+    config = AttentionBenchmarkConfig(
+        sequence_length=128,
+        warmups=1,
+        iterations=1,
+    )
+    attention_records: list[dict[str, object]] = []
+    for implementation in ("explicit_eager", "custom_cuda", "pytorch_sdpa"):
+        attention_records.extend(
+            attention_raw_records(
+                metadata=metadata,
+                config=config,
+                implementation=implementation,
+                samples_us=[2.0],
+            )
+        )
+    attention_path = tmp_path / "attention_raw.csv"
+    write_attention_raw_csv(attention_path, attention_records)
+    speedup_path = tmp_path / "comparison.csv"
+    with speedup_path.open("w", newline="", encoding="utf-8") as output_file:
+        writer = csv.DictWriter(output_file, fieldnames=SPEEDUP_COMPARISON_FIELDS)
+        writer.writeheader()
+        writer.writerow(
+            {
+                **{
+                    field: metadata[field]
+                    for field in (
+                        "git_commit",
+                        "gpu_name",
+                        "compute_capability",
+                        "pytorch_version",
+                        "cuda_version",
+                    )
+                },
+                "sequence_length": 128,
+                "kernel_baseline": "pytorch_eager",
+                "kernel_candidate": "custom_cuda",
+                "kernel_speedup": 2.0,
+                "attention_baseline": "explicit_eager",
+                "attention_candidate": "custom_cuda",
+                "attention_speedup": 1.5,
+                "translation_ratio": 0.75,
+            }
+        )
+
+    outputs = generate_results_tables(
+        softmax_summary_path=softmax_path,
+        attention_raw_path=attention_path,
+        speedup_comparison_path=speedup_path,
+        output_directory=tmp_path / "tables",
+        required_lengths=(128,),
+    )
+
+    assert tuple(path.name for path in outputs) == (
+        "softmax_results.tex",
+        "attention_results.tex",
+        "kernel_attention_speedup.tex",
+    )
+    assert all(path.is_file() for path in outputs)
+    assert "2.000" in outputs[0].read_text(encoding="utf-8")

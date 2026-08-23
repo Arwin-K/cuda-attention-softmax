@@ -844,3 +844,492 @@ the same T4 before any launch or framework timing begins?
 ### Git commit
 
 Supplemental compatibility fix — hash recorded by Git history after commit.
+
+## Explicit custom-attention integration
+
+### Problem
+
+A correct standalone softmax kernel does not yet demonstrate how it participates
+in transformer attention. The integration must replace only the intended
+normalization stage without changing the two matrix multiplications.
+
+### Existing evidence
+
+The PyTorch reference already exposes `QK^T`, flattened causal softmax, and
+`PV`. The custom operator accepts contiguous FP32 scores shaped
+`[batch * heads * sequence, sequence]`.
+
+### Hypothesis
+
+Using the same score flattening and scale in both paths should make their
+probability and output tensors semantically equivalent when the custom operator
+is correct.
+
+### Proposed change
+
+Add a separate explicit custom path that performs `Q @ K.transpose`, dispatches
+only the flattened score tensor to `fused_causal_softmax`, reshapes the
+probabilities, and performs `probabilities @ V` in PyTorch.
+
+### Implementation
+
+`custom_causal_attention` shares Q/K/V validation with the trusted reference,
+forwards the selected block size, and returns both output and probabilities for
+inspection.
+
+### Correctness result
+
+A CPU-safe boundary test substitutes the trusted reference at the CUDA dispatch
+point and confirms identical probabilities/output plus the exact flattened
+shape, contiguity, scale, and block size. Real custom execution remains a CUDA
+test.
+
+### Performance result
+
+Not measured by this commit.
+
+### Interpretation
+
+The integration boundary is explicit and testable. It does not imply that the
+custom path is faster because both matrix multiplications remain unchanged.
+
+### Next question
+
+Does the actual compiled operator preserve end-to-end attention outputs across
+representative CUDA shapes?
+
+### Git commit
+
+Commit 081 — `integrate custom fused softmax into explicit transformer attention`
+
+## Kernel-to-attention speedup translation
+
+### Problem
+
+A microkernel speedup can be mistaken for an application speedup even though
+attention still performs two matrix multiplications.
+
+### Existing evidence
+
+The project has separate raw schemas for softmax-only and complete-attention
+CUDA-event samples. The executed Colab notebook reported both stages complete,
+but its raw artifact ZIP is not in this checkout.
+
+### Hypothesis
+
+The complete-attention speedup will be smaller than the isolated softmax
+speedup because unchanged work limits the benefit, consistent with Amdahl's
+Law.
+
+### Proposed change
+
+Compute both median ratios per sequence length only after requiring all four
+paths and identical Git, GPU, compute capability, PyTorch, and CUDA provenance.
+
+### Implementation
+
+`benchmarks/compare_speedups.py` summarizes raw attention samples and emits the
+kernel speedup, attention speedup, and their translation ratio. It refuses
+incomplete planned lengths and incompatible environments.
+
+### Correctness result
+
+Synthetic fixtures verify 4x kernel and 2x attention ratios produce a 0.5
+translation ratio; mismatched GPU metadata is rejected.
+
+### Performance result
+
+No project ratio is computed because the raw Colab ZIP is unavailable.
+
+### Interpretation
+
+The analysis encodes the Amdahl question without assuming its answer. Fixture
+values test arithmetic, not GPU behavior.
+
+### Next question
+
+After importing the raw artifacts, how does translation change with sequence
+length and the growing share of matrix-multiplication work?
+
+### Git commit
+
+Commit 087 — `compare kernel speedup with end-to-end attention speedup`
+
+## Named PyTorch Profiler regions
+
+### Problem
+
+Raw latency says which path is faster but does not show which operators and
+kernels own the time inside softmax or complete attention.
+
+### Measurement plan
+
+Capture identical preallocated inputs after untimed warmups and label each
+isolated-softmax and full-attention path with a stable `record_function` name.
+
+### Hypothesis
+
+The custom attention trace will still contain substantial matrix-multiplication
+work even if its fused softmax region becomes much shorter.
+
+### Change
+
+`profiling/profile_pytorch.py` now prepares shared FP32 inputs, exposes five
+logical regions, warms all paths outside capture, and captures CPU and CUDA
+activities with shapes and memory enabled.
+
+### Correctness result
+
+CPU tests execute all non-CUDA regions and verify their names and output shapes.
+CUDA capture remains an NVIDIA-only experiment.
+
+### Performance result
+
+No profiler duration is claimed in this commit.
+
+### Interpretation
+
+Named parent regions make a trace navigable, but labels are not timings. CUDA
+duration must come from synchronized device events reported by the profiler.
+
+### Next question
+
+How should traces and summarized CUDA events be exported so every observation
+can be audited after the Colab runtime disappears?
+
+### Git commit
+
+Commit 088 — `add PyTorch profiler instrumentation for softmax and attention`
+
+## Durable profiler artifacts
+
+### Problem
+
+An interactive profiler table disappears with a Colab runtime and cannot be
+audited later without the exact trace and experimental context.
+
+### Measurement plan
+
+Export the complete Chrome trace, named-region CPU/CUDA totals, and immutable
+Git, GPU, software, workload, and launch metadata from the same capture.
+
+### Hypothesis
+
+Persisting both raw and summarized forms will make later interpretations
+traceable while keeping the paper tables straightforward to regenerate.
+
+### Change
+
+The profiler entry point now writes `pytorch_trace.json`,
+`pytorch_profiler_summary.csv`, and `pytorch_profiler_metadata.json`. It refuses
+to overwrite any of those paths.
+
+### Correctness result
+
+Fixture profiler events verify region order, CUDA-total extraction, and Git
+provenance. A separate test verifies the overwrite guard.
+
+### Performance result
+
+Fixture durations exercise serialization only. No profiler measurement from the
+project is available in this checkout.
+
+### Interpretation
+
+The summary is convenient evidence, while the trace remains the source for
+checking which child operators and CUDA kernels contributed to each total.
+
+### Next question
+
+Which low-level kernel metrics would explain behavior that a PyTorch trace can
+locate but not diagnose?
+
+### Git commit
+
+Commit 089 — `export profiler traces and summarized CUDA timings`
+
+## Optional Nsight Compute target
+
+### Problem
+
+PyTorch Profiler can locate kernels but does not by itself establish occupancy,
+memory-traffic, launch, or hardware-counter behavior. The first Colab Nsight
+attempt also failed before launch because its generated target could not import
+the repository package.
+
+### Measurement plan
+
+Profile one post-warmup kernel launch using Nsight's installed-version `basic`
+set, a kernel-name filter, and a deterministic S=512 FP32 workload.
+
+### Hypothesis
+
+If hardware counters are permitted, the report will provide evidence useful for
+testing the current reduction and launch-configuration hypotheses.
+
+### Change
+
+The repository now has a minimal CUDA target and guarded `run_ncu.sh` helper.
+Both the shell helper and regenerated Colab target explicitly expose the
+repository on Python's import path.
+
+### Correctness result
+
+The Python target compiles, the POSIX shell passes syntax validation, static
+tests enforce the kernel filter/import-path contract, and the Colab notebook
+still matches its deterministic generator.
+
+### Performance result
+
+No Nsight hardware metric is available. The earlier Colab attempt measured only
+that `ncu` 2025.1.1 was installed and target import failed.
+
+### Interpretation
+
+Fixing the import failure makes a future attempt meaningful; it does not imply
+that Colab grants the performance-counter permissions needed to finish it.
+
+### Next question
+
+Will the corrected target produce a report, or will the managed runtime expose
+a distinct permissions limitation?
+
+### Git commit
+
+Commit 090 — `add Nsight Compute profiling helper and documentation`
+
+## Final evidence-gated softmax figures
+
+### Problem
+
+Latency and throughput alone are hard to compare across implementations, while
+a speedup plot can become misleading if its baseline comes from another GPU or
+software environment.
+
+### Measurement
+
+Figure inputs are summary CSV rows derived from raw CUDA-event samples. Each
+speedup point divides a matched eager median by a candidate median.
+
+### Hypothesis
+
+The custom/eager relationship may vary by sequence length, so the plot should
+retain every planned shape rather than report one aggregate number.
+
+### Change
+
+The figure pipeline now creates latency, throughput, and eager-relative speedup
+plots with commit-aware series. It validates provenance and refuses overwrites.
+
+### Correctness result
+
+Synthetic rows verify ordering, matched 3x speedup arithmetic, expected output
+paths, empty-data rejection, and the three plotting calls.
+
+### Performance result
+
+No project figure was generated because no summary CSV from the T4 run exists
+in this checkout.
+
+### Interpretation
+
+The figure code is ready, but its fixture values demonstrate analysis logic
+only and must never appear in the paper as measurements.
+
+### Next question
+
+After importing real samples, do latency, throughput, and speedup tell a
+consistent shape-dependent story?
+
+### Git commit
+
+Commit 092 — `generate final latency throughput and speedup figures`
+
+## Kernel versus attention speedup figure
+
+### Problem
+
+Separate charts make it too easy to discuss a microkernel improvement without
+showing how much reaches the complete attention operation.
+
+### Measurement
+
+The comparison CSV contains matched eager/custom median ratios for isolated
+softmax and explicit full attention at each sequence length.
+
+### Hypothesis
+
+Complete-attention speedup will generally be closer to one because QK^T and PV
+remain outside the custom softmax optimization.
+
+### Change
+
+The plotting layer now renders both speedups on identical axes after requiring
+one Git/GPU/software environment, positive values, and unique sequence lengths.
+
+### Correctness result
+
+Fixture rows verify sorting and the intended 2x/4x kernel versus 1x/2x attention
+series. A CSV fixture verifies the evidence-to-output path.
+
+### Performance result
+
+No project figure was generated; the real comparison CSV cannot be derived
+until the raw softmax and attention CSVs are imported.
+
+### Interpretation
+
+The fixture illustrates how to read the chart but predicts no T4 result.
+
+### Next question
+
+Does the measured gap widen or narrow as matrix multiplication accounts for a
+different fraction of total work with sequence length?
+
+### Git commit
+
+Commit 093 — `generate kernel versus attention speedup figure`
+
+## Reproducible LaTeX result tables
+
+### Problem
+
+Hand-copying benchmark values into a paper risks transcription errors, stale
+numbers, and loss of the connection to raw samples.
+
+### Measurement
+
+Tables consume the softmax summary, attention raw samples, and matched speedup
+comparison produced by repository analysis code.
+
+### Hypothesis
+
+Automated completeness and provenance gates will make missing evidence visible
+before a partial table reaches the paper.
+
+### Change
+
+`benchmarks/generate_tables.py` validates all paths and planned lengths from one
+Git/GPU/software environment, then writes three independently includable LaTeX
+tables without overwriting prior output.
+
+### Correctness result
+
+Complete fixture CSVs generate softmax, attention, and translation tables.
+Separate tests verify numeric formatting, LaTeX escaping, and empty rejection.
+
+### Performance result
+
+No project table was generated because the real source CSVs are absent.
+
+### Interpretation
+
+The generated fixture documents test the publication pipeline, not any CUDA
+performance claim.
+
+### Next question
+
+Once the raw artifact ZIP is imported, do the generated tables agree exactly
+with every plotted point and narrative claim?
+
+### Git commit
+
+Commit 094 — `complete reproducible results tables from benchmark CSV files`
+
+## Evidence-bounded results narrative
+
+### Problem
+
+The documentation still said no NVIDIA run existed, while the preserved Colab
+notebook proved a corrected build, CUDA correctness, and completed experiment
+stages. Conversely, the missing raw ZIP prevents quantitative reporting.
+
+### Measurement
+
+Only facts visible in the executed notebook output and supplied build log are
+admitted: environment, commit, pass counts, stage status, launch selection
+label, and the Nsight import failure.
+
+### Hypothesis
+
+Separating supported findings from unavailable quantities will keep the paper
+useful now and make later CSV-derived updates mechanical.
+
+### Change
+
+`docs/results.md` and `docs/discussion.md` now report the T4 correctness evidence,
+describe every missing performance artifact, and frame application translation
+and profiling explanations as unresolved hypotheses.
+
+### Correctness result
+
+The narrative agrees with the preserved notebook evidence: 70 CUDA pytest
+passes and 88/88 structured comparisons at the fixed FP32 tolerances.
+
+### Performance result
+
+No latency, throughput, speedup, or profiler duration is transcribed because no
+raw or summary CSV is available in this checkout.
+
+### Interpretation
+
+Correctness is a genuine result; stage completion is workflow evidence; and a
+quantitative performance finding requires the missing sample artifacts.
+
+### Next question
+
+Can the original artifact ZIP be recovered and validated, or must the corrected
+notebook be rerun in a fresh controlled T4 session?
+
+### Git commit
+
+Commit 095 — `write experimental results and discussion sections`
+
+## Day 6 scope and conclusion audit
+
+### Problem
+
+A concluding section can easily overgeneralize from one forward FP32 operator,
+one T4 session, or a workflow-completion marker.
+
+### Measurement
+
+The audit traces every supported conclusion to the preserved build and
+correctness output, while checking that missing CSV and profiler artifacts stay
+visible.
+
+### Hypothesis
+
+An explicit limitations and future-work structure will distinguish what the
+project learned from what it merely prepared to measure.
+
+### Change
+
+`docs/limitations.md` now covers operator/numerical scope, evidence and baseline
+limits, external validity, profiling gaps, replication priorities, technical
+extensions, and an evidence-bounded conclusion. The experiment log records the
+Day 6 checkpoint without inventing student reflection.
+
+### Correctness result
+
+The conclusion reports only the tested T4 revision's successful build and fixed-
+tolerance correctness evidence.
+
+### Performance result
+
+Quantitative optimization and application-speedup conclusions remain pending
+the raw artifact ZIP or a controlled rerun.
+
+### Interpretation
+
+The project has answered “can the intended fused warp-reduction path be made
+correct and auditable?” more strongly than “how fast is it and why?”
+
+### Next question
+
+Can Day 7 publication and reproducibility work preserve this evidence boundary
+while making the project accessible to paper, blog, and interview audiences?
+
+### Git commit
+
+Commit 096 — `write limitations future work and research conclusions`

@@ -1892,7 +1892,9 @@ if RUN_NSIGHT and ncu_path:
     target_path = nsight_directory / "profile_target.py"
     target_source = f"""
 import math
+import sys
 import torch
+sys.path.insert(0, {str(work_dir)!r})
 from cuda_attention.operator import fused_causal_softmax
 scores = torch.randn({BATCH_HEADS * PROFILE_SEQUENCE_LENGTH}, {PROFILE_SEQUENCE_LENGTH}, device="cuda", dtype=torch.float32)
 scale = 1.0 / math.sqrt({HEAD_DIM})

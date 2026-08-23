@@ -99,22 +99,22 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 
 ## Day 6 — Does the microkernel change attention?
 
-081. I placed the custom softmax only in the intended middle of explicit attention: QKᵀ, softmax, then PV.
-082. I added end-to-end tests so a correct-looking kernel cannot hide an incorrect attention result.
-083. I added PyTorch SDPA as a production-oriented full-attention baseline.
-084. I checked custom attention against SDPA, paying attention to causal semantics and justified tolerances.
-085. I built a harness that measures whole attention paths fairly, not just the softmax microkernel.
-086. I benchmarked custom attention across sequence lengths only on actual NVIDIA hardware.
-087. I compared kernel-level and end-to-end speedups to test the Amdahl's Law lesson in this system.
-088. I instrumented representative softmax and attention runs with PyTorch Profiler.
-089. I exported profile traces and summary timings as inspectable artifacts.
-090. I added an optional Nsight Compute workflow without claiming it ran where it was unavailable.
-091. I recorded profiler observations in measured, interpretation, and next-experiment sections.
-092. I generated final latency, throughput, and historical speedup figures from stored measurements.
-093. I generated a figure that directly contrasts kernel speedup with attention speedup.
-094. I generated paper-ready tables from CSVs rather than transcribing numbers by hand.
-095. I wrote results and discussion only to the extent the experiment artifacts support them.
-096. I wrote limitations, future work, and conclusions that keep the project's scope honest, then recorded the sixth-day checkpoint.
+081. Completed — I placed the custom softmax only in the intended middle of explicit attention: QKᵀ, softmax, then PV. A CPU-safe boundary test confirms the flattening, scale, launch setting, and unchanged matrix multiplications; NVIDIA execution remains governed by the extension and correctness gates.
+082. Completed — I added end-to-end CUDA tests so a correct-looking softmax kernel cannot hide an incorrect reshape or `PV` result. They compare outputs and probabilities on 31/33/64-token shapes and enforce causal zeros, normalization, finiteness, shape, dtype, and device at the fixed FP32 tolerances.
+083. Completed — I added PyTorch SDPA as a production-oriented full-attention baseline with causal semantics and zero dropout. CPU tests compare it against the transparent explicit reference so later speed comparisons do not trade away mathematical equivalence.
+084. Completed — I added direct custom-versus-SDPA CUDA comparisons on 31/33/64-token inputs, keeping the fixed FP32 tolerances. The tests recognize that reduction order may differ while still rejecting causal, indexing, shape, dtype, device, or non-finite errors.
+085. Completed — I built a CUDA-event harness that measures whole explicit-eager, custom-softmax, and SDPA attention paths on identical preallocated Q/K/V tensors. It performs correctness checks before timing and stores every raw sample with B/H/S/D, Git, GPU, and software provenance.
+086. Completed with evidence pending import — The T4 Colab workflow reported complete attention benchmarks across the planned lengths and created raw/summary artifacts. The ZIP is not present in this checkout, so I recorded the controlled execution but made no latency or speedup claim; the repository harness now checkpoints every completed case.
+087. Completed as guarded analysis — I added a matched-provenance comparison for kernel-level and end-to-end attention speedups, including a translation ratio. It refuses missing paths or mixed Git/GPU/software environments; formulas pass fixture tests, while project ratios remain pending the raw Colab ZIP.
+088. Completed — I instrumented representative isolated-softmax and complete-attention paths with named PyTorch Profiler regions. The paths share preallocated inputs, warmups stay outside capture, CUDA synchronization brackets the trace, and CPU tests verify the region contract without pretending to provide GPU timings.
+089. Completed — I made profiling durable by exporting a Chrome trace, a stable CSV of CPU and CUDA region totals, and JSON run metadata. Every row carries workload and Git/GPU/software provenance, and the command refuses to overwrite a prior capture; fixture event values test the exporter but are not research results.
+090. Completed — I added a one-launch Nsight Compute target, a guarded `basic`-metrics shell workflow, and reporting guidance. The helper exports report and CSV forms, filters the fused kernel, refuses overwrites, and explicitly supplies the repository on `PYTHONPATH`, fixing the import failure observed in the first Colab attempt without claiming hardware counters were captured.
+091. Completed — I recorded the actual T4 profiling evidence using `MEASURED / INTERPRETATION / NEXT EXPERIMENT`: PyTorch Profiler reported completion, while Nsight Compute 2025.1.1 failed at a missing package import before any kernel launched. Because the artifact ZIP is absent, I preserved the open questions and made no timing, occupancy, or bottleneck claim.
+092. Completed as evidence-gated generation — I added final latency, throughput, and eager-relative speedup plots with commit-aware labels and matched GPU/software provenance. The generator rejects missing, empty, nonpositive, unmatched, or pre-existing evidence; synthetic fixtures validate formulas, while no project figure is created until the Colab CSVs are imported.
+093. Completed as evidence-gated generation — I added a matched comparison figure with isolated fused-softmax speedup and complete explicit-attention speedup on the same axes. It requires one Git/GPU/software environment and one positive row per sequence length; fixture ratios validate the plot contract, but the project figure remains absent pending raw Colab artifacts.
+094. Completed as evidence-gated generation — I added three directly includable LaTeX tables for softmax, complete attention, and speedup translation. Generation requires all planned paths and lengths from one Git/GPU/software environment, derives values from CSVs, escapes LaTeX safely, and refuses overwrites; only fixture tables were created during tests.
+095. Completed — I rewrote results and discussion around the preserved T4 evidence: successful corrected build, 70 CUDA pytest passes, 88/88 structured cases at fixed tolerances, completed benchmark/profiler stages, and the reported 128-thread selection. Because the raw ZIP is missing, all latency, throughput, speedup, detailed launch, and profiler conclusions remain explicitly unavailable.
+096. Completed — I documented forward-only FP32/operator scope, one-T4 and managed-Colab external-validity limits, missing performance/profiler artifacts, baseline boundaries, and concrete replication and extension work. The conclusion answers only what the evidence supports: CUDA correctness is established for the tested revision; quantitative optimization and application-speedup findings remain pending raw-artifact recovery or rerun.
 
 ## Day 7 — Making the work auditable and shareable
 

@@ -105,6 +105,7 @@ def test_notebook_names_required_evidence_and_integrity_guards() -> None:
 
     assert "SPEEDUP NOT COMPUTED: incompatible experimental conditions." in text
     assert "NSIGHT COMPUTE UNAVAILABLE IN THIS COLAB ENVIRONMENT" in text
+    assert "sys.path.insert(0, {str(work_dir)!r})" in text
     assert 'ARTIFACT_POLICY = "ERROR"' in text
     assert "Do not run custom benchmarks" in text
     assert "apply_historical_toolchain_compatibility" in text
