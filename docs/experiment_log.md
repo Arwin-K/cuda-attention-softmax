@@ -49,7 +49,11 @@ Use this template at commits 016, 032, 048, 064, 080, 096, and 112.
 
 ## Current evidence status
 
-No performance or profiling experiment has been recorded yet.
+One Tesla T4 Colab notebook run completed CUDA correctness, benchmark, and
+PyTorch Profiler stages. Its saved notebook output is available in Git history,
+but the generated raw-artifact ZIP has not been imported into this checkout.
+Accordingly, execution status and failure messages are recorded below while
+latency, speedup, and profiler-event values remain unavailable.
 
 ## Day 1 checkpoint — Commit 016
 
@@ -664,3 +668,53 @@ No performance or profiling experiment has been recorded yet.
   manifest and raw schemas, then compute attention statistics from those rows.
 - **Student reflection:** `TODO(student): Explain why a completion label is not
   a substitute for raw timing samples.`
+
+## PyTorch Profiler and Nsight attempt — Commit 091
+
+- **Date/time:** 2026-08-22, corrected Tesla T4 Colab run
+- **Git commit:** `d1b3fd38b28075c7fbfcff2b03cde4a2a6b02f1d`
+- **Hardware:** NVIDIA Tesla T4, compute capability 7.5
+- **Software:** Linux x86_64, Python 3.13.15, PyTorch 2.11.0+cu128, CUDA 12.8;
+  Nsight Compute reported version 2025.1.1
+- **Research question:** Which framework operations and CUDA kernels account
+  for isolated-softmax and complete-attention time, and what low-level metrics
+  explain the fused kernel's behavior?
+- **HYPOTHESIS:** Matrix multiplications will remain prominent in complete
+  attention, while kernel metrics may reveal reduction or launch overhead.
+- **Independent variable:** Profiled implementation path
+- **Controlled variables:** One Git checkout and T4 runtime, configured profile
+  shape, FP32 inputs, and notebook profiler controls
+- **Metrics:** Intended PyTorch operator/kernel durations and Nsight basic
+  metrics
+- **Command/script:** Executed Colab notebook Sections 13 and 14; repository
+  follow-ups are `python profiling/profile_pytorch.py` and
+  `sh profiling/run_ncu.sh`
+- **Raw result file:** The notebook created profiler artifacts in its ZIP, but
+  that ZIP is not present in this checkout. No trace, profiler CSV, `.ncu-rep`,
+  or Nsight CSV is available here.
+
+### MEASURED
+
+The saved notebook output reports the PyTorch Profiler stage `COMPLETE`. The
+optional Nsight stage found `ncu` 2025.1.1 but its generated target stopped with
+`ModuleNotFoundError: No module named 'cuda_attention'`; therefore no fused
+kernel launched under Nsight and no hardware metric was captured.
+
+### INTERPRETATION
+
+PyTorch Profiler execution succeeded, but its operator names and timings cannot
+be reconstructed responsibly from a completion marker. The Nsight failure is
+consistent with a missing Python import path and says nothing about kernel
+occupancy, memory behavior, or instruction throughput.
+
+### NEXT EXPERIMENT
+
+Import the original artifact ZIP to recover the PyTorch trace and event CSV.
+Then rerun the corrected Nsight target, which explicitly supplies the repository
+on `PYTHONPATH`; if Colab rejects hardware counters, preserve that distinct
+permission error and repeat on an unrestricted NVIDIA Linux host.
+
+- **Limitations:** Raw PyTorch profiler values are unavailable, and Nsight
+  never reached the kernel. No profiling-based bottleneck claim is supported.
+- **Student reflection:** `TODO(student): After inspecting the recovered trace,
+  write what surprised you. Do not infer a reflection from the completion log.`
