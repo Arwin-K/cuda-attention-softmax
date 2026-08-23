@@ -125,7 +125,7 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 101. I added a standard-library audit that verifies every benchmark path's schema, provenance, sample indices, shape matrix, implementation matrix, profiler fields, and raw-to-summary statistics without repairing missing data.
 102. I linked all 12 PNG/PDF figures to SHA-256 hashes of their exact source CSVs, output bytes, experiment manifest, and measured Git commits in a deterministic provenance manifest.
 103. I added and ran one CPU-only verification command for imports, deterministic notebooks, the full CPU/static suite, schema auditing, and provenance; it hides CUDA deliberately and never compiles or benchmarks the kernel.
-104. I wrote an NVIDIA handoff checklist for rebuilding, testing, benchmarking, and profiling remotely.
+104. I wrote a stop-aware NVIDIA handoff that separates exact T4 replication from a latest-commit rerun and covers plain-URL checkout, clean build, fixed-tolerance correctness, benchmarking, profiling, unique artifacts, hashing, and return validation.
 105. I documented the kernel's evolution through Git milestones, keeping one implementation file and a readable history.
 106. I shaped the research journey into a website-ready narrative for readers outside the repository.
 107. I completed this per-commit journal index so each of the 112 steps has a public learning context.
