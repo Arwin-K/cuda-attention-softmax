@@ -5,7 +5,11 @@ import math
 import pytest
 import torch
 
-from cuda_attention.attention import custom_causal_attention, explicit_causal_attention
+from cuda_attention.attention import (
+    custom_causal_attention,
+    explicit_causal_attention,
+    sdpa_causal_attention,
+)
 from cuda_attention.operator import cuda_extension_available
 from cuda_attention.reference import causal_scaled_softmax
 
@@ -162,3 +166,22 @@ def test_custom_attention_matches_explicit_reference_on_cuda(
         diagonal=1,
     )
     assert torch.count_nonzero(actual.probabilities.masked_select(future)) == 0
+
+
+@pytest.mark.parametrize("sequence_length", [1, 4, 7])
+def test_sdpa_causal_baseline_matches_explicit_reference(
+    sequence_length: int,
+) -> None:
+    shape = (1, 2, sequence_length, 8)
+    generator = torch.Generator().manual_seed(83 + sequence_length)
+    query = torch.randn(shape, generator=generator)
+    key = torch.randn(shape, generator=generator)
+    value = torch.randn(shape, generator=generator)
+
+    actual = sdpa_causal_attention(query, key, value)
+    expected = explicit_causal_attention(query, key, value).output
+
+    torch.testing.assert_close(actual, expected, rtol=1e-5, atol=1e-6)
+    assert actual.shape == shape
+    assert actual.dtype == query.dtype
+    assert torch.isfinite(actual).all()

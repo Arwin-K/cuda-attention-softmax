@@ -6,6 +6,7 @@ from dataclasses import dataclass
 import math
 
 from torch import Tensor
+from torch.nn import functional as F
 
 from .operator import DEFAULT_BLOCK_SIZE, fused_causal_softmax
 from .reference import causal_scaled_softmax
@@ -97,3 +98,21 @@ def custom_causal_attention(
     )
     output = probabilities @ value
     return AttentionResult(output=output, probabilities=probabilities)
+
+
+def sdpa_causal_attention(query: Tensor, key: Tensor, value: Tensor) -> Tensor:
+    """Run PyTorch's production-oriented causal attention baseline.
+
+    SDPA owns the complete attention operation and may choose an optimized
+    backend for the active hardware. Zero dropout and ``is_causal=True`` match
+    this project's deterministic forward-only semantics.
+    """
+
+    _validate_qkv(query, key, value)
+    return F.scaled_dot_product_attention(
+        query,
+        key,
+        value,
+        dropout_p=0.0,
+        is_causal=True,
+    )
