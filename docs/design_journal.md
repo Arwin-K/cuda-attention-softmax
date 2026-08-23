@@ -954,3 +954,49 @@ length and the growing share of matrix-multiplication work?
 ### Git commit
 
 Commit 087 — `compare kernel speedup with end-to-end attention speedup`
+
+## Named PyTorch Profiler regions
+
+### Problem
+
+Raw latency says which path is faster but does not show which operators and
+kernels own the time inside softmax or complete attention.
+
+### Measurement plan
+
+Capture identical preallocated inputs after untimed warmups and label each
+isolated-softmax and full-attention path with a stable `record_function` name.
+
+### Hypothesis
+
+The custom attention trace will still contain substantial matrix-multiplication
+work even if its fused softmax region becomes much shorter.
+
+### Change
+
+`profiling/profile_pytorch.py` now prepares shared FP32 inputs, exposes five
+logical regions, warms all paths outside capture, and captures CPU and CUDA
+activities with shapes and memory enabled.
+
+### Correctness result
+
+CPU tests execute all non-CUDA regions and verify their names and output shapes.
+CUDA capture remains an NVIDIA-only experiment.
+
+### Performance result
+
+No profiler duration is claimed in this commit.
+
+### Interpretation
+
+Named parent regions make a trace navigable, but labels are not timings. CUDA
+duration must come from synchronized device events reported by the profiler.
+
+### Next question
+
+How should traces and summarized CUDA events be exported so every observation
+can be audited after the Colab runtime disappears?
+
+### Git commit
+
+Commit 088 — `add PyTorch profiler instrumentation for softmax and attention`

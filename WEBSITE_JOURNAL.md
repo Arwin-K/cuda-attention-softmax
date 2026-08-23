@@ -106,7 +106,7 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 085. Completed — I built a CUDA-event harness that measures whole explicit-eager, custom-softmax, and SDPA attention paths on identical preallocated Q/K/V tensors. It performs correctness checks before timing and stores every raw sample with B/H/S/D, Git, GPU, and software provenance.
 086. Completed with evidence pending import — The T4 Colab workflow reported complete attention benchmarks across the planned lengths and created raw/summary artifacts. The ZIP is not present in this checkout, so I recorded the controlled execution but made no latency or speedup claim; the repository harness now checkpoints every completed case.
 087. Completed as guarded analysis — I added a matched-provenance comparison for kernel-level and end-to-end attention speedups, including a translation ratio. It refuses missing paths or mixed Git/GPU/software environments; formulas pass fixture tests, while project ratios remain pending the raw Colab ZIP.
-088. I instrumented representative softmax and attention runs with PyTorch Profiler.
+088. Completed — I instrumented representative isolated-softmax and complete-attention paths with named PyTorch Profiler regions. The paths share preallocated inputs, warmups stay outside capture, CUDA synchronization brackets the trace, and CPU tests verify the region contract without pretending to provide GPU timings.
 089. I exported profile traces and summary timings as inspectable artifacts.
 090. I added an optional Nsight Compute workflow without claiming it ran where it was unavailable.
 091. I recorded profiler observations in measured, interpretation, and next-experiment sections.

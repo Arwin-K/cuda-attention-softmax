@@ -51,6 +51,12 @@ from cuda_attention.benchmark import (
 from cuda_attention.operator import CudaExtensionUnavailableError
 from cuda_attention.plotting import load_summary_csv, metric_series
 from cuda_attention.reference import causal_allowed_mask, causal_scaled_softmax
+from profiling.profile_pytorch import (
+    PROFILE_REGION_NAMES,
+    ProfilerConfig,
+    execute_profile_regions,
+    prepare_profile_operations,
+)
 from scripts.generate_figures import generate_figures
 
 
@@ -98,6 +104,37 @@ def test_attention_noncustom_paths_share_inputs_and_match_on_cpu() -> None:
     validate_attention_operations(operations)
 
     assert set(operations) == {"explicit_eager", "pytorch_sdpa"}
+
+
+def test_profiler_regions_cover_softmax_and_complete_attention_on_cpu() -> None:
+    config = ProfilerConfig(
+        sequence_length=4,
+        batch=1,
+        heads=2,
+        head_dimension=8,
+        warmups=0,
+        repeats=1,
+    )
+    operations = prepare_profile_operations(
+        config,
+        device="cpu",
+        include_custom=False,
+    )
+
+    results = execute_profile_regions(operations, repeats=1)
+
+    assert tuple(operations) == tuple(
+        name for name in PROFILE_REGION_NAMES if "custom_cuda" not in name
+    )
+    assert set(results) == set(operations)
+    assert results["softmax/pytorch_eager"].shape == (8, 4)
+    assert results["attention/explicit_eager"].output.shape == (1, 2, 4, 8)
+    assert results["attention/pytorch_sdpa"].shape == (1, 2, 4, 8)
+
+
+def test_profiler_configuration_rejects_nonpositive_repeats() -> None:
+    with pytest.raises(ValueError, match="positive"):
+        ProfilerConfig(repeats=0)
 
 
 def test_attention_raw_csv_preserves_full_workload_provenance(tmp_path) -> None:
