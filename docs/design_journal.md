@@ -1384,3 +1384,51 @@ commit, rather than only to a human-readable directory?
 ### Git commit
 
 Commit 101 — `audit benchmark schema completeness across all result paths`
+
+## Figure-to-source provenance
+
+### Problem
+
+A checked-in plot can look authoritative even after its input data changes.
+Directory proximity alone does not prove which CSV bytes produced which image.
+
+### Measurement
+
+The experiment manifest declares 12 publication figures: PNG and PDF variants
+of six plots. Their direct inputs span framework, historical, launch, attention,
+and profiler CSVs.
+
+### Hypothesis
+
+Hashing every output and direct source, while recording source-row Git commits,
+will make accidental replacement or stale images detectable in tests.
+
+### Change
+
+`scripts/generate_result_provenance.py` maps all declared figures to direct
+sources and writes deterministic SHA-256 records. Tests require exact manifest
+coverage and equality with a freshly generated report.
+
+### Correctness result
+
+All 12 declared figures have nonempty sources, output hashes, source hashes,
+and measured Git commits. Three provenance tests pass.
+
+### Performance result
+
+No measurement or image was regenerated. This commit records relationships
+among supplied artifacts and does not change their data.
+
+### Interpretation
+
+Reviewers can now distinguish an unchanged plot from one whose bytes or inputs
+changed, but hashes do not replace methodology review or independent reruns.
+
+### Next question
+
+Can the full project setup and analysis checks be reproduced on Apple Silicon
+while CUDA-only work skips explicitly?
+
+### Git commit
+
+Commit 102 — `add result provenance links from figures to source CSV files`

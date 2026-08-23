@@ -1,0 +1,240 @@
+{
+  "artifact_root": "artifacts",
+  "experiment_manifest_sha256": "1dd0fc60650c9fa29cf0f459a3e72fcbf88cc8cabc4b0eacf750c0eb4eabd081",
+  "figures": [
+    {
+      "figure": "figures/fig_historical_speedup.pdf",
+      "figure_sha256": "ccb546ecdab7da04dae834d450cb50e8fee840d89c534ee8d47c15c8ba19fa7f",
+      "measured_git_commits": [
+        "8f07d7628872550df76990a4fc711d1c84c14c8b",
+        "a3736910273bdc2ee52968c49381ec2cf963c876",
+        "f9420de03a430e9cf768210184ec22fc6b7ddc2a"
+      ],
+      "sources": [
+        {
+          "path": "benchmarks/raw/historical_raw.csv",
+          "sha256": "8023452292a4281bd646e794780c4b4688c7ce6de9bd3e39f8558d7cfcd34a66"
+        },
+        {
+          "path": "benchmarks/summaries/historical_summary.csv",
+          "sha256": "c601bd4959356ced3a9a17df018bca3101d01afdab6a7f973e3db4a9f763eecf"
+        }
+      ]
+    },
+    {
+      "figure": "figures/fig_historical_speedup.png",
+      "figure_sha256": "e152043ad56064dd331548dc2e4ce1433ef3427ac9911b89b0dab4f932d14e08",
+      "measured_git_commits": [
+        "8f07d7628872550df76990a4fc711d1c84c14c8b",
+        "a3736910273bdc2ee52968c49381ec2cf963c876",
+        "f9420de03a430e9cf768210184ec22fc6b7ddc2a"
+      ],
+      "sources": [
+        {
+          "path": "benchmarks/raw/historical_raw.csv",
+          "sha256": "8023452292a4281bd646e794780c4b4688c7ce6de9bd3e39f8558d7cfcd34a66"
+        },
+        {
+          "path": "benchmarks/summaries/historical_summary.csv",
+          "sha256": "c601bd4959356ced3a9a17df018bca3101d01afdab6a7f973e3db4a9f763eecf"
+        }
+      ]
+    },
+    {
+      "figure": "figures/fig_kernel_vs_attention_speedup.pdf",
+      "figure_sha256": "da9ca9e991567ee702025c9f34ce2e5363562809a7b91ad2e032e027e5fd8212",
+      "measured_git_commits": [
+        "ca87722a00ebf585cd788c67949e7c0b32dca788"
+      ],
+      "sources": [
+        {
+          "path": "benchmarks/raw/softmax_raw.csv",
+          "sha256": "ea23cd3b0a21a69edb1273da230523131b6768537fe7382e1c76cdceb68652e5"
+        },
+        {
+          "path": "benchmarks/summaries/softmax_summary.csv",
+          "sha256": "d9afb5257c0d786bed98d8ebfcd3f8c44076b74065ddd08d04ef0d75a831833e"
+        },
+        {
+          "path": "attention/attention_raw.csv",
+          "sha256": "6311fdfa80e17964f40674fb63ba1dcddfa77af20b60fd008b6429e98ff7a981"
+        },
+        {
+          "path": "attention/attention_summary.csv",
+          "sha256": "e45040e8fbfa7e5da4ae266e341705efd3e5e4e1b825005e273be6c1c9267080"
+        },
+        {
+          "path": "attention/amdahl_analysis.csv",
+          "sha256": "9210a04fd84a28654db2634c6f33ce0042f23f65d5478bf50baff667eb4f4524"
+        }
+      ]
+    },
+    {
+      "figure": "figures/fig_kernel_vs_attention_speedup.png",
+      "figure_sha256": "7c6900a2b75704c28693d545d25f52bec31fadd01b66618ffd509362c83c0374",
+      "measured_git_commits": [
+        "ca87722a00ebf585cd788c67949e7c0b32dca788"
+      ],
+      "sources": [
+        {
+          "path": "benchmarks/raw/softmax_raw.csv",
+          "sha256": "ea23cd3b0a21a69edb1273da230523131b6768537fe7382e1c76cdceb68652e5"
+        },
+        {
+          "path": "benchmarks/summaries/softmax_summary.csv",
+          "sha256": "d9afb5257c0d786bed98d8ebfcd3f8c44076b74065ddd08d04ef0d75a831833e"
+        },
+        {
+          "path": "attention/attention_raw.csv",
+          "sha256": "6311fdfa80e17964f40674fb63ba1dcddfa77af20b60fd008b6429e98ff7a981"
+        },
+        {
+          "path": "attention/attention_summary.csv",
+          "sha256": "e45040e8fbfa7e5da4ae266e341705efd3e5e4e1b825005e273be6c1c9267080"
+        },
+        {
+          "path": "attention/amdahl_analysis.csv",
+          "sha256": "9210a04fd84a28654db2634c6f33ce0042f23f65d5478bf50baff667eb4f4524"
+        }
+      ]
+    },
+    {
+      "figure": "figures/fig_launch_configuration.pdf",
+      "figure_sha256": "aa188b922074ed013ee5fff9de86efe46f29bbf47643845e8b5ed153e850297b",
+      "measured_git_commits": [
+        "ca87722a00ebf585cd788c67949e7c0b32dca788"
+      ],
+      "sources": [
+        {
+          "path": "benchmarks/raw/launch_configuration_raw.csv",
+          "sha256": "0bb792c16c4d99ead17190c78d8ebd0a8a59e58126ba882124efa9b642f436a1"
+        },
+        {
+          "path": "benchmarks/summaries/launch_configuration_summary.csv",
+          "sha256": "097acb3616357cbad85dea50dc3c2b9f9d31104c30ffc253438be26db63c062b"
+        }
+      ]
+    },
+    {
+      "figure": "figures/fig_launch_configuration.png",
+      "figure_sha256": "f6ed091328a240659efbd1814a2589019ab2ecc6e67c93ac7880e393a43e63f6",
+      "measured_git_commits": [
+        "ca87722a00ebf585cd788c67949e7c0b32dca788"
+      ],
+      "sources": [
+        {
+          "path": "benchmarks/raw/launch_configuration_raw.csv",
+          "sha256": "0bb792c16c4d99ead17190c78d8ebd0a8a59e58126ba882124efa9b642f436a1"
+        },
+        {
+          "path": "benchmarks/summaries/launch_configuration_summary.csv",
+          "sha256": "097acb3616357cbad85dea50dc3c2b9f9d31104c30ffc253438be26db63c062b"
+        }
+      ]
+    },
+    {
+      "figure": "figures/fig_profiler_breakdown.pdf",
+      "figure_sha256": "3eb4297a2c7df5d55b9e9589dc3085be176415b71449bfd864a9c51682a32e33",
+      "measured_git_commits": [
+        "ca87722a00ebf585cd788c67949e7c0b32dca788"
+      ],
+      "sources": [
+        {
+          "path": "profiler/pytorch_profiler_events.csv",
+          "sha256": "9fa5f22b33481849f4ceab369caeddf8fd2f5817234c2a97bcc97e6748ae63b7"
+        },
+        {
+          "path": "profiler/nsight/ncu_raw_export.csv",
+          "sha256": "b179853f89edb34c369ff1608618f53920ef55ca7c9831d3a38119f12dfc255e"
+        }
+      ]
+    },
+    {
+      "figure": "figures/fig_profiler_breakdown.png",
+      "figure_sha256": "22d9fae3f6d12d61fef1ec475375bb26c530ca9fc1cb826036760604d39ab6d1",
+      "measured_git_commits": [
+        "ca87722a00ebf585cd788c67949e7c0b32dca788"
+      ],
+      "sources": [
+        {
+          "path": "profiler/pytorch_profiler_events.csv",
+          "sha256": "9fa5f22b33481849f4ceab369caeddf8fd2f5817234c2a97bcc97e6748ae63b7"
+        },
+        {
+          "path": "profiler/nsight/ncu_raw_export.csv",
+          "sha256": "b179853f89edb34c369ff1608618f53920ef55ca7c9831d3a38119f12dfc255e"
+        }
+      ]
+    },
+    {
+      "figure": "figures/fig_softmax_latency.pdf",
+      "figure_sha256": "42d07a9202f69774dffaf6d379965f3bf1afcdc7d7c2699d24c8412d6a8cbc5d",
+      "measured_git_commits": [
+        "ca87722a00ebf585cd788c67949e7c0b32dca788"
+      ],
+      "sources": [
+        {
+          "path": "benchmarks/raw/softmax_raw.csv",
+          "sha256": "ea23cd3b0a21a69edb1273da230523131b6768537fe7382e1c76cdceb68652e5"
+        },
+        {
+          "path": "benchmarks/summaries/softmax_summary.csv",
+          "sha256": "d9afb5257c0d786bed98d8ebfcd3f8c44076b74065ddd08d04ef0d75a831833e"
+        }
+      ]
+    },
+    {
+      "figure": "figures/fig_softmax_latency.png",
+      "figure_sha256": "d4c88ffd0e547a3bf3167843222bf55db88ca81e8afe21c1d9af99a8c700573f",
+      "measured_git_commits": [
+        "ca87722a00ebf585cd788c67949e7c0b32dca788"
+      ],
+      "sources": [
+        {
+          "path": "benchmarks/raw/softmax_raw.csv",
+          "sha256": "ea23cd3b0a21a69edb1273da230523131b6768537fe7382e1c76cdceb68652e5"
+        },
+        {
+          "path": "benchmarks/summaries/softmax_summary.csv",
+          "sha256": "d9afb5257c0d786bed98d8ebfcd3f8c44076b74065ddd08d04ef0d75a831833e"
+        }
+      ]
+    },
+    {
+      "figure": "figures/fig_softmax_throughput.pdf",
+      "figure_sha256": "ab9339d3b818593b10cae2a2440b16032d79a38b5a5201f0f7a0ea7100113483",
+      "measured_git_commits": [
+        "ca87722a00ebf585cd788c67949e7c0b32dca788"
+      ],
+      "sources": [
+        {
+          "path": "benchmarks/raw/softmax_raw.csv",
+          "sha256": "ea23cd3b0a21a69edb1273da230523131b6768537fe7382e1c76cdceb68652e5"
+        },
+        {
+          "path": "benchmarks/summaries/softmax_summary.csv",
+          "sha256": "d9afb5257c0d786bed98d8ebfcd3f8c44076b74065ddd08d04ef0d75a831833e"
+        }
+      ]
+    },
+    {
+      "figure": "figures/fig_softmax_throughput.png",
+      "figure_sha256": "1667cabf55021d65573eb30e0eecb1b8d0c96e401c787e7f4ffad0eabdd107f9",
+      "measured_git_commits": [
+        "ca87722a00ebf585cd788c67949e7c0b32dca788"
+      ],
+      "sources": [
+        {
+          "path": "benchmarks/raw/softmax_raw.csv",
+          "sha256": "ea23cd3b0a21a69edb1273da230523131b6768537fe7382e1c76cdceb68652e5"
+        },
+        {
+          "path": "benchmarks/summaries/softmax_summary.csv",
+          "sha256": "d9afb5257c0d786bed98d8ebfcd3f8c44076b74065ddd08d04ef0d75a831833e"
+        }
+      ]
+    }
+  ],
+  "run_git_commit": "ca87722a00ebf585cd788c67949e7c0b32dca788",
+  "schema_version": 1
+}

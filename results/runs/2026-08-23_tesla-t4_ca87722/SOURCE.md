@@ -18,4 +18,6 @@ fresh Colab run are deterministic.
 
 Quantitative claims must be derived from the raw CSVs or profiler exports under
 `artifacts/`, not from notebook display text alone. Later audit commits add
-machine-readable schema and figure-to-source checksums.
+machine-readable schema and figure-to-source checksums. See
+`../schema_audit.json` and `../figure_provenance.json` from inside the artifact
+directory, or the two files beside `artifacts/` from the run root.
