@@ -1189,3 +1189,49 @@ different fraction of total work with sequence length?
 ### Git commit
 
 Commit 093 — `generate kernel versus attention speedup figure`
+
+## Reproducible LaTeX result tables
+
+### Problem
+
+Hand-copying benchmark values into a paper risks transcription errors, stale
+numbers, and loss of the connection to raw samples.
+
+### Measurement
+
+Tables consume the softmax summary, attention raw samples, and matched speedup
+comparison produced by repository analysis code.
+
+### Hypothesis
+
+Automated completeness and provenance gates will make missing evidence visible
+before a partial table reaches the paper.
+
+### Change
+
+`benchmarks/generate_tables.py` validates all paths and planned lengths from one
+Git/GPU/software environment, then writes three independently includable LaTeX
+tables without overwriting prior output.
+
+### Correctness result
+
+Complete fixture CSVs generate softmax, attention, and translation tables.
+Separate tests verify numeric formatting, LaTeX escaping, and empty rejection.
+
+### Performance result
+
+No project table was generated because the real source CSVs are absent.
+
+### Interpretation
+
+The generated fixture documents test the publication pipeline, not any CUDA
+performance claim.
+
+### Next question
+
+Once the raw artifact ZIP is imported, do the generated tables agree exactly
+with every plotted point and narrative claim?
+
+### Git commit
+
+Commit 094 — `complete reproducible results tables from benchmark CSV files`

@@ -30,9 +30,11 @@ from benchmarks.benchmark_softmax import (
     pytorch_eager_causal_softmax,
 )
 from benchmarks.compare_speedups import (
+    SPEEDUP_COMPARISON_FIELDS,
     compare_kernel_and_attention_speedups,
     summarize_attention_records,
 )
+from benchmarks.generate_tables import generate_results_tables, render_latex_table
 from benchmarks.summarize_results import (
     SUMMARY_FIELDS,
     load_raw_benchmark_csv,
@@ -856,3 +858,107 @@ def test_kernel_attention_figure_reads_comparison_csv(tmp_path) -> None:
 
     assert output.name == "kernel_vs_attention_speedup.png"
     plot.assert_called_once_with(plot.call_args.args[0], output)
+
+
+def test_latex_table_escapes_labels_and_rejects_empty_rows() -> None:
+    document = render_latex_table(
+        headers=("Path", "Median_us"),
+        rows=(("custom_cuda", "2.000"),),
+        caption="Measured & derived",
+        label="tab:fixture_results",
+    )
+
+    assert r"custom\_cuda" in document
+    assert r"Measured \& derived" in document
+    with pytest.raises(ValueError, match="empty"):
+        render_latex_table(headers=("A",), rows=(), caption="x", label="x")
+
+
+def test_results_tables_are_generated_from_complete_fixture_csvs(tmp_path) -> None:
+    metadata = {
+        "git_commit": "a" * 40,
+        "gpu_name": "fixture GPU",
+        "compute_capability": "7.5",
+        "pytorch_version": "fixture torch",
+        "cuda_version": "fixture CUDA",
+        "timestamp": "2026-08-23T00:00:00+00:00",
+    }
+    softmax_path = tmp_path / "softmax_summary.csv"
+    softmax_fields = (
+        "git_commit,implementation_description,sequence_length,median_us,p25_us,"
+        "p75_us,elements_per_second,gpu_name,compute_capability,pytorch_version,"
+        "cuda_version\n"
+    )
+    descriptions = (
+        "PyTorch eager fixture",
+        "torch.compile fixture",
+        "warp-reduction custom CUDA fixture",
+    )
+    softmax_path.write_text(
+        softmax_fields
+        + "".join(
+            f"{'a' * 40},{description},128,2.0,1.0,3.0,4.0,fixture GPU,7.5,"
+            "fixture torch,fixture CUDA\n"
+            for description in descriptions
+        ),
+        encoding="utf-8",
+    )
+    config = AttentionBenchmarkConfig(
+        sequence_length=128,
+        warmups=1,
+        iterations=1,
+    )
+    attention_records: list[dict[str, object]] = []
+    for implementation in ("explicit_eager", "custom_cuda", "pytorch_sdpa"):
+        attention_records.extend(
+            attention_raw_records(
+                metadata=metadata,
+                config=config,
+                implementation=implementation,
+                samples_us=[2.0],
+            )
+        )
+    attention_path = tmp_path / "attention_raw.csv"
+    write_attention_raw_csv(attention_path, attention_records)
+    speedup_path = tmp_path / "comparison.csv"
+    with speedup_path.open("w", newline="", encoding="utf-8") as output_file:
+        writer = csv.DictWriter(output_file, fieldnames=SPEEDUP_COMPARISON_FIELDS)
+        writer.writeheader()
+        writer.writerow(
+            {
+                **{
+                    field: metadata[field]
+                    for field in (
+                        "git_commit",
+                        "gpu_name",
+                        "compute_capability",
+                        "pytorch_version",
+                        "cuda_version",
+                    )
+                },
+                "sequence_length": 128,
+                "kernel_baseline": "pytorch_eager",
+                "kernel_candidate": "custom_cuda",
+                "kernel_speedup": 2.0,
+                "attention_baseline": "explicit_eager",
+                "attention_candidate": "custom_cuda",
+                "attention_speedup": 1.5,
+                "translation_ratio": 0.75,
+            }
+        )
+
+    outputs = generate_results_tables(
+        softmax_summary_path=softmax_path,
+        attention_raw_path=attention_path,
+        speedup_comparison_path=speedup_path,
+        output_directory=tmp_path / "tables",
+        required_lengths=(128,),
+    )
+
+    assert tuple(path.name for path in outputs) == (
+        "softmax_results.tex",
+        "attention_results.tex",
+        "kernel_attention_speedup.tex",
+    )
+    assert all(path.is_file() for path in outputs)
+    assert "2.000" in outputs[0].read_text(encoding="utf-8")
