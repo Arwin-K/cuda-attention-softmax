@@ -1235,3 +1235,52 @@ with every plotted point and narrative claim?
 ### Git commit
 
 Commit 094 — `complete reproducible results tables from benchmark CSV files`
+
+## Evidence-bounded results narrative
+
+### Problem
+
+The documentation still said no NVIDIA run existed, while the preserved Colab
+notebook proved a corrected build, CUDA correctness, and completed experiment
+stages. Conversely, the missing raw ZIP prevents quantitative reporting.
+
+### Measurement
+
+Only facts visible in the executed notebook output and supplied build log are
+admitted: environment, commit, pass counts, stage status, launch selection
+label, and the Nsight import failure.
+
+### Hypothesis
+
+Separating supported findings from unavailable quantities will keep the paper
+useful now and make later CSV-derived updates mechanical.
+
+### Change
+
+`docs/results.md` and `docs/discussion.md` now report the T4 correctness evidence,
+describe every missing performance artifact, and frame application translation
+and profiling explanations as unresolved hypotheses.
+
+### Correctness result
+
+The narrative agrees with the preserved notebook evidence: 70 CUDA pytest
+passes and 88/88 structured comparisons at the fixed FP32 tolerances.
+
+### Performance result
+
+No latency, throughput, speedup, or profiler duration is transcribed because no
+raw or summary CSV is available in this checkout.
+
+### Interpretation
+
+Correctness is a genuine result; stage completion is workflow evidence; and a
+quantitative performance finding requires the missing sample artifacts.
+
+### Next question
+
+Can the original artifact ZIP be recovered and validated, or must the corrected
+notebook be rerun in a fresh controlled T4 session?
+
+### Git commit
+
+Commit 095 — `write experimental results and discussion sections`

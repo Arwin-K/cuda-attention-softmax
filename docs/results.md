@@ -1,70 +1,89 @@
 # Results
 
-No benchmark results have been measured yet.
+## Evidence boundary
 
-The first row-serial baseline was attempted on 2026-08-15, but the Apple
-Silicon host had no CUDA device or CUDA-enabled PyTorch runtime. The benchmark
-exited before timing and created no CSV. This is an unavailable experiment, not
-a zero-latency result. The intended NVIDIA command is documented in the
-experiment log and must be run before any baseline or speedup claim.
+The executed Colab notebook is preserved in Git commit `0e319a5`; the current
+checked-in notebook is regenerated without outputs so it remains reviewable and
+reproducible. The executed output establishes environment, build, correctness,
+and stage-completion facts. Its downloadable raw-artifact ZIP has not been
+imported into this checkout, so no latency, quartile, throughput, speedup, or
+profiler-event number is reported here.
 
-The Day 4 block comparison and first figure-generation attempt also stopped
-without artifacts: neither the historical row-serial CSV nor the current block-
-parallel CSV exists. The generator intentionally refuses to create latency or
-throughput figures from missing or empty summaries.
+## Experimental environment
 
-## CUDA implementation evidence status
+The successful remote run used an NVIDIA Tesla T4 with compute capability 7.5,
+PyTorch 2.11.0+cu128, CUDA 12.8, and Python 3.13.15. It cloned Git revision
+`d1b3fd38b28075c7fbfcff2b03cde4a2a6b02f1d`. These facts describe that run;
+they do not automatically apply to later source commits.
 
-| Claim | Current status | Required evidence |
+## Compilation and correctness
+
+The first NVCC attempt exposed an undefined `CUDART_INF_F`, traced to a missing
+explicit CUDA runtime constants header. After the header fix, the executed
+notebook reported the extension build/import ready.
+
+The same T4 notebook reported:
+
+- 70 CUDA pytest cases passed;
+- 88 of 88 structured correctness cases passed at the fixed FP32 tolerances
+  `rtol=1e-5` and `atol=1e-6`;
+- no tolerance weakening was used; and
+- the notebook's CUDA correctness gate was `PASS` before benchmark stages ran.
+
+This is evidence that the tested warp-reduction operator produced acceptable
+outputs on that revision and environment. It is not a correctness result for
+every historical or later commit.
+
+## Launch configuration
+
+The notebook output reports completion of the 128/256/512 launch experiment and
+selection of 128 threads under its configured rule. The launch raw CSV and
+selection JSON are absent from this checkout, so per-shape timings, normalized
+scores, and wins cannot be audited here. The source therefore retains 256 as
+its provisional default rather than converting an unimported result into a
+code-level tuning claim.
+
+## Softmax performance
+
+The saved output reports the softmax benchmark stage `COMPLETE`, including its
+historical workflow. However, neither the raw CUDA-event samples nor their
+summary CSV is present. The following quantities remain unavailable:
+
+| Question | Status | Required artifact |
 |---|---|---|
-| One block owns each row | Established by source inspection | CUDA build still required |
-| Threads cover columns in strides | Established by source inspection | GPU correctness suite |
-| Max and sum use two-level warp reductions | Established by source inspection | GPU correctness suite |
-| Cross-warp communication uses compact shared storage | Established by source inspection | CUDA build and profiler evidence |
-| Accesses are coalesced efficiently | Hypothesis from address mapping | Nsight memory metrics |
-| Block design is faster than row serial | Unmeasured | Matched commit-tagged CSVs |
-| Speedup varies with sequence length | Untested hypothesis | Full benchmark registry |
-## Launch-configuration selection status
+| Custom median latency by sequence length | Unavailable here | Softmax raw CSV |
+| Eager and compiled baseline latency | Unavailable here | Framework raw CSV |
+| Elements per second | Unavailable here | Derived softmax summary |
+| Row-serial/block/warp improvement | Unavailable here | Matched historical CSVs |
+| Custom versus eager/compiled speedup | Unavailable here | Complete framework summary |
 
-The kernel accepts 128, 256, and 512 threads per block, but no NVIDIA launch
-CSV exists for any configuration. Therefore, **no launch configuration has been
-selected from measurements**. The code retains 256 only as the pre-tuning,
-provisional default.
+Stage completion proves the workflow reached its end; it does not reconstruct
+the sample distribution.
 
-Once all three artifacts exist from one Git revision and one GPU environment,
-`benchmarks/benchmark_launch_configs.py --select-from ...` assigns equal
-importance to each required sequence length by dividing each latency by the
-best latency at that same length. It selects the lowest median relative latency
-and reports per-shape wins. This policy is implemented and tested on explicitly
-synthetic unit-test fixtures; those fixtures are not project results.
+## Complete attention
 
-Expected raw artifacts:
+The executed output reports complete-attention benchmarking `COMPLETE` and the
+creation of raw/summary/correctness artifacts for explicit eager, custom CUDA,
+and PyTorch SDPA paths. Those files are inside the unavailable ZIP. Therefore,
+the project cannot yet state whether custom attention is faster, how it compares
+with SDPA, or how much isolated softmax speedup reaches the full operation.
 
-| Artifact | Status | Intended comparison |
-|---|---|---|
-| `results/raw/launch_128.csv` | Missing | 128 threads across all required shapes |
-| `results/raw/launch_256.csv` | Missing | 256 threads under identical controls |
-| `results/raw/launch_512.csv` | Missing | 512 threads under identical controls |
-| `results/summary/launch_selection.json` | Missing by design | Data-driven default and shape tradeoffs |
+## Profiling
 
-## Framework-comparison status
+PyTorch Profiler reported `COMPLETE`, but its trace and event table are absent.
+Nsight Compute 2025.1.1 was installed; its target failed to import
+`cuda_attention` before launching the kernel. Consequently, there is no Nsight
+occupancy, memory, instruction, or launch metric. Commit 090 corrects the target
+import path for the next attempt.
 
-The eager, `torch.compile`, and custom paths implement the same scale, causal
-mask, and softmax workload. Compilation receives one explicitly untimed startup
-call before steady-state warmups and samples. The custom path records its block
-size; framework baselines leave that field empty because it is not their launch
-control.
+## Reproducible outputs still pending
 
-`results/raw/framework_comparison.csv` and its summary are absent. Consequently,
-there is no evidence that the custom kernel beats either framework path, no
-framework speedup, and no supported crossover claim. The comparison preflight
-is tested with synthetic fixtures and will reject a raw artifact unless every
-workload contains all three implementations from one Git/GPU environment.
+After the raw ZIP is imported and its manifest is checked, repository commands
+can regenerate:
 
-| Question | Evidence now | Evidence still needed |
-|---|---|---|
-| Does compiled output match the expression? | Small CPU semantic test | CUDA correctness precheck per benchmark shape |
-| Which launch size is best? | No measurement | Three complete launch CSVs from one session |
-| Is custom faster than eager? | No measurement | Complete three-way raw/summary CSV |
-| Is custom faster than `torch.compile`? | No measurement | Same complete three-way artifact |
-| Does the ranking change with sequence length? | Untested hypothesis | Per-shape median and quartile comparison |
+- softmax latency, throughput, and eager-relative speedup figures;
+- the isolated-kernel versus complete-attention speedup figure; and
+- LaTeX softmax, attention, and translation tables.
+
+Until then, the repository intentionally contains no generated result figure or
+table beyond `.gitkeep` placeholders.
