@@ -1,6 +1,9 @@
 # CUDA Attention Softmax — Website Journal
 
-This is a publication-ready **planned** journal for the 112-commit investigation. Each entry states the question I am taking into the commit, not a claim that it has already succeeded. After completing a commit, I will replace its planned wording only with evidence from its diff, tests, measurements, and experiment log. Personal reflections remain my own words.
+This is a publication-ready, status-aware journal for the 112-commit
+investigation. `Completed` entries describe evidence from their diff, tests,
+measurements, and experiment log; `Planned` entries describe future intent and
+make no completion claim. Personal reflections remain my own words.
 
 ## Day 1 — A trustworthy CPU foundation
 
@@ -118,22 +121,22 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 
 ## Day 7 — Making the work auditable and shareable
 
-097. I completed a LaTeX-ready paper and reference library whose claims point to the imported T4 evidence, while preserving explicit limitations and student-fillable author details.
-098. I translated the measured evolution into an educational blog and recruiter-facing README, including the negative SDPA comparison and single-T4 scope instead of turning hypotheses into marketing claims.
-099. I prepared NVIDIA interview and defense notes tied to the implemented mapping, reductions, measurements, negative results, limitations, and reproducibility evidence.
-100. I reconciled the paper, blog, README, results, discussion, limitations, and interview notes with the recovered T4 archive, then recorded each public claim's direct evidence and remaining audit work.
-101. I added a standard-library audit that verifies every benchmark path's schema, provenance, sample indices, shape matrix, implementation matrix, profiler fields, and raw-to-summary statistics without repairing missing data.
-102. I linked all 12 PNG/PDF figures to SHA-256 hashes of their exact source CSVs, output bytes, experiment manifest, and measured Git commits in a deterministic provenance manifest.
-103. I added and ran one CPU-only verification command for imports, deterministic notebooks, the full CPU/static suite, schema auditing, and provenance; it hides CUDA deliberately and never compiles or benchmarks the kernel.
-104. I wrote a stop-aware NVIDIA handoff that separates exact T4 replication from a latest-commit rerun and covers plain-URL checkout, clean build, fixed-tolerance correctness, benchmarking, profiling, unique artifacts, hashing, and return validation.
-105. I documented and automated checks for the actual Git milestones from serial row ownership through shared-tree and warp reductions, tying three measured endpoints to artifacts while enforcing one primary `.cu` source.
-106. I shaped the seven-part research journey into a website-ready narrative that explains the kernel evolution, failures, measured T4 outcome, negative SDPA result, evidence links, limitations, and an untouched student-reflection prompt.
-107. I completed this per-commit journal index so each of the 112 steps has a public learning context.
-108. I audited public-facing prose against artifacts so plans and interpretations cannot masquerade as measurements.
-109. I collected reproducibility commands with clear platform requirements and expected outputs.
-110. I reviewed CUDA comments to ensure they teach the reasoning behind reductions, synchronization, and memory access.
-111. I performed a final evidence and scope audit, retaining TODOs wherever proof is absent.
-112. I finished with a seven-day checkpoint that verifies coherence among code, tests, results, and the public narrative.
+097. Completed — `complete LaTeX-ready white paper source outline and references`: I completed a paper and reference library whose claims point to the imported T4 evidence, while preserving limitations and student-fillable author details.
+098. Completed — `complete technical blog post and recruiter-focused README`: I translated the measured evolution into an educational blog and recruiter-facing README, including the negative SDPA comparison and single-T4 scope.
+099. Completed — `add NVIDIA interview notes and project defense questions`: I tied interview and defense notes to the implemented mapping, reductions, measurements, negative results, limitations, and reproducibility evidence.
+100. Completed — `complete publication checkpoint before final audit work`: I reconciled publication documents with the recovered T4 archive and recorded each public claim's direct evidence and remaining audit work.
+101. Completed — `audit benchmark schema completeness across all result paths`: I added a standard-library audit for schemas, provenance, sample indices, shape and implementation matrices, profiler fields, and raw-to-summary statistics.
+102. Completed — `add result provenance links from figures to source CSV files`: I linked all 12 PNG/PDF figures to hashes of their exact source CSVs, output bytes, experiment manifest, and measured Git commits.
+103. Completed — `add CPU-only reproducibility verification workflow`: I ran one CPU-only command for imports, notebook determinism, the full CPU/static suite, schema auditing, and provenance while hiding CUDA and avoiding GPU execution.
+104. Completed — `add NVIDIA execution handoff checklist`: I separated exact T4 replication from a latest-commit rerun and documented checkout, clean build, correctness, benchmarking, profiling, unique artifacts, hashing, and handoff validation.
+105. Completed — `document complete kernel evolution through Git milestones`: I audited actual Git milestones from serial row ownership through shared-tree and warp reductions, tied measured endpoints to artifacts, and enforced one `.cu` source.
+106. Completed — `add website-ready research journey narrative`: I explained the kernel evolution, failures, measured outcome, negative SDPA result, evidence links, limitations, and untouched student-reflection prompt for website readers.
+107. Completed — `add website-ready per-commit journal index`: I added an automated completeness contract requiring entries 001--112 exactly once with explicit `Completed` or `Planned` status language.
+108. Planned — `cross-check website narrative against research artifacts`: Audit every public quantitative claim against the imported CSVs, profiler artifacts, and provenance records.
+109. Planned — `add reproducibility commands to publication documentation`: Collect verified commands with platform requirements and expected artifacts.
+110. Planned — `review educational comments in final CUDA implementation`: Check that final CUDA comments teach reductions, synchronization, memory access, and numerical reasoning without changing behavior.
+111. Planned — `perform final evidence and scope audit`: Verify that every conclusion stays inside tested scope and every missing proof remains visible.
+112. Planned — `finalize reproducibility audit and seven-day research checkpoint`: Run final checks and record the implemented, measured, learned, unresolved, and next-work boundaries.
 
 ## Supplemental Day 5 Colab handoff
 
