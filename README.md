@@ -107,6 +107,7 @@ the measured run.
   [learning journal](docs/learning_journal.md)
 - [Interview and defense notes](docs/interview_notes.md)
 - [112-commit public journal](WEBSITE_JOURNAL.md)
+- [Platform-labeled reproducibility commands](docs/reproducibility.md)
 
 ## Layout
 

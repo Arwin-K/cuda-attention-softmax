@@ -205,6 +205,8 @@ are stored in `references.bib`.
 
 ## Evidence map
 
+Exact platform-labeled commands are collected in `reproducibility.md`.
+
 - Raw softmax samples: `artifacts/benchmarks/raw/softmax_raw.csv`
 - Historical samples: `artifacts/benchmarks/raw/historical_raw.csv`
 - Launch samples: `artifacts/benchmarks/raw/launch_configuration_raw.csv`
