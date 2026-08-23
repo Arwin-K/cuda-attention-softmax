@@ -1479,3 +1479,51 @@ replicate the measured experiment without losing provenance?
 ### Git commit
 
 Commit 103 — `add CPU-only reproducibility verification workflow`
+
+## Public quantitative claim cross-check
+
+### Problem
+
+The same speedup ranges appear in several public documents. Manual copying can
+silently round a different value, invert a baseline, or retain a stale result.
+
+### Measurement
+
+The source artifacts yield four headline ranges, 88 correctness passes, six
+custom wins over compiled softmax, seven SDPA wins, and six cases where kernel
+speedup exceeds explicit-attention speedup.
+
+### Hypothesis
+
+A generated claim registry plus document assertions can prevent headline
+numbers from drifting away from CSV and profiler evidence.
+
+### Change
+
+`audit_public_claims.py` derives quantitative claims and their source paths,
+checks expected rounded ranges in README/blog/paper/journey prose, and writes a
+machine-readable report.
+
+### Correctness result
+
+The audit passed with no public-document mismatch; four focused tests covering
+claim and journal status checks passed.
+
+### Performance result
+
+No new GPU measurement occurred. All values remain attached to the imported
+`ca87722a` T4 run.
+
+### Interpretation
+
+The selected public numbers are internally consistent. Automated phrase checks
+do not replace a scientific review of qualitative causal language.
+
+### Next question
+
+Can a single publication page give each platform's verified commands and
+expected outputs without inviting CPU/GPU evidence confusion?
+
+### Git commit
+
+Commit 108 — `cross-check website narrative against research artifacts`

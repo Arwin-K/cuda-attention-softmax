@@ -14,5 +14,5 @@ def test_website_journal_has_every_commit_exactly_once_with_status():
 
 def test_day_seven_preserves_future_status_until_work_is_done():
     entries = dict(parse_entries(JOURNAL))
-    assert all(entries[number].startswith("Completed") for number in range(97, 108))
-    assert all(entries[number].startswith("Planned") for number in range(108, 113))
+    assert all(entries[number].startswith("Completed") for number in range(97, 109))
+    assert all(entries[number].startswith("Planned") for number in range(109, 113))

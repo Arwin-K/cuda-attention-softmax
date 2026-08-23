@@ -132,7 +132,7 @@ make no completion claim. Personal reflections remain my own words.
 105. Completed — `document complete kernel evolution through Git milestones`: I audited actual Git milestones from serial row ownership through shared-tree and warp reductions, tied measured endpoints to artifacts, and enforced one `.cu` source.
 106. Completed — `add website-ready research journey narrative`: I explained the kernel evolution, failures, measured outcome, negative SDPA result, evidence links, limitations, and untouched student-reflection prompt for website readers.
 107. Completed — `add website-ready per-commit journal index`: I added an automated completeness contract requiring entries 001--112 exactly once with explicit `Completed` or `Planned` status language.
-108. Planned — `cross-check website narrative against research artifacts`: Audit every public quantitative claim against the imported CSVs, profiler artifacts, and provenance records.
+108. Completed — `cross-check website narrative against research artifacts`: I derived correctness, historical, framework, launch, attention, translation, and profiler claims from the imported artifacts and required every website-facing range to match the generated evidence registry.
 109. Planned — `add reproducibility commands to publication documentation`: Collect verified commands with platform requirements and expected artifacts.
 110. Planned — `review educational comments in final CUDA implementation`: Check that final CUDA comments teach reductions, synchronization, memory access, and numerical reasoning without changing behavior.
 111. Planned — `perform final evidence and scope audit`: Verify that every conclusion stays inside tested scope and every missing proof remains visible.
