@@ -1527,3 +1527,53 @@ expected outputs without inviting CPU/GPU evidence confusion?
 ### Git commit
 
 Commit 108 — `cross-check website narrative against research artifacts`
+
+## Final CUDA teaching-comment audit
+
+### Problem
+
+The final source explained most mechanics, but some invariants remained implicit:
+why a full shuffle mask is legal, why block indexing replaces the historical
+global thread index, what dynamic shared memory can communicate, and why maximum
+subtraction preserves probabilities.
+
+### Measurement
+
+A vocabulary/source review covered kernel, thread, block, grid, global thread
+index, warp, lane, shared memory, synchronization, reduction, shuffle,
+coalescing, and numerical stability.
+
+### Hypothesis
+
+Reason-focused comments can expose the design without changing any executable
+statement or preserving duplicate implementations.
+
+### Change
+
+Comments now state participation, ownership, scratch-buffer, reduction,
+visibility, stability-algebra, and launch-resource reasoning. A static test
+guards the concept coverage.
+
+### Correctness result
+
+After stripping line comments, executable CUDA text exactly matches Commit 109.
+Fourteen applicable tests passed; 62 CUDA runtime cases skipped on the Mac.
+
+### Performance result
+
+There is no algorithm or launch change and no new GPU measurement. The imported
+`ca87722a` performance results remain the only reported measurements.
+
+### Interpretation
+
+The current file can serve as a teaching artifact without implying comments
+were part of the measured revision or changing the kernel's behavior.
+
+### Next question
+
+Does a final cross-document audit find any unsupported scope, stale evidence,
+or structural violation before the seven-day checkpoint?
+
+### Git commit
+
+Commit 110 — `review educational comments in final CUDA implementation`

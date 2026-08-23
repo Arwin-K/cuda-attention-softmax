@@ -134,7 +134,7 @@ make no completion claim. Personal reflections remain my own words.
 107. Completed — `add website-ready per-commit journal index`: I added an automated completeness contract requiring entries 001--112 exactly once with explicit `Completed` or `Planned` status language.
 108. Completed — `cross-check website narrative against research artifacts`: I derived correctness, historical, framework, launch, attention, translation, and profiler claims from the imported artifacts and required every website-facing range to match the generated evidence registry.
 109. Completed — `add reproducibility commands to publication documentation`: I collected setup, CPU verification, evidence audits, history checks, analysis regeneration, NVIDIA execution, profiling, and paper-build commands with platform, execution status, expected artifacts, and evidence boundaries.
-110. Planned — `review educational comments in final CUDA implementation`: Check that final CUDA comments teach reductions, synchronization, memory access, and numerical reasoning without changing behavior.
+110. Completed — `review educational comments in final CUDA implementation`: I preserved executable CUDA behavior while clarifying the full-warp mask contract, block-versus-global indexing, fused scratch use, reduction definition, dynamic shared-memory scope, stability algebra, and launch resource mapping.
 111. Planned — `perform final evidence and scope audit`: Verify that every conclusion stays inside tested scope and every missing proof remains visible.
 112. Planned — `finalize reproducibility audit and seven-day research checkpoint`: Run final checks and record the implemented, measured, learned, unresolved, and next-work boundaries.
 
