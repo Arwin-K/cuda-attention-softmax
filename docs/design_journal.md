@@ -1432,3 +1432,50 @@ while CUDA-only work skips explicitly?
 ### Git commit
 
 Commit 102 — `add result provenance links from figures to source CSV files`
+
+## CPU-only reproducibility workflow
+
+### Problem
+
+Individual Mac commands worked, but a reviewer could accidentally omit notebook
+or result checks—or mistake skipped CUDA cases for incomplete validation.
+
+### Measurement
+
+The local host reports Darwin arm64, Python 3.11.15, PyTorch 2.13.0 CPU, no
+NVCC, no `nvidia-smi`, and no CUDA device.
+
+### Hypothesis
+
+One capability-forced command can validate every CPU-safe layer while making
+GPU skips and forbidden CUDA execution explicit.
+
+### Change
+
+`verify_cpu_reproducibility.sh` hides CUDA, checks environment and import,
+verifies notebook determinism, runs the full suite, and checks schema and figure
+provenance. A contract test prevents build, benchmark, and Nsight invocations.
+
+### Correctness result
+
+The workflow passed: 128 tests passed, 69 GPU-only tests skipped, and notebook,
+schema, and provenance checks passed.
+
+### Performance result
+
+No GPU work ran. Test duration and CPU execution are validation details, not
+substitute performance results.
+
+### Interpretation
+
+The repository remains useful and auditable on Apple Silicon while preserving
+a hard boundary around claims that require Linux/NVIDIA execution.
+
+### Next question
+
+What exact checklist should a second NVIDIA operator follow to rebuild or
+replicate the measured experiment without losing provenance?
+
+### Git commit
+
+Commit 103 — `add CPU-only reproducibility verification workflow`
