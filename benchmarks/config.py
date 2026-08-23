@@ -76,3 +76,55 @@ def softmax_benchmark_registry(
         )
         for sequence_length in BENCHMARK_SEQUENCE_LENGTHS
     )
+
+
+@dataclass(frozen=True)
+class AttentionBenchmarkConfig:
+    """One controlled full-attention forward benchmark case."""
+
+    sequence_length: int
+    batch: int = 1
+    heads: int = DEFAULT_BATCH_HEADS
+    head_dimension: int = 64
+    dtype: str = DEFAULT_DTYPE
+    warmups: int = DEFAULT_WARMUPS
+    iterations: int = DEFAULT_ITERATIONS
+    seed: int = DEFAULT_SEED
+    block_size: int = DEFAULT_BLOCK_SIZE
+
+    def __post_init__(self) -> None:
+        for name, value in (
+            ("sequence_length", self.sequence_length),
+            ("batch", self.batch),
+            ("heads", self.heads),
+            ("head_dimension", self.head_dimension),
+            ("warmups", self.warmups),
+            ("iterations", self.iterations),
+        ):
+            if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+                raise ValueError(f"{name} must be a positive integer")
+        if not isinstance(self.seed, int) or isinstance(self.seed, bool) or self.seed < 0:
+            raise ValueError("seed must be a nonnegative integer")
+        if self.dtype != DEFAULT_DTYPE:
+            raise ValueError("the primary benchmark currently requires float32")
+        if self.block_size not in SUPPORTED_BLOCK_SIZES:
+            raise ValueError("block_size must be one of 128, 256, or 512")
+
+    @property
+    def shape(self) -> tuple[int, int, int, int]:
+        return (self.batch, self.heads, self.sequence_length, self.head_dimension)
+
+
+def attention_benchmark_registry(
+    *,
+    block_size: int = DEFAULT_BLOCK_SIZE,
+) -> tuple[AttentionBenchmarkConfig, ...]:
+    """Return B=1, H=8, D=64 cases over the planned sequence lengths."""
+
+    return tuple(
+        AttentionBenchmarkConfig(
+            sequence_length=sequence_length,
+            block_size=block_size,
+        )
+        for sequence_length in BENCHMARK_SEQUENCE_LENGTHS
+    )

@@ -7,10 +7,19 @@ import pytest
 import torch
 
 from benchmarks.config import (
+    AttentionBenchmarkConfig,
     BENCHMARK_SEQUENCE_LENGTHS,
     SUPPORTED_BLOCK_SIZES,
     SoftmaxBenchmarkConfig,
+    attention_benchmark_registry,
     softmax_benchmark_registry,
+)
+from benchmarks.benchmark_attention import (
+    ATTENTION_RAW_FIELDS,
+    attention_raw_records,
+    prepare_attention_operations,
+    validate_attention_operations,
+    write_attention_raw_csv,
 )
 from benchmarks.benchmark_softmax import (
     compile_causal_softmax,
@@ -57,6 +66,68 @@ def test_softmax_registry_contains_required_shapes_in_order() -> None:
     assert all(case.columns == case.sequence_length for case in registry)
     assert all(case.dtype == "float32" for case in registry)
     assert all(case.block_size == 256 for case in registry)
+
+
+def test_attention_registry_uses_planned_complete_attention_shapes() -> None:
+    registry = attention_benchmark_registry()
+
+    assert tuple(case.sequence_length for case in registry) == BENCHMARK_SEQUENCE_LENGTHS
+    assert all(case.shape == (1, 8, case.sequence_length, 64) for case in registry)
+    assert all(case.dtype == "float32" for case in registry)
+
+
+def test_attention_noncustom_paths_share_inputs_and_match_on_cpu() -> None:
+    config = AttentionBenchmarkConfig(
+        sequence_length=7,
+        heads=2,
+        head_dimension=8,
+        warmups=1,
+        iterations=2,
+    )
+    operations = prepare_attention_operations(
+        config,
+        device="cpu",
+        include_custom=False,
+    )
+
+    validate_attention_operations(operations)
+
+    assert set(operations) == {"explicit_eager", "pytorch_sdpa"}
+
+
+def test_attention_raw_csv_preserves_full_workload_provenance(tmp_path) -> None:
+    config = AttentionBenchmarkConfig(
+        sequence_length=4,
+        heads=2,
+        head_dimension=8,
+        warmups=1,
+        iterations=2,
+        block_size=128,
+    )
+    metadata = {
+        "git_commit": "d" * 40,
+        "gpu_name": "fixture GPU",
+        "compute_capability": "7.5",
+        "pytorch_version": "fixture torch",
+        "cuda_version": "fixture CUDA",
+        "timestamp": "2026-08-23T00:00:00+00:00",
+    }
+    records = attention_raw_records(
+        metadata=metadata,
+        config=config,
+        implementation="custom_cuda",
+        samples_us=[1.0, 2.0],
+    )
+    output = tmp_path / "attention.csv"
+
+    write_attention_raw_csv(output, records)
+
+    with output.open(newline="", encoding="utf-8") as output_file:
+        saved = list(csv.DictReader(output_file))
+    assert tuple(saved[0]) == ATTENTION_RAW_FIELDS
+    assert [row["sample_us"] for row in saved] == ["1.0", "2.0"]
+    assert all(row["git_commit"] == "d" * 40 for row in saved)
+    assert all(row["block_size"] == "128" for row in saved)
 
 
 @pytest.mark.parametrize("block_size", SUPPORTED_BLOCK_SIZES)

@@ -103,7 +103,7 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 082. Completed — I added end-to-end CUDA tests so a correct-looking softmax kernel cannot hide an incorrect reshape or `PV` result. They compare outputs and probabilities on 31/33/64-token shapes and enforce causal zeros, normalization, finiteness, shape, dtype, and device at the fixed FP32 tolerances.
 083. Completed — I added PyTorch SDPA as a production-oriented full-attention baseline with causal semantics and zero dropout. CPU tests compare it against the transparent explicit reference so later speed comparisons do not trade away mathematical equivalence.
 084. Completed — I added direct custom-versus-SDPA CUDA comparisons on 31/33/64-token inputs, keeping the fixed FP32 tolerances. The tests recognize that reduction order may differ while still rejecting causal, indexing, shape, dtype, device, or non-finite errors.
-085. I built a harness that measures whole attention paths fairly, not just the softmax microkernel.
+085. Completed — I built a CUDA-event harness that measures whole explicit-eager, custom-softmax, and SDPA attention paths on identical preallocated Q/K/V tensors. It performs correctness checks before timing and stores every raw sample with B/H/S/D, Git, GPU, and software provenance.
 086. I benchmarked custom attention across sequence lengths only on actual NVIDIA hardware.
 087. I compared kernel-level and end-to-end speedups to test the Amdahl's Law lesson in this system.
 088. I instrumented representative softmax and attention runs with PyTorch Profiler.
