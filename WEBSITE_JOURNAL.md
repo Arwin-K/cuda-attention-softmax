@@ -120,7 +120,7 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 
 097. I completed a LaTeX-ready paper and reference library whose claims point to the imported T4 evidence, while preserving explicit limitations and student-fillable author details.
 098. I translated the measured evolution into an educational blog and recruiter-facing README, including the negative SDPA comparison and single-T4 scope instead of turning hypotheses into marketing claims.
-099. I prepared interview and project-defense questions tied to real implementation choices.
+099. I prepared NVIDIA interview and defense notes tied to the implemented mapping, reductions, measurements, negative results, limitations, and reproducibility evidence.
 100. I checked the publication material for coherence before the final reproducibility pass.
 101. I audited benchmark schemas so every performance record either has its required provenance or a visible gap.
 102. I linked figures back to source CSV files and commits, making visual claims reproducible.
