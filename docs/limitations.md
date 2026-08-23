@@ -4,7 +4,8 @@
 
 The operator implements contiguous FP32 forward causal scaled softmax. It does
 not provide backward/autograd support, dropout, arbitrary or padding masks,
-sparse attention, variable valid lengths, or FP16/BF16/FP8 policies. Parallel
+sparse attention, variable valid lengths, or mixed precision through
+FP16/BF16/FP8 policies. Parallel
 reduction order differs from PyTorch; fixed-tolerance success over 88 structured
 cases is strong tested evidence, not a proof for every floating-point input.
 

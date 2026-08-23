@@ -1,0 +1,106 @@
+{
+  "audited_repository_head": "19b2d9db8ac597b917580ea68448bda3e0526803",
+  "checks": [
+    {
+      "detail": "PASS",
+      "name": "result schema",
+      "status": "PASS"
+    },
+    {
+      "detail": "exact regeneration",
+      "name": "checked schema report current",
+      "status": "PASS"
+    },
+    {
+      "detail": "12 figures",
+      "name": "figure provenance current",
+      "status": "PASS"
+    },
+    {
+      "detail": [],
+      "name": "public claims current",
+      "status": "PASS"
+    },
+    {
+      "detail": "15 milestones",
+      "name": "single-source kernel history",
+      "status": "PASS"
+    },
+    {
+      "detail": "001-112 exactly once",
+      "name": "website journal",
+      "status": "PASS"
+    },
+    {
+      "detail": "none",
+      "name": "forbidden version files",
+      "status": "PASS"
+    },
+    {
+      "detail": [
+        "complete LaTeX-ready white paper source outline and references",
+        "complete technical blog post and recruiter-focused README",
+        "add NVIDIA interview notes and project defense questions",
+        "complete publication checkpoint before final audit work",
+        "audit benchmark schema completeness across all result paths",
+        "add result provenance links from figures to source CSV files",
+        "add CPU-only reproducibility verification workflow",
+        "add NVIDIA execution handoff checklist",
+        "document complete kernel evolution through Git milestones",
+        "add website-ready research journey narrative",
+        "add website-ready per-commit journal index",
+        "cross-check website narrative against research artifacts",
+        "add reproducibility commands to publication documentation",
+        "review educational comments in final CUDA implementation"
+      ],
+      "name": "Day 7 pre-audit sequence",
+      "status": "PASS"
+    },
+    {
+      "detail": {
+        "executed_preserved": true,
+        "workflow_output_free": true
+      },
+      "name": "notebook boundary",
+      "status": "PASS"
+    },
+    {
+      "detail": "97badbb4428449fca0e07e3f6a893611b09428ddebf4ccffd6114dbbf4043770",
+      "name": "executed notebook source hash",
+      "status": "PASS"
+    },
+    {
+      "detail": "none",
+      "name": "no stale missing-evidence claims",
+      "status": "PASS"
+    },
+    {
+      "detail": {
+        "audited_head": "19b2d9db8ac597b917580ea68448bda3e0526803",
+        "measured": "ca87722a00ebf585cd788c67949e7c0b32dca788"
+      },
+      "name": "measured revision separated",
+      "status": "PASS"
+    },
+    {
+      "detail": [
+        "FP32 forward",
+        "one Tesla T4",
+        "one Google\nColab session",
+        "backward",
+        "mixed precision",
+        "SDPA"
+      ],
+      "name": "scope limitations explicit",
+      "status": "PASS"
+    },
+    {
+      "detail": "Amdahl boundary",
+      "name": "model separated from measurement",
+      "status": "PASS"
+    }
+  ],
+  "measured_git_commit": "ca87722a00ebf585cd788c67949e7c0b32dca788",
+  "schema_version": 1,
+  "status": "PASS"
+}
