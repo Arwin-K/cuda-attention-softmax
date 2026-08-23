@@ -2,12 +2,22 @@
 
 from __future__ import annotations
 
+import argparse
 from collections.abc import Callable, Mapping
+import csv
 from dataclasses import dataclass
 import math
+import json
+from pathlib import Path
+import sys
 
 import torch
 from torch.profiler import ProfilerActivity, profile, record_function
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from cuda_attention.attention import (
     custom_causal_attention,
@@ -15,6 +25,7 @@ from cuda_attention.attention import (
     sdpa_causal_attention,
 )
 from cuda_attention.operator import DEFAULT_BLOCK_SIZE, fused_causal_softmax
+from cuda_attention.benchmark import collect_cuda_run_metadata
 from cuda_attention.reference import causal_scaled_softmax
 
 
@@ -24,6 +35,28 @@ PROFILE_REGION_NAMES = (
     "attention/explicit_eager",
     "attention/custom_cuda",
     "attention/pytorch_sdpa",
+)
+
+PROFILER_SUMMARY_FIELDS = (
+    "git_commit",
+    "region",
+    "calls",
+    "cpu_time_total_us",
+    "self_cpu_time_total_us",
+    "cuda_time_total_us",
+    "self_cuda_time_total_us",
+    "sequence_length",
+    "batch",
+    "heads",
+    "head_dimension",
+    "block_size",
+    "warmups",
+    "repeats",
+    "gpu_name",
+    "compute_capability",
+    "pytorch_version",
+    "cuda_version",
+    "timestamp",
 )
 
 
@@ -152,3 +185,121 @@ def capture_cuda_profile(config: ProfilerConfig):
         execute_profile_regions(operations, repeats=config.repeats)
         torch.cuda.synchronize()
     return captured_profile
+
+
+def profiler_summary_rows(
+    captured_profile,
+    *,
+    config: ProfilerConfig,
+    metadata: Mapping[str, str],
+) -> list[dict[str, object]]:
+    """Extract named-region totals while retaining experimental provenance."""
+
+    averages = {event.key: event for event in captured_profile.key_averages()}
+    missing = [name for name in PROFILE_REGION_NAMES if name not in averages]
+    if missing:
+        raise ValueError(f"profile is missing required regions: {missing}")
+    rows: list[dict[str, object]] = []
+    for name in PROFILE_REGION_NAMES:
+        event = averages[name]
+        rows.append(
+            {
+                **metadata,
+                "region": name,
+                "calls": int(event.count),
+                "cpu_time_total_us": float(event.cpu_time_total),
+                "self_cpu_time_total_us": float(event.self_cpu_time_total),
+                "cuda_time_total_us": float(event.device_time_total),
+                "self_cuda_time_total_us": float(event.self_device_time_total),
+                "sequence_length": config.sequence_length,
+                "batch": config.batch,
+                "heads": config.heads,
+                "head_dimension": config.head_dimension,
+                "block_size": config.block_size,
+                "warmups": config.warmups,
+                "repeats": config.repeats,
+            }
+        )
+    return rows
+
+
+def export_profile_artifacts(
+    captured_profile,
+    *,
+    config: ProfilerConfig,
+    metadata: Mapping[str, str],
+    output_directory: Path,
+) -> tuple[Path, Path, Path]:
+    """Write a Chrome trace, region CSV, and metadata without overwriting."""
+
+    trace_path = output_directory / "pytorch_trace.json"
+    summary_path = output_directory / "pytorch_profiler_summary.csv"
+    metadata_path = output_directory / "pytorch_profiler_metadata.json"
+    outputs = (trace_path, summary_path, metadata_path)
+    existing = [path for path in outputs if path.exists()]
+    if existing:
+        raise FileExistsError(f"refusing to overwrite profiler artifacts: {existing}")
+
+    output_directory.mkdir(parents=True, exist_ok=True)
+    captured_profile.export_chrome_trace(str(trace_path))
+    rows = profiler_summary_rows(
+        captured_profile,
+        config=config,
+        metadata=metadata,
+    )
+    with summary_path.open("w", newline="", encoding="utf-8") as output_file:
+        writer = csv.DictWriter(output_file, fieldnames=PROFILER_SUMMARY_FIELDS)
+        writer.writeheader()
+        writer.writerows(rows)
+    metadata_document = {
+        **metadata,
+        "sequence_length": config.sequence_length,
+        "batch": config.batch,
+        "heads": config.heads,
+        "head_dimension": config.head_dimension,
+        "block_size": config.block_size,
+        "warmups": config.warmups,
+        "repeats": config.repeats,
+        "regions": list(PROFILE_REGION_NAMES),
+    }
+    with metadata_path.open("w", encoding="utf-8") as output_file:
+        json.dump(metadata_document, output_file, indent=2, sort_keys=True)
+        output_file.write("\n")
+    return outputs
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=PROJECT_ROOT / "results" / "raw" / "pytorch_profiler",
+    )
+    parser.add_argument("--sequence-length", type=int, default=512)
+    parser.add_argument("--warmups", type=int, default=5)
+    parser.add_argument("--repeats", type=int, default=10)
+    arguments = parser.parse_args()
+    config = ProfilerConfig(
+        sequence_length=arguments.sequence_length,
+        warmups=arguments.warmups,
+        repeats=arguments.repeats,
+    )
+    try:
+        metadata = collect_cuda_run_metadata(PROJECT_ROOT)
+        captured_profile = capture_cuda_profile(config)
+        outputs = export_profile_artifacts(
+            captured_profile,
+            config=config,
+            metadata=metadata,
+            output_directory=arguments.output_dir,
+        )
+    except (FileExistsError, RuntimeError, ValueError) as error:
+        print(str(error), file=sys.stderr)
+        return 2
+    for path in outputs:
+        print(path)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

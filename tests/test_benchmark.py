@@ -1,6 +1,7 @@
 """CPU-safe checks for benchmark controls and derived shapes."""
 
 import csv
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -54,8 +55,10 @@ from cuda_attention.reference import causal_allowed_mask, causal_scaled_softmax
 from profiling.profile_pytorch import (
     PROFILE_REGION_NAMES,
     ProfilerConfig,
+    export_profile_artifacts,
     execute_profile_regions,
     prepare_profile_operations,
+    profiler_summary_rows,
 )
 from scripts.generate_figures import generate_figures
 
@@ -135,6 +138,52 @@ def test_profiler_regions_cover_softmax_and_complete_attention_on_cpu() -> None:
 def test_profiler_configuration_rejects_nonpositive_repeats() -> None:
     with pytest.raises(ValueError, match="positive"):
         ProfilerConfig(repeats=0)
+
+
+def test_profiler_summary_exports_cuda_totals_with_provenance() -> None:
+    events = [
+        SimpleNamespace(
+            key=name,
+            count=3,
+            cpu_time_total=20.0,
+            self_cpu_time_total=5.0,
+            device_time_total=10.0,
+            self_device_time_total=2.0,
+        )
+        for name in PROFILE_REGION_NAMES
+    ]
+    captured = SimpleNamespace(key_averages=lambda: events)
+    metadata = {
+        "git_commit": "c" * 40,
+        "gpu_name": "fixture GPU",
+        "compute_capability": "7.5",
+        "pytorch_version": "fixture torch",
+        "cuda_version": "fixture CUDA",
+        "timestamp": "2026-08-23T00:00:00+00:00",
+    }
+
+    rows = profiler_summary_rows(
+        captured,
+        config=ProfilerConfig(repeats=3),
+        metadata=metadata,
+    )
+
+    assert [row["region"] for row in rows] == list(PROFILE_REGION_NAMES)
+    assert all(row["cuda_time_total_us"] == 10.0 for row in rows)
+    assert all(row["git_commit"] == "c" * 40 for row in rows)
+
+
+def test_profiler_artifact_export_refuses_existing_output(tmp_path) -> None:
+    (tmp_path / "pytorch_trace.json").write_text("existing", encoding="utf-8")
+    captured = SimpleNamespace()
+
+    with pytest.raises(FileExistsError, match="refusing to overwrite"):
+        export_profile_artifacts(
+            captured,
+            config=ProfilerConfig(),
+            metadata={},
+            output_directory=tmp_path,
+        )
 
 
 def test_attention_raw_csv_preserves_full_workload_provenance(tmp_path) -> None:

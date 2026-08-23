@@ -107,7 +107,7 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 086. Completed with evidence pending import — The T4 Colab workflow reported complete attention benchmarks across the planned lengths and created raw/summary artifacts. The ZIP is not present in this checkout, so I recorded the controlled execution but made no latency or speedup claim; the repository harness now checkpoints every completed case.
 087. Completed as guarded analysis — I added a matched-provenance comparison for kernel-level and end-to-end attention speedups, including a translation ratio. It refuses missing paths or mixed Git/GPU/software environments; formulas pass fixture tests, while project ratios remain pending the raw Colab ZIP.
 088. Completed — I instrumented representative isolated-softmax and complete-attention paths with named PyTorch Profiler regions. The paths share preallocated inputs, warmups stay outside capture, CUDA synchronization brackets the trace, and CPU tests verify the region contract without pretending to provide GPU timings.
-089. I exported profile traces and summary timings as inspectable artifacts.
+089. Completed — I made profiling durable by exporting a Chrome trace, a stable CSV of CPU and CUDA region totals, and JSON run metadata. Every row carries workload and Git/GPU/software provenance, and the command refuses to overwrite a prior capture; fixture event values test the exporter but are not research results.
 090. I added an optional Nsight Compute workflow without claiming it ran where it was unavailable.
 091. I recorded profiler observations in measured, interpretation, and next-experiment sections.
 092. I generated final latency, throughput, and historical speedup figures from stored measurements.

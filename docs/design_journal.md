@@ -1000,3 +1000,50 @@ can be audited after the Colab runtime disappears?
 ### Git commit
 
 Commit 088 — `add PyTorch profiler instrumentation for softmax and attention`
+
+## Durable profiler artifacts
+
+### Problem
+
+An interactive profiler table disappears with a Colab runtime and cannot be
+audited later without the exact trace and experimental context.
+
+### Measurement plan
+
+Export the complete Chrome trace, named-region CPU/CUDA totals, and immutable
+Git, GPU, software, workload, and launch metadata from the same capture.
+
+### Hypothesis
+
+Persisting both raw and summarized forms will make later interpretations
+traceable while keeping the paper tables straightforward to regenerate.
+
+### Change
+
+The profiler entry point now writes `pytorch_trace.json`,
+`pytorch_profiler_summary.csv`, and `pytorch_profiler_metadata.json`. It refuses
+to overwrite any of those paths.
+
+### Correctness result
+
+Fixture profiler events verify region order, CUDA-total extraction, and Git
+provenance. A separate test verifies the overwrite guard.
+
+### Performance result
+
+Fixture durations exercise serialization only. No profiler measurement from the
+project is available in this checkout.
+
+### Interpretation
+
+The summary is convenient evidence, while the trace remains the source for
+checking which child operators and CUDA kernels contributed to each total.
+
+### Next question
+
+Which low-level kernel metrics would explain behavior that a PyTorch trace can
+locate but not diagnose?
+
+### Git commit
+
+Commit 089 — `export profiler traces and summarized CUDA timings`
