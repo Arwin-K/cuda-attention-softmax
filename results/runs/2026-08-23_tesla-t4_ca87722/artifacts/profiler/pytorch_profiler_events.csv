@@ -1,0 +1,44 @@
+operator,count,self_cpu_time_total_us,cpu_time_total_us,self_device_time_total_us
+attention::explicit_pytorch,1,485.6940000000004,3767.54,0.0
+aten::transpose,6,61.16000000000196,76.27500000000094,0
+aten::as_strided,17,31.794999999997117,31.794999999997117,0
+aten::matmul,4,138.8889999999992,2825.586999999999,0.0
+aten::expand,11,48.49400000000287,65.174000000001,0
+aten::reshape,10,189.48900000000015,237.24200000000064,0
+aten::view,8,29.04400000000021,29.04400000000021,0
+aten::_reshape_alias,2,18.709000000000287,18.709000000000287,0
+aten::bmm,4,232.52599999999893,2397.16,786.6850000000013
+Activity Buffer Request,1,2085.532,2085.532,150.24000000000024
+cudaLaunchKernel,10,166.8060000000014,166.8060000000014,0
+attention::explicit_pytorch,1,0,0,1095.1950000000002
+volta_sgemm_128x64_tn,2,0,0,300.8950000000009
+aten::_unsafe_view,4,13.71599999999944,13.71599999999944,0
+aten::mul,1,43.89899999999989,60.733999999999924,71.55099999999993
+"void at::native::vectorized_elementwise_kernel<4, at::native::AUnaryFunctor<float, float, float, at::native::binary_internal::MulFunctor<float> >, std::array<char*, 2ul> >(int, at::native::AUnaryFunctor<float, float, float, at::native::binary_internal::MulFunctor<float> >, std::array<char*, 2ul>)",1,0,0,71.55099999999993
+aten::bitwise_not,1,18.186999999999898,26.804999999999836,5.983999999999924
+aten::masked_fill,1,20.856999999999516,428.69900000000007,0.0
+aten::clone,1,13.547999999999774,342.88300000000027,0.0
+"void at::native::vectorized_elementwise_kernel<4, at::native::bitwise_not_kernel_cuda(at::TensorIteratorBase&)::{lambda(bool)#1}, std::array<char*, 2ul> >(int, at::native::bitwise_not_kernel_cuda(at::TensorIteratorBase&)::{lambda(bool)#1}, std::array<char*, 2ul>)",1,0,0,5.983999999999924
+aten::empty_like,2,203.4449999999997,237.71099999999979,0
+aten::empty,5,46.36500000000024,46.36500000000024,0
+aten::copy_,1,19.9350000000004,104.96200000000044,70.27100000000019
+cudaMemcpyAsync,1,85.02700000000004,85.02700000000004,0
+Memcpy DtoD (Device -> Device),1,0,0,70.27100000000019
+aten::masked_fill_,1,29.0270000000005,54.639000000000124,82.20800000000008
+"void at::native::elementwise_kernel<128, 2, at::native::gpu_kernel_impl_nocast<at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#7}::operator()() const::{lambda(float, bool)#1}>(at::TensorIteratorBase&, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#7}::operator()() const::{lambda(float, bool)#1} const&)::{lambda(int)#1}>(int, at::native::gpu_kernel_impl_nocast<at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#7}::operator()() const::{lambda(float, bool)#1}>(at::TensorIteratorBase&, at::native::(anonymous namespace)::masked_fill_kernel(at::TensorIterator&, c10::Scalar const&)::{lambda()#1}::operator()() const::{lambda()#7}::operator()() const::{lambda(float, bool)#1} const&)::{lambda(int)#1})",1,0,0,82.20800000000008
+aten::softmax,1,6.2590000000000146,50.577999999999975,0.0
+aten::_softmax,1,29.639000000000124,44.31899999999996,79.10300000000007
+"void (anonymous namespace)::softmax_warp_forward<float, float, float, 9, false, false>(float*, float const*, int, int, int, bool const*, int, bool)",1,0,0,79.10300000000007
+volta_sgemm_64x64_nn,2,0,0,485.7900000000004
+attention::custom_softmax_attention,1,140.14399999999932,347.28999999999996,0.0
+attention::custom_softmax_attention,1,0,0,505.5650000000005
+aten::empty_strided,1,9.153000000000247,9.153000000000247,0
+"(anonymous namespace)::fused_causal_softmax_kernel(float const*, float*, long, long, float)",1,0,0,110.20699999999943
+attention::pytorch_sdpa,1,61.5019999999995,264.95799999999963,0.0
+aten::scaled_dot_product_attention,1,33.96300000000065,203.45600000000013,0.0
+aten::_scaled_dot_product_efficient_attention,1,78.12299999999868,169.49299999999948,0.0
+aten::_efficient_attention_forward,1,35.000999999998385,77.67799999999988,408.22200000000066
+cudaStreamIsCapturing,1,3.860000000000582,3.860000000000582,0
+"fmha_cutlassF_f32_aligned_64x64_rf_sm75(PyTorchMemEffAttention::AttentionKernel<float, cutlass::arch::Sm75, true, 64, 64, 64, true, true>::Params)",1,0,0,408.22200000000066
+attention::pytorch_sdpa,1,0,0,408.22200000000066
+cudaDeviceSynchronize,2,385.9810000000007,385.9810000000007,0

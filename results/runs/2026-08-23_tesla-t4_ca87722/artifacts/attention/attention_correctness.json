@@ -1,0 +1,58 @@
+[
+  {
+    "atol": 1e-06,
+    "custom_max_absolute_error_vs_eager": 1.7881393432617188e-07,
+    "pass_fail": "PASS",
+    "rtol": 1e-05,
+    "sdpa_max_absolute_error_vs_eager": 5.960464477539062e-07,
+    "sequence_length": 128
+  },
+  {
+    "atol": 1e-06,
+    "custom_max_absolute_error_vs_eager": 2.384185791015625e-07,
+    "pass_fail": "PASS",
+    "rtol": 1e-05,
+    "sdpa_max_absolute_error_vs_eager": 7.152557373046875e-07,
+    "sequence_length": 255
+  },
+  {
+    "atol": 1e-06,
+    "custom_max_absolute_error_vs_eager": 2.384185791015625e-07,
+    "pass_fail": "PASS",
+    "rtol": 1e-05,
+    "sdpa_max_absolute_error_vs_eager": 7.152557373046875e-07,
+    "sequence_length": 512
+  },
+  {
+    "atol": 1e-06,
+    "custom_max_absolute_error_vs_eager": 2.384185791015625e-07,
+    "pass_fail": "PASS",
+    "rtol": 1e-05,
+    "sdpa_max_absolute_error_vs_eager": 7.152557373046875e-07,
+    "sequence_length": 768
+  },
+  {
+    "atol": 1e-06,
+    "custom_max_absolute_error_vs_eager": 1.7881393432617188e-07,
+    "pass_fail": "PASS",
+    "rtol": 1e-05,
+    "sdpa_max_absolute_error_vs_eager": 5.960464477539062e-07,
+    "sequence_length": 1024
+  },
+  {
+    "atol": 1e-06,
+    "custom_max_absolute_error_vs_eager": 2.980232238769531e-07,
+    "pass_fail": "PASS",
+    "rtol": 1e-05,
+    "sdpa_max_absolute_error_vs_eager": 7.152557373046875e-07,
+    "sequence_length": 1536
+  },
+  {
+    "atol": 1e-06,
+    "custom_max_absolute_error_vs_eager": 1.7881393432617188e-07,
+    "pass_fail": "PASS",
+    "rtol": 1e-05,
+    "sdpa_max_absolute_error_vs_eager": 7.152557373046875e-07,
+    "sequence_length": 2048
+  }
+]

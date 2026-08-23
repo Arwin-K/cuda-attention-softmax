@@ -1,0 +1,10 @@
+{
+  "applied": true,
+  "base_git_commit": "f9420de03a430e9cf768210184ec22fc6b7ddc2a",
+  "change": "insert #include <math_constants.h> after cuda_runtime.h",
+  "file": "csrc/fused_causal_softmax.cu",
+  "git_diff": "diff --git a/csrc/fused_causal_softmax.cu b/csrc/fused_causal_softmax.cu\nindex 3772807..e858e28 100644\n--- a/csrc/fused_causal_softmax.cu\n+++ b/csrc/fused_causal_softmax.cu\n@@ -3,6 +3,7 @@\n #include <c10/cuda/CUDAException.h>\n #include <cuda.h>\n #include <cuda_runtime.h>\n+#include <math_constants.h>\n #include <limits>\n #include <torch/extension.h>\n \n",
+  "reason": "CUDA 12.8 requires the defining header for CUDART_INF_F; kernel instructions and benchmark work are unchanged.",
+  "stage": "block_shared_tree",
+  "timestamp": "2026-08-23T19:14:43.502630+00:00"
+}

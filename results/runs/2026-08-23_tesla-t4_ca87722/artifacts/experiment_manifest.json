@@ -1,0 +1,91 @@
+{
+  "benchmark_configuration": {
+    "batch_heads": 8,
+    "dtype": "float32",
+    "head_dimension": 64,
+    "iterations": 100,
+    "random_seed": 1234,
+    "selected_block_size": 128,
+    "sequence_lengths": [
+      128,
+      255,
+      512,
+      768,
+      1024,
+      1536,
+      2048
+    ],
+    "warmups": 25
+  },
+  "compute_capability": "7.5",
+  "correctness_tolerance": {
+    "atol": 1e-06,
+    "rtol": 1e-05
+  },
+  "csv_files": [
+    "attention/amdahl_analysis.csv",
+    "attention/attention_raw.csv",
+    "attention/attention_summary.csv",
+    "benchmarks/raw/historical_raw.csv",
+    "benchmarks/raw/launch_configuration_raw.csv",
+    "benchmarks/raw/softmax_raw.csv",
+    "benchmarks/summaries/historical_summary.csv",
+    "benchmarks/summaries/launch_configuration_summary.csv",
+    "benchmarks/summaries/softmax_summary.csv",
+    "correctness/correctness_results.csv",
+    "profiler/nsight/ncu_raw_export.csv",
+    "profiler/pytorch_profiler_events.csv",
+    "tables/attention_table.csv",
+    "tables/correctness_table.csv",
+    "tables/environment_table.csv",
+    "tables/launch_configuration_table.csv",
+    "tables/softmax_performance_table.csv"
+  ],
+  "cuda": "12.8",
+  "failed_experiments": [],
+  "figures": [
+    "figures/fig_historical_speedup.pdf",
+    "figures/fig_historical_speedup.png",
+    "figures/fig_kernel_vs_attention_speedup.pdf",
+    "figures/fig_kernel_vs_attention_speedup.png",
+    "figures/fig_launch_configuration.pdf",
+    "figures/fig_launch_configuration.png",
+    "figures/fig_profiler_breakdown.pdf",
+    "figures/fig_profiler_breakdown.png",
+    "figures/fig_softmax_latency.pdf",
+    "figures/fig_softmax_latency.png",
+    "figures/fig_softmax_throughput.pdf",
+    "figures/fig_softmax_throughput.png"
+  ],
+  "git_commit": "ca87722a00ebf585cd788c67949e7c0b32dca788",
+  "git_dirty": false,
+  "gpu": "Tesla T4",
+  "manifest_timestamp": "2026-08-23T19:22:06.649196+00:00",
+  "profiler_artifacts": [
+    "profiler/nsight/fused_causal_softmax.ncu-rep",
+    "profiler/nsight/ncu_raw_export.csv",
+    "profiler/nsight/ncu_run_log.txt",
+    "profiler/nsight/nsight_status.json",
+    "profiler/nsight/profile_target.py",
+    "profiler/pytorch_profiler_events.csv",
+    "profiler/pytorch_profiler_interpretation.md",
+    "profiler/pytorch_profiler_table.txt",
+    "profiler/pytorch_profiler_trace.json"
+  ],
+  "project_title": "CUDA Optimization of Fused Causal Softmax for Transformer Attention",
+  "python": "3.13.15",
+  "pytorch": "2.11.0+cu128",
+  "run_timestamp": "2026-08-23T19:07:15.567469+00:00",
+  "skipped_experiments": [],
+  "stage_status": {
+    "attention_benchmarks": "COMPLETE",
+    "cuda_correctness": "PASS",
+    "cuda_environment": "PASS",
+    "cuda_extension_build": "PASS",
+    "historical_benchmarks": "COMPLETE",
+    "launch_configuration": "COMPLETE",
+    "nsight_compute": "COMPLETE",
+    "pytorch_profiler": "COMPLETE",
+    "softmax_benchmarks": "COMPLETE"
+  }
+}

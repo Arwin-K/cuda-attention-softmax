@@ -1,0 +1,16 @@
+commit: ca87722a00ebf585cd788c67949e7c0b32dca788
+dirty: False
+status:
+(clean)
+
+latest commit:
+commit ca87722a00ebf585cd788c67949e7c0b32dca788
+Merge: 0e319a5 80c5046
+Author:     Arwin Karir <143218211+Arwin-K@users.noreply.github.com>
+AuthorDate: Sun Aug 23 15:00:00 2026 -0400
+Commit:     GitHub <noreply@github.com>
+CommitDate: Sun Aug 23 15:00:00 2026 -0400
+
+    Merge pull request #8 from Arwin-K/day-six
+    
+    Day 6: Integrate fused softmax into attention and add profiling analysis

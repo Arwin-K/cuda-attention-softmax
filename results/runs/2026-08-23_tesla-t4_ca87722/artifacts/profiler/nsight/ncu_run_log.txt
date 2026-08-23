@@ -1,0 +1,7 @@
+==PROF== Connected to process 7249 (/usr/bin/python3.13)
+==PROF== Profiling "fused_causal_softmax_kernel": 0%....50%....100% - 9 passes
+==PROF== Profiling "fused_causal_softmax_kernel": 0%....50%....100% - 9 passes
+==PROF== Profiling "fused_causal_softmax_kernel": 0%....50%....100% - 9 passes
+==PROF== Profiling "fused_causal_softmax_kernel": 0%....50%....100% - 9 passes
+==PROF== Disconnected from process 7249
+==PROF== Report: /content/cuda_softmax_artifacts/profiler/nsight/fused_causal_softmax.ncu-rep

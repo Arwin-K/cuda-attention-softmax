@@ -1,0 +1,26 @@
+{
+  "git_commit": "ca87722a00ebf585cd788c67949e7c0b32dca788",
+  "gpu_name": "Tesla T4",
+  "median_relative_latency": {
+    "128": 1.0,
+    "256": 1.1072915375264707,
+    "512": 2.0998043037976606
+  },
+  "per_sequence_wins": {
+    "128": 5,
+    "256": 2,
+    "512": 0
+  },
+  "selected_block_size": 128,
+  "selection_rule": "lowest median per-shape relative latency",
+  "sequence_lengths": [
+    128,
+    255,
+    512,
+    768,
+    1024,
+    1536,
+    2048
+  ],
+  "timestamp": "2026-08-23T19:10:40.016491+00:00"
+}
