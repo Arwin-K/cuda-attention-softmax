@@ -718,3 +718,38 @@ permission error and repeat on an unrestricted NVIDIA Linux host.
   never reached the kernel. No profiling-based bottleneck claim is supported.
 - **Student reflection:** `TODO(student): After inspecting the recovered trace,
   write what surprised you. Do not infer a reflection from the completion log.`
+
+## Day 6 checkpoint — Commit 096
+
+- **What was implemented:** Explicit custom attention now uses the one fused
+  operator only between QK^T and PV; CUDA correctness tests compare its outputs
+  and probabilities with the explicit reference and PyTorch SDPA. Equivalent
+  explicit-eager/custom/SDPA attention benchmarks use shared inputs, correctness
+  gates, CUDA events, checkpointed raw rows, and Git/GPU/software provenance.
+  Matched analysis computes kernel speedup, attention speedup, and translation
+  ratio. Named PyTorch Profiler regions export trace/CSV/JSON artifacts, while a
+  corrected Nsight target and shell helper preserve report/CSV evidence. Figure
+  and LaTeX-table generators reject incomplete, mixed, or overwritten evidence.
+- **What was actually measured:** The preserved T4 notebook run at
+  `d1b3fd38b28075c7fbfcff2b03cde4a2a6b02f1d` reported a successful corrected
+  extension build, 70 CUDA pytest passes, 88/88 structured FP32 cases at the
+  fixed tolerances, completed softmax and attention benchmarks, a reported
+  128-thread launch selection, and completed PyTorch profiling. Nsight Compute
+  2025.1.1 failed at package import before kernel launch. The raw ZIP is absent,
+  so no latency, throughput, speedup, or profiler duration is reported. On the
+  Day 6 development host, `./scripts/run_tests.sh` reported 120 passed and 69
+  skipped; CUDA-only cases skip because Apple Silicon has no NVIDIA runtime.
+- **What I learned:** `TODO(student): Explain in your own words why a fast
+  middle operation may produce a much smaller full-attention speedup.`
+- **What surprised me:** `TODO(student): Record your own reaction to the
+  correctness or launch evidence; no personal reflection is inferred.`
+- **Unresolved questions:** What the missing raw sample distributions show;
+  whether 128 threads wins every length or only the aggregate selector; how
+  custom compares with eager, compiled PyTorch, and SDPA; how kernel speedup
+  translates into full attention; which PyTorch regions dominate; and whether
+  corrected Nsight capture reveals reduction, occupancy, or memory limits.
+- **Next day:** Build the LaTeX-ready paper outline, blog, recruiter-facing
+  README, and interview material; then audit provenance, figure-to-CSV links,
+  Apple Silicon and NVIDIA handoffs, kernel history, public claims, CUDA
+  comments, and final reproducibility through Commit 112. Quantitative prose
+  must remain pending until raw artifacts are recovered or rerun.

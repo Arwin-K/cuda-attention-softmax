@@ -1284,3 +1284,52 @@ notebook be rerun in a fresh controlled T4 session?
 ### Git commit
 
 Commit 095 — `write experimental results and discussion sections`
+
+## Day 6 scope and conclusion audit
+
+### Problem
+
+A concluding section can easily overgeneralize from one forward FP32 operator,
+one T4 session, or a workflow-completion marker.
+
+### Measurement
+
+The audit traces every supported conclusion to the preserved build and
+correctness output, while checking that missing CSV and profiler artifacts stay
+visible.
+
+### Hypothesis
+
+An explicit limitations and future-work structure will distinguish what the
+project learned from what it merely prepared to measure.
+
+### Change
+
+`docs/limitations.md` now covers operator/numerical scope, evidence and baseline
+limits, external validity, profiling gaps, replication priorities, technical
+extensions, and an evidence-bounded conclusion. The experiment log records the
+Day 6 checkpoint without inventing student reflection.
+
+### Correctness result
+
+The conclusion reports only the tested T4 revision's successful build and fixed-
+tolerance correctness evidence.
+
+### Performance result
+
+Quantitative optimization and application-speedup conclusions remain pending
+the raw artifact ZIP or a controlled rerun.
+
+### Interpretation
+
+The project has answered “can the intended fused warp-reduction path be made
+correct and auditable?” more strongly than “how fast is it and why?”
+
+### Next question
+
+Can Day 7 publication and reproducibility work preserve this evidence boundary
+while making the project accessible to paper, blog, and interview audiences?
+
+### Git commit
+
+Commit 096 — `write limitations future work and research conclusions`
