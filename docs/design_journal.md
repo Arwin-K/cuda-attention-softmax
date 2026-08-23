@@ -1097,3 +1097,50 @@ a distinct permissions limitation?
 ### Git commit
 
 Commit 090 — `add Nsight Compute profiling helper and documentation`
+
+## Final evidence-gated softmax figures
+
+### Problem
+
+Latency and throughput alone are hard to compare across implementations, while
+a speedup plot can become misleading if its baseline comes from another GPU or
+software environment.
+
+### Measurement
+
+Figure inputs are summary CSV rows derived from raw CUDA-event samples. Each
+speedup point divides a matched eager median by a candidate median.
+
+### Hypothesis
+
+The custom/eager relationship may vary by sequence length, so the plot should
+retain every planned shape rather than report one aggregate number.
+
+### Change
+
+The figure pipeline now creates latency, throughput, and eager-relative speedup
+plots with commit-aware series. It validates provenance and refuses overwrites.
+
+### Correctness result
+
+Synthetic rows verify ordering, matched 3x speedup arithmetic, expected output
+paths, empty-data rejection, and the three plotting calls.
+
+### Performance result
+
+No project figure was generated because no summary CSV from the T4 run exists
+in this checkout.
+
+### Interpretation
+
+The figure code is ready, but its fixture values demonstrate analysis logic
+only and must never appear in the paper as measurements.
+
+### Next question
+
+After importing real samples, do latency, throughput, and speedup tell a
+consistent shape-dependent story?
+
+### Git commit
+
+Commit 092 — `generate final latency throughput and speedup figures`

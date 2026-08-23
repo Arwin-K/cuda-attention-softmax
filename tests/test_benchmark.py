@@ -51,7 +51,7 @@ from cuda_attention.benchmark import (
     write_raw_benchmark_csv,
 )
 from cuda_attention.operator import CudaExtensionUnavailableError
-from cuda_attention.plotting import load_summary_csv, metric_series
+from cuda_attention.plotting import load_summary_csv, metric_series, speedup_series
 from cuda_attention.reference import causal_allowed_mask, causal_scaled_softmax
 from profiling.profile_pytorch import (
     PROFILE_REGION_NAMES,
@@ -718,6 +718,10 @@ def test_plot_series_remain_commit_specific_and_shape_ordered(tmp_path) -> None:
             "sequence_length": "512",
             "median_us": "3.0",
             "elements_per_second": "4.0",
+            "gpu_name": "fixture GPU",
+            "compute_capability": "7.5",
+            "pytorch_version": "torch",
+            "cuda_version": "CUDA",
         },
         {
             "git_commit": "b" * 40,
@@ -725,6 +729,10 @@ def test_plot_series_remain_commit_specific_and_shape_ordered(tmp_path) -> None:
             "sequence_length": "128",
             "median_us": "1.0",
             "elements_per_second": "2.0",
+            "gpu_name": "fixture GPU",
+            "compute_capability": "7.5",
+            "pytorch_version": "torch",
+            "cuda_version": "CUDA",
         },
     ]
 
@@ -737,7 +745,8 @@ def test_plot_series_remain_commit_specific_and_shape_ordered(tmp_path) -> None:
 
     empty_path = tmp_path / "empty.csv"
     empty_path.write_text(
-        "git_commit,implementation_description,sequence_length,median_us,elements_per_second\n",
+        "git_commit,implementation_description,sequence_length,median_us,"
+        "elements_per_second,gpu_name,compute_capability,pytorch_version,cuda_version\n",
         encoding="utf-8",
     )
     with pytest.raises(ValueError, match="no measurements"):
@@ -747,8 +756,10 @@ def test_plot_series_remain_commit_specific_and_shape_ordered(tmp_path) -> None:
 def test_figure_generation_maps_summary_to_expected_outputs(tmp_path) -> None:
     summary_path = tmp_path / "summary.csv"
     summary_path.write_text(
-        "git_commit,implementation_description,sequence_length,median_us,elements_per_second\n"
-        + f"{'d' * 40},fixture only,128,1.0,2.0\n",
+        "git_commit,implementation_description,sequence_length,median_us,"
+        "elements_per_second,gpu_name,compute_capability,pytorch_version,cuda_version\n"
+        + f"{'d' * 40},PyTorch eager fixture,128,2.0,2.0,GPU,7.5,torch,CUDA\n"
+        + f"{'d' * 40},custom fixture,128,1.0,4.0,GPU,7.5,torch,CUDA\n",
         encoding="utf-8",
     )
     output_directory = tmp_path / "figures"
@@ -756,13 +767,45 @@ def test_figure_generation_maps_summary_to_expected_outputs(tmp_path) -> None:
     with (
         patch("scripts.generate_figures.plot_latency") as latency,
         patch("scripts.generate_figures.plot_throughput") as throughput,
+        patch("scripts.generate_figures.plot_speedup") as speedup,
     ):
         generated = generate_figures(summary_path, output_directory)
 
     assert generated == (
         output_directory / "softmax_latency.png",
         output_directory / "softmax_throughput.png",
+        output_directory / "softmax_speedup.png",
     )
     assert latency.call_args.args[0] == throughput.call_args.args[0]
     latency.assert_called_once_with(latency.call_args.args[0], generated[0])
     throughput.assert_called_once_with(throughput.call_args.args[0], generated[1])
+    speedup.assert_called_once_with(speedup.call_args.args[0], generated[2])
+
+
+def test_speedup_series_uses_matched_eager_median() -> None:
+    common = {
+        "git_commit": "e" * 40,
+        "sequence_length": "128",
+        "elements_per_second": "1.0",
+        "gpu_name": "fixture GPU",
+        "compute_capability": "7.5",
+        "pytorch_version": "torch",
+        "cuda_version": "CUDA",
+    }
+    records = [
+        {
+            **common,
+            "implementation_description": "PyTorch eager fixture",
+            "median_us": "6.0",
+        },
+        {
+            **common,
+            "implementation_description": "custom CUDA fixture",
+            "median_us": "2.0",
+        },
+    ]
+
+    series = speedup_series(records)
+
+    assert series[0].x == (128,)
+    assert series[0].y == (3.0,)
