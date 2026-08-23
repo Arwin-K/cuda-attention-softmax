@@ -1,54 +1,111 @@
-@inproceedings{vaswani2017attention,
-  author    = {Ashish Vaswani and Noam Shazeer and Niki Parmar and Jakob Uszkoreit and Llion Jones and Aidan N. Gomez and Lukasz Kaiser and Illia Polosukhin},
+@inproceedings{vaswani2017,
+  author    = {Ashish Vaswani and Noam Shazeer and Niki Parmar and Jakob Uszkoreit and Llion Jones and Aidan N. Gomez and {\L}ukasz Kaiser and Illia Polosukhin},
   title     = {Attention Is All You Need},
   booktitle = {Advances in Neural Information Processing Systems},
   volume    = {30},
   year      = {2017},
-  url       = {https://arxiv.org/abs/1706.03762}
+  url       = {https://papers.nips.cc/paper/7181-attention-is-all-you-need}
 }
 
-@article{dao2022flashattention,
-  author  = {Tri Dao and Daniel Y. Fu and Stefano Ermon and Atri Rudra and Christopher R{\'e}},
-  title   = {{FlashAttention}: Fast and Memory-Efficient Exact Attention with {IO}-Awareness},
-  journal = {Advances in Neural Information Processing Systems},
-  volume  = {35},
-  year    = {2022},
-  url     = {https://arxiv.org/abs/2205.14135}
+@inproceedings{flashattention2022,
+  author    = {Tri Dao and Daniel Y. Fu and Stefano Ermon and Atri Rudra and Christopher R{\'e}},
+  title     = {{FlashAttention}: Fast and Memory-Efficient Exact Attention with {IO}-Awareness},
+  booktitle = {Advances in Neural Information Processing Systems},
+  volume    = {35},
+  year      = {2022},
+  url       = {https://proceedings.neurips.cc/paper_files/paper/2022/hash/67d57c32e20fd0a7a302cb81d36e40d5-Abstract-Conference.html}
 }
 
-@inproceedings{amdahl1967validity,
+@inproceedings{flashattention2,
+  author    = {Tri Dao},
+  title     = {{FlashAttention-2}: Faster Attention with Better Parallelism and Work Partitioning},
+  booktitle = {The Twelfth International Conference on Learning Representations},
+  year      = {2024},
+  url       = {https://openreview.net/forum?id=mZn2Xyh9Ec}
+}
+
+@article{blanchard2019,
+  author  = {Pierre Blanchard and Desmond J. Higham and Nicholas J. Higham},
+  title   = {Accurately Computing the Log-Sum-Exp and Softmax Functions},
+  journal = {IMA Journal of Numerical Analysis},
+  volume  = {41},
+  number  = {4},
+  pages   = {2311--2330},
+  year    = {2021},
+  doi     = {10.1093/imanum/draa038},
+  url     = {https://academic.oup.com/imajna/article/41/4/2311/5893596}
+}
+
+@inproceedings{amdahl1967,
   author    = {Gene M. Amdahl},
   title     = {Validity of the Single Processor Approach to Achieving Large Scale Computing Capabilities},
-  booktitle = {AFIPS Spring Joint Computer Conference},
+  booktitle = {Proceedings of the April 18--20, 1967, Spring Joint Computer Conference},
   pages     = {483--485},
   year      = {1967},
-  doi       = {10.1145/1465482.1465560}
+  doi       = {10.1145/1465482.1465560},
+  url       = {https://dl.acm.org/doi/10.1145/1465482.1465560}
 }
 
-@manual{nvidia2026cuda,
-  author = {{NVIDIA Corporation}},
-  title  = {{CUDA} Programming Guide},
-  year   = {2026},
-  url    = {https://docs.nvidia.com/cuda/cuda-programming-guide/}
+@misc{cuda_programming_guide,
+  author       = {{NVIDIA Corporation}},
+  title        = {{CUDA} Programming Guide},
+  year         = {2026},
+  howpublished = {\url{https://docs.nvidia.com/cuda/cuda-programming-guide/index.html}},
+  note         = {Accessed 2026-08-23}
 }
 
-@manual{nvidia2025nsight,
-  author = {{NVIDIA Corporation}},
-  title  = {{Nsight Compute} Profiling Guide},
-  year   = {2025},
-  url    = {https://docs.nvidia.com/nsight-compute/ProfilingGuide/}
+@misc{cuda_best_practices,
+  author       = {{NVIDIA Corporation}},
+  title        = {{CUDA} Best Practices Guide},
+  year         = {2026},
+  howpublished = {\url{https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html}},
+  note         = {Accessed 2026-08-23}
 }
 
-@manual{pytorch2026sdpa,
-  author = {{PyTorch Contributors}},
-  title  = {scaled\_dot\_product\_attention},
-  year   = {2026},
-  url    = {https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html}
+@misc{cuda_warp_shuffle,
+  author       = {{NVIDIA Corporation}},
+  title        = {Device-Callable APIs and Intrinsics: Warp Shuffle Functions},
+  year         = {2026},
+  howpublished = {\url{https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/device-callable-apis.html}},
+  note         = {Accessed 2026-08-23}
 }
 
-@manual{pytorch2026profiler,
-  author = {{PyTorch Contributors}},
-  title  = {{PyTorch Profiler}},
-  year   = {2026},
-  url    = {https://docs.pytorch.org/docs/stable/profiler.html}
+@misc{pytorch_sdpa,
+  author       = {{PyTorch Contributors}},
+  title        = {torch.nn.functional.scaled\_dot\_product\_attention},
+  year         = {2026},
+  howpublished = {\url{https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html}},
+  note         = {Accessed 2026-08-23}
+}
+
+@misc{pytorch_compile,
+  author       = {{PyTorch Contributors}},
+  title        = {torch.compile},
+  year         = {2026},
+  howpublished = {\url{https://docs.pytorch.org/docs/stable/generated/torch.compile.html}},
+  note         = {Accessed 2026-08-23}
+}
+
+@misc{pytorch_profiler,
+  author       = {{PyTorch Contributors}},
+  title        = {{PyTorch} Profiler},
+  year         = {2026},
+  howpublished = {\url{https://docs.pytorch.org/tutorials/recipes/recipes/profiler_recipe.html}},
+  note         = {Accessed 2026-08-23}
+}
+
+@misc{pytorch_numerical,
+  author       = {{PyTorch Contributors}},
+  title        = {Numerical Accuracy},
+  year         = {2026},
+  howpublished = {\url{https://docs.pytorch.org/docs/stable/notes/numerical_accuracy.html}},
+  note         = {Accessed 2026-08-23}
+}
+
+@misc{nsight_compute,
+  author       = {{NVIDIA Corporation}},
+  title        = {{NVIDIA Nsight Compute} Profiling Guide},
+  year         = {2026},
+  howpublished = {\url{https://docs.nvidia.com/nsight-compute/ProfilingGuide/index.html}},
+  note         = {Accessed 2026-08-23}
 }

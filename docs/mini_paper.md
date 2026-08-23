@@ -17,12 +17,13 @@ structured softmax comparisons passed, with maximum absolute error
 128--2048, the final warp-reduction kernel was 3.22--8.92x faster than the
 row-serial historical implementation, 1.07--1.91x faster than the shared-tree
 block implementation, and 1.40--3.94x faster than equivalent PyTorch eager
-softmax. Replacing eager softmax in explicit attention yielded 1.54--2.31x
-end-to-end speedup, while PyTorch scaled-dot-product attention remained faster
-than the explicit custom path at every tested shape. These results show both
-the value of intra-row parallelism and the limit of optimizing one component of
-a larger attention pipeline. Conclusions are restricted to one T4 session,
-FP32 forward execution, and the tested shapes.
+softmax. Replacing eager softmax in the explicit attention baseline yielded
+1.54--2.31x end-to-end speedup, while PyTorch scaled-dot-product attention was
+1.25--2.53x faster than the explicit custom path at every tested shape. These
+results show that the combined work-mapping and communication changes improved
+the isolated operator, while optimizing one stage remained insufficient to
+beat a production complete-attention baseline. Conclusions are restricted to
+one T4 session, FP32 forward execution, and the tested shapes.
 
 ## 2. Introduction
 
@@ -77,8 +78,10 @@ header-only CUDA 12.8 compatibility adjustment to historical checkouts; it did
 not change their algorithms. Current framework and attention benchmarks use
 the measured clean commit `ca87722a`.
 
-CUDA events measured 100 iterations after 25 warmups. The primary softmax
-workload used FP32, `batch_heads=8`, and `rows=8*S`; attention used batch 1,
+CUDA events measured 100 iterations after 25 warmups. The launch sweep's
+registered median-relative-latency rule selected 128 threads for the framework
+softmax and attention measurements. The primary softmax workload used FP32,
+`batch_heads=8`, and `rows=8*S`; attention used batch 1,
 eight heads, and head dimension 64. Medians and interquartile values were
 computed from raw per-iteration samples. Inputs and allocations were outside
 the timed interval. Correctness used fixed `rtol=1e-5` and `atol=1e-6`.
@@ -156,11 +159,12 @@ tree and warp implementations, then repeat on a newer GPU architecture.
 
 ## 12. Discussion
 
-The large row-serial-to-warp gains support exposing parallel work within each
-row. The smaller, consistently positive shared-tree-to-warp gains isolate the
-benefit of changing the reduction after work decomposition was already
-parallel. Launch results show that occupancy, per-thread work, and coordination
-costs interact with row length. Attention results demonstrate Amdahl's-law
+The row-serial-to-warp endpoint gap combines work decomposition and reduction
+changes, so it cannot be attributed entirely to either one. The smaller,
+consistently positive shared-tree-to-warp gains more closely isolate the effect
+of changing reduction communication after work decomposition was already
+parallel. Launch results show that per-thread work and coordination costs
+interact with row length. Attention results are consistent with Amdahl's-law
 reasoning: accelerating one stage cannot remove work in two matrix
 multiplications. Measured and modeled attention values remain separate because
 the simple model does not reproduce every observed latency, especially at
@@ -187,9 +191,10 @@ library softmax and fused-attention implementations under equivalent work.
 
 ## 15. Conclusion
 
-On the measured T4 workload, changing work decomposition delivered the largest
-kernel gain, warp communication improved further on shared-memory trees, and
-block-size preference varied by shape. The custom operator substantially
+On the measured T4 workload, the endpoint comparison combining work
+decomposition and reduction changes delivered the largest kernel gap; warp
+communication then improved further on shared-memory trees, and block-size
+preference varied by shape. The custom operator substantially
 outperformed equivalent eager softmax and improved explicit attention, but did
 not outperform production SDPA. The central systems lesson is not that a custom
 kernel is universally fastest: GPU mapping and communication choices matter
