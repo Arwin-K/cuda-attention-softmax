@@ -1047,3 +1047,53 @@ locate but not diagnose?
 ### Git commit
 
 Commit 089 — `export profiler traces and summarized CUDA timings`
+
+## Optional Nsight Compute target
+
+### Problem
+
+PyTorch Profiler can locate kernels but does not by itself establish occupancy,
+memory-traffic, launch, or hardware-counter behavior. The first Colab Nsight
+attempt also failed before launch because its generated target could not import
+the repository package.
+
+### Measurement plan
+
+Profile one post-warmup kernel launch using Nsight's installed-version `basic`
+set, a kernel-name filter, and a deterministic S=512 FP32 workload.
+
+### Hypothesis
+
+If hardware counters are permitted, the report will provide evidence useful for
+testing the current reduction and launch-configuration hypotheses.
+
+### Change
+
+The repository now has a minimal CUDA target and guarded `run_ncu.sh` helper.
+Both the shell helper and regenerated Colab target explicitly expose the
+repository on Python's import path.
+
+### Correctness result
+
+The Python target compiles, the POSIX shell passes syntax validation, static
+tests enforce the kernel filter/import-path contract, and the Colab notebook
+still matches its deterministic generator.
+
+### Performance result
+
+No Nsight hardware metric is available. The earlier Colab attempt measured only
+that `ncu` 2025.1.1 was installed and target import failed.
+
+### Interpretation
+
+Fixing the import failure makes a future attempt meaningful; it does not imply
+that Colab grants the performance-counter permissions needed to finish it.
+
+### Next question
+
+Will the corrected target produce a report, or will the managed runtime expose
+a distinct permissions limitation?
+
+### Git commit
+
+Commit 090 — `add Nsight Compute profiling helper and documentation`

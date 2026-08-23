@@ -1,6 +1,7 @@
 """CPU-safe checks for benchmark controls and derived shapes."""
 
 import csv
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -184,6 +185,16 @@ def test_profiler_artifact_export_refuses_existing_output(tmp_path) -> None:
             metadata={},
             output_directory=tmp_path,
         )
+
+
+def test_nsight_helper_preserves_repository_import_path() -> None:
+    helper = (Path(__file__).parents[1] / "profiling" / "run_ncu.sh").read_text(
+        encoding="utf-8"
+    )
+
+    assert 'PYTHONPATH="$PROJECT_ROOT${PYTHONPATH:+:$PYTHONPATH}"' in helper
+    assert "fused_causal_softmax_kernel" in helper
+    assert "--set basic" in helper
 
 
 def test_attention_raw_csv_preserves_full_workload_provenance(tmp_path) -> None:
