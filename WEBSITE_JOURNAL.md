@@ -122,7 +122,7 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 098. I translated the measured evolution into an educational blog and recruiter-facing README, including the negative SDPA comparison and single-T4 scope instead of turning hypotheses into marketing claims.
 099. I prepared NVIDIA interview and defense notes tied to the implemented mapping, reductions, measurements, negative results, limitations, and reproducibility evidence.
 100. I reconciled the paper, blog, README, results, discussion, limitations, and interview notes with the recovered T4 archive, then recorded each public claim's direct evidence and remaining audit work.
-101. I audited benchmark schemas so every performance record either has its required provenance or a visible gap.
+101. I added a standard-library audit that verifies every benchmark path's schema, provenance, sample indices, shape matrix, implementation matrix, profiler fields, and raw-to-summary statistics without repairing missing data.
 102. I linked figures back to source CSV files and commits, making visual claims reproducible.
 103. I verified the CPU-only workflow on Apple Silicon, including what must deliberately skip without CUDA.
 104. I wrote an NVIDIA handoff checklist for rebuilding, testing, benchmarking, and profiling remotely.

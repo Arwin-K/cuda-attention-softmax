@@ -1333,3 +1333,54 @@ while making the project accessible to paper, blog, and interview audiences?
 ### Git commit
 
 Commit 096 — `write limitations future work and research conclusions`
+
+## Complete result-schema audit
+
+### Problem
+
+The recovered archive contains finished-looking summaries and figures, but a
+publication should not trust their presence without checking raw schemas,
+sample counts, provenance, and derived statistics.
+
+### Measurement
+
+The audit found four raw benchmark matrices with 2,100 rows each: seven lengths
+times three implementations/configurations times 100 indexed samples. It found
+88 correctness rows, 43 PyTorch-profiler event rows, and four Nsight data rows.
+
+### Hypothesis
+
+If the notebook handoff is complete and internally consistent, a standard-
+library audit should reconstruct every median and quartile from raw samples and
+find one current commit/GPU environment without repairing data.
+
+### Change
+
+`scripts/audit_results.py` now checks required fields, manifest inventory,
+positive latency, contiguous sample indices, expected shape and implementation
+matrices, current provenance, profiler schemas, and raw-to-summary statistics.
+It writes a machine-readable report and returns failure for any gap.
+
+### Correctness result
+
+All 35 checks passed against the supplied T4 artifact directory. Unit tests
+also cover actionable missing-field reporting and linear percentile behavior.
+
+### Performance result
+
+No new GPU measurement was performed. The audit validates existing sample and
+summary relationships; its runtime is not a CUDA performance result.
+
+### Interpretation
+
+The recovered summary tables are numerically consistent with their raw timing
+groups, and all required benchmark paths have complete traceability fields.
+
+### Next question
+
+Can every published figure be linked to the exact source CSV bytes and measured
+commit, rather than only to a human-readable directory?
+
+### Git commit
+
+Commit 101 — `audit benchmark schema completeness across all result paths`

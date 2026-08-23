@@ -1,0 +1,269 @@
+{
+  "artifact_root": "artifacts",
+  "checks": [
+    {
+      "detail": "17 files",
+      "name": "manifest CSV inventory",
+      "status": "PASS"
+    },
+    {
+      "detail": {
+        "missing": [],
+        "rows": 2100
+      },
+      "name": "softmax raw schema",
+      "status": "PASS"
+    },
+    {
+      "detail": {
+        "rows": 2100
+      },
+      "name": "softmax raw nonempty",
+      "status": "PASS"
+    },
+    {
+      "detail": {
+        "missing": [],
+        "rows": 21
+      },
+      "name": "softmax summary schema",
+      "status": "PASS"
+    },
+    {
+      "detail": {
+        "rows": 21
+      },
+      "name": "softmax summary nonempty",
+      "status": "PASS"
+    },
+    {
+      "detail": {
+        "missing": [],
+        "rows": 2100
+      },
+      "name": "historical raw schema",
+      "status": "PASS"
+    },
+    {
+      "detail": {
+        "rows": 2100
+      },
+      "name": "historical raw nonempty",
+      "status": "PASS"
+    },
+    {
+      "detail": {
+        "missing": [],
+        "rows": 21
+      },
+      "name": "historical summary schema",
+      "status": "PASS"
+    },
+    {
+      "detail": {
+        "rows": 21
+      },
+      "name": "historical summary nonempty",
+      "status": "PASS"
+    },
+    {
+      "detail": {
+        "missing": [],
+        "rows": 2100
+      },
+      "name": "launch raw schema",
+      "status": "PASS"
+    },
+    {
+      "detail": {
+        "rows": 2100
+      },
+      "name": "launch raw nonempty",
+      "status": "PASS"
+    },
+    {
+      "detail": {
+        "missing": [],
+        "rows": 21
+      },
+      "name": "launch summary schema",
+      "status": "PASS"
+    },
+    {
+      "detail": {
+        "rows": 21
+      },
+      "name": "launch summary nonempty",
+      "status": "PASS"
+    },
+    {
+      "detail": {
+        "missing": [],
+        "rows": 2100
+      },
+      "name": "attention raw schema",
+      "status": "PASS"
+    },
+    {
+      "detail": {
+        "rows": 2100
+      },
+      "name": "attention raw nonempty",
+      "status": "PASS"
+    },
+    {
+      "detail": {
+        "missing": [],
+        "rows": 21
+      },
+      "name": "attention summary schema",
+      "status": "PASS"
+    },
+    {
+      "detail": {
+        "rows": 21
+      },
+      "name": "attention summary nonempty",
+      "status": "PASS"
+    },
+    {
+      "detail": {
+        "missing": [],
+        "rows": 88
+      },
+      "name": "correctness schema",
+      "status": "PASS"
+    },
+    {
+      "detail": {
+        "rows": 88
+      },
+      "name": "correctness nonempty",
+      "status": "PASS"
+    },
+    {
+      "detail": "21 complete groups",
+      "name": "softmax sample counts",
+      "status": "PASS"
+    },
+    {
+      "detail": "21 complete groups",
+      "name": "historical sample counts",
+      "status": "PASS"
+    },
+    {
+      "detail": "21 complete groups",
+      "name": "launch sample counts",
+      "status": "PASS"
+    },
+    {
+      "detail": "21 complete groups",
+      "name": "attention sample counts",
+      "status": "PASS"
+    },
+    {
+      "detail": "21 groups match",
+      "name": "softmax summary recomputation",
+      "status": "PASS"
+    },
+    {
+      "detail": "21 groups match",
+      "name": "historical summary recomputation",
+      "status": "PASS"
+    },
+    {
+      "detail": "21 groups match",
+      "name": "launch summary recomputation",
+      "status": "PASS"
+    },
+    {
+      "detail": "21 groups match",
+      "name": "attention summary recomputation",
+      "status": "PASS"
+    },
+    {
+      "detail": [
+        "ca87722a00ebf585cd788c67949e7c0b32dca788"
+      ],
+      "name": "current commit provenance",
+      "status": "PASS"
+    },
+    {
+      "detail": [
+        [
+          "Tesla T4",
+          "7.5"
+        ]
+      ],
+      "name": "current GPU provenance",
+      "status": "PASS"
+    },
+    {
+      "detail": [
+        128,
+        255,
+        512,
+        768,
+        1024,
+        1536,
+        2048
+      ],
+      "name": "softmax shape registry",
+      "status": "PASS"
+    },
+    {
+      "detail": [
+        "custom_cuda",
+        "pytorch_eager",
+        "torch_compile"
+      ],
+      "name": "softmax implementations",
+      "status": "PASS"
+    },
+    {
+      "detail": [
+        128,
+        256,
+        512
+      ],
+      "name": "launch configurations",
+      "status": "PASS"
+    },
+    {
+      "detail": [
+        "custom_softmax_attention",
+        "explicit_pytorch",
+        "pytorch_sdpa"
+      ],
+      "name": "attention implementations",
+      "status": "PASS"
+    },
+    {
+      "detail": {
+        "failed": 0,
+        "rows": 88
+      },
+      "name": "correctness cases",
+      "status": "PASS"
+    },
+    {
+      "detail": {
+        "missing": [],
+        "rows": 43
+      },
+      "name": "PyTorch profiler schema",
+      "status": "PASS"
+    },
+    {
+      "detail": {
+        "data_rows": 4,
+        "missing": []
+      },
+      "name": "Nsight schema",
+      "status": "PASS"
+    }
+  ],
+  "git_commit": "ca87722a00ebf585cd788c67949e7c0b32dca788",
+  "schema_version": 1,
+  "status": "PASS"
+}
