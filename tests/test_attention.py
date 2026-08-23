@@ -185,3 +185,28 @@ def test_sdpa_causal_baseline_matches_explicit_reference(
     assert actual.shape == shape
     assert actual.dtype == query.dtype
     assert torch.isfinite(actual).all()
+
+
+@pytest.mark.skipif(
+    CUDA_ATTENTION_UNAVAILABLE_REASON is not None,
+    reason=CUDA_ATTENTION_UNAVAILABLE_REASON,
+)
+@pytest.mark.parametrize("sequence_length", [31, 33, 64])
+def test_custom_attention_matches_sdpa_on_cuda(sequence_length: int) -> None:
+    shape = (1, 2, sequence_length, 32)
+    generator = torch.Generator(device="cuda").manual_seed(840 + sequence_length)
+    query = torch.randn(shape, generator=generator, device="cuda")
+    key = torch.randn(shape, generator=generator, device="cuda")
+    value = torch.randn(shape, generator=generator, device="cuda")
+
+    actual = custom_causal_attention(query, key, value).output
+    expected = sdpa_causal_attention(query, key, value)
+
+    # Both paths perform FP32 causal attention, but their reduction orders can
+    # differ. The project's existing fixed tolerances permit ordinary rounding
+    # variation without hiding a semantic or indexing error.
+    torch.testing.assert_close(actual, expected, rtol=1e-5, atol=1e-6)
+    assert actual.shape == expected.shape == shape
+    assert actual.dtype == expected.dtype == torch.float32
+    assert actual.device == expected.device
+    assert torch.isfinite(actual).all()
