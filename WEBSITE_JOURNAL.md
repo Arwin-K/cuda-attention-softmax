@@ -99,7 +99,7 @@ This is a publication-ready **planned** journal for the 112-commit investigation
 
 ## Day 6 — Does the microkernel change attention?
 
-081. I placed the custom softmax only in the intended middle of explicit attention: QKᵀ, softmax, then PV.
+081. Completed — I placed the custom softmax only in the intended middle of explicit attention: QKᵀ, softmax, then PV. A CPU-safe boundary test confirms the flattening, scale, launch setting, and unchanged matrix multiplications; NVIDIA execution remains governed by the extension and correctness gates.
 082. I added end-to-end tests so a correct-looking kernel cannot hide an incorrect attention result.
 083. I added PyTorch SDPA as a production-oriented full-attention baseline.
 084. I checked custom attention against SDPA, paying attention to causal semantics and justified tolerances.

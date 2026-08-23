@@ -1,9 +1,12 @@
 """Shape, probability, and input-contract tests for explicit attention."""
 
+import math
+
 import pytest
 import torch
 
-from cuda_attention.attention import explicit_causal_attention
+from cuda_attention.attention import custom_causal_attention, explicit_causal_attention
+from cuda_attention.reference import causal_scaled_softmax
 
 
 @pytest.mark.parametrize(
@@ -68,3 +71,37 @@ def test_attention_rejects_mismatched_dtypes() -> None:
 
     with pytest.raises(TypeError, match="identical dtypes"):
         explicit_causal_attention(query, key, value)
+
+
+def test_custom_attention_replaces_only_the_softmax_boundary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    shape = (2, 3, 5, 4)
+    generator = torch.Generator().manual_seed(81)
+    query = torch.randn(shape, generator=generator)
+    key = torch.randn(shape, generator=generator)
+    value = torch.randn(shape, generator=generator)
+    observed: dict[str, object] = {}
+
+    def trusted_softmax(scores: torch.Tensor, scale: float, block_size: int) -> torch.Tensor:
+        observed.update(
+            shape=tuple(scores.shape),
+            contiguous=scores.is_contiguous(),
+            scale=scale,
+            block_size=block_size,
+        )
+        return causal_scaled_softmax(scores, scale)
+
+    monkeypatch.setattr("cuda_attention.attention.fused_causal_softmax", trusted_softmax)
+
+    actual = custom_causal_attention(query, key, value, block_size=128)
+    expected = explicit_causal_attention(query, key, value)
+
+    torch.testing.assert_close(actual.output, expected.output)
+    torch.testing.assert_close(actual.probabilities, expected.probabilities)
+    assert observed == {
+        "shape": (2 * 3 * 5, 5),
+        "contiguous": True,
+        "scale": 1.0 / math.sqrt(4),
+        "block_size": 128,
+    }

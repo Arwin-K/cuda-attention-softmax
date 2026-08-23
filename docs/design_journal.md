@@ -844,3 +844,60 @@ the same T4 before any launch or framework timing begins?
 ### Git commit
 
 Supplemental compatibility fix — hash recorded by Git history after commit.
+
+## Explicit custom-attention integration
+
+### Problem
+
+A correct standalone softmax kernel does not yet demonstrate how it participates
+in transformer attention. The integration must replace only the intended
+normalization stage without changing the two matrix multiplications.
+
+### Existing evidence
+
+The PyTorch reference already exposes `QK^T`, flattened causal softmax, and
+`PV`. The custom operator accepts contiguous FP32 scores shaped
+`[batch * heads * sequence, sequence]`.
+
+### Hypothesis
+
+Using the same score flattening and scale in both paths should make their
+probability and output tensors semantically equivalent when the custom operator
+is correct.
+
+### Proposed change
+
+Add a separate explicit custom path that performs `Q @ K.transpose`, dispatches
+only the flattened score tensor to `fused_causal_softmax`, reshapes the
+probabilities, and performs `probabilities @ V` in PyTorch.
+
+### Implementation
+
+`custom_causal_attention` shares Q/K/V validation with the trusted reference,
+forwards the selected block size, and returns both output and probabilities for
+inspection.
+
+### Correctness result
+
+A CPU-safe boundary test substitutes the trusted reference at the CUDA dispatch
+point and confirms identical probabilities/output plus the exact flattened
+shape, contiguity, scale, and block size. Real custom execution remains a CUDA
+test.
+
+### Performance result
+
+Not measured by this commit.
+
+### Interpretation
+
+The integration boundary is explicit and testable. It does not imply that the
+custom path is faster because both matrix multiplications remain unchanged.
+
+### Next question
+
+Does the actual compiled operator preserve end-to-end attention outputs across
+representative CUDA shapes?
+
+### Git commit
+
+Commit 081 — `integrate custom fused softmax into explicit transformer attention`

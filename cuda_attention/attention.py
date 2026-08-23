@@ -7,6 +7,7 @@ import math
 
 from torch import Tensor
 
+from .operator import DEFAULT_BLOCK_SIZE, fused_causal_softmax
 from .reference import causal_scaled_softmax
 
 
@@ -58,6 +59,41 @@ def explicit_causal_attention(query: Tensor, key: Tensor, value: Tensor) -> Atte
     )
     probabilities = flattened_probabilities.reshape(
         batch, heads, sequence_length, sequence_length
+    )
+    output = probabilities @ value
+    return AttentionResult(output=output, probabilities=probabilities)
+
+
+def custom_causal_attention(
+    query: Tensor,
+    key: Tensor,
+    value: Tensor,
+    *,
+    block_size: int = DEFAULT_BLOCK_SIZE,
+) -> AttentionResult:
+    """Compute explicit attention with only softmax replaced by custom CUDA.
+
+    PyTorch still owns both matrix multiplications. The score tensor is flattened
+    from ``[batch, heads, sequence, sequence]`` to the custom operator's
+    ``[rows, sequence]`` contract, where ``row % sequence`` recovers the query
+    position used by the in-kernel causal mask.
+    """
+
+    _validate_qkv(query, key, value)
+    batch, heads, sequence_length, head_dimension = query.shape
+
+    scores = query @ key.transpose(-2, -1)
+    flattened_scores = scores.reshape(-1, sequence_length).contiguous()
+    flattened_probabilities = fused_causal_softmax(
+        flattened_scores,
+        scale=1.0 / math.sqrt(head_dimension),
+        block_size=block_size,
+    )
+    probabilities = flattened_probabilities.reshape(
+        batch,
+        heads,
+        sequence_length,
+        sequence_length,
     )
     output = probabilities @ value
     return AttentionResult(output=output, probabilities=probabilities)
