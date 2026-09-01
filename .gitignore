@@ -2,6 +2,8 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
 .coverage
 htmlcov/
 .venv/
@@ -13,12 +15,26 @@ dist/
 *.egg-info/
 *.so
 *.dylib
+*.ncu-rep
 
-# Measured CSVs and publication figures are intentionally not ignored. Their
-# Git commit, environment metadata, and review diff are part of the research
-# provenance. Large profiler traces remain local unless a later planned commit
-# explicitly chooses a compact artifact.
+# Ad hoc outputs stay local. Curated, provenance-bearing evidence is stored
+# explicitly under results/runs/ and remains tracked.
+figures/
+results/raw/
+results/summary/
 
 # Local tooling
 .DS_Store
 .ipynb_checkpoints/
+
+# LaTeX intermediates. The reviewed PDF preview remains tracked.
+*.aux
+*.bbl
+*.blg
+*-blx.bib
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.run.xml
+*.xdv

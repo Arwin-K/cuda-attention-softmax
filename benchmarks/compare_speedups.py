@@ -23,6 +23,31 @@ from benchmarks.summarize_results import (
 )
 
 
+PUBLISHED_ATTENTION_RAW_FIELDS = (
+    "implementation",
+    "git_commit",
+    "batch",
+    "heads",
+    "sequence_length",
+    "head_dimension",
+    "dtype",
+    "warmups",
+    "iterations",
+    "sample_index",
+    "latency_us",
+    "gpu_name",
+    "compute_capability",
+    "pytorch_version",
+    "cuda_version",
+    "timestamp",
+)
+PUBLISHED_ATTENTION_IMPLEMENTATIONS = {
+    "explicit_pytorch": "explicit_eager",
+    "custom_softmax_attention": "custom_cuda",
+    "pytorch_sdpa": "pytorch_sdpa",
+}
+
+
 ATTENTION_SUMMARY_FIELDS = (
     "git_commit",
     "implementation",
@@ -66,11 +91,34 @@ def load_attention_raw_csv(path: Path) -> list[dict[str, str]]:
         raise FileNotFoundError(f"attention raw CSV does not exist: {path}")
     with path.open(newline="", encoding="utf-8") as input_file:
         reader = csv.DictReader(input_file)
-        if tuple(reader.fieldnames or ()) != ATTENTION_RAW_FIELDS:
+        fields = tuple(reader.fieldnames or ())
+        if fields not in {ATTENTION_RAW_FIELDS, PUBLISHED_ATTENTION_RAW_FIELDS}:
             raise ValueError("unexpected attention raw schema")
         rows = list(reader)
     if not rows:
         raise ValueError("attention raw CSV contains no samples")
+    if fields == PUBLISHED_ATTENTION_RAW_FIELDS:
+        implementations = {row["implementation"] for row in rows}
+        unknown = implementations - set(PUBLISHED_ATTENTION_IMPLEMENTATIONS)
+        if unknown:
+            raise ValueError(
+                f"unexpected published attention implementations: {sorted(unknown)}"
+            )
+        rows = [
+            {
+                **{
+                    field: row[field]
+                    for field in ATTENTION_RAW_FIELDS
+                    if field not in {"implementation", "block_size", "sample_us"}
+                },
+                "implementation": PUBLISHED_ATTENTION_IMPLEMENTATIONS[
+                    row["implementation"]
+                ],
+                "block_size": "",
+                "sample_us": row["latency_us"],
+            }
+            for row in rows
+        ]
     return rows
 
 

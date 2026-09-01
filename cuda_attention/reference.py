@@ -1,4 +1,4 @@
-"""Transparent PyTorch reference operations used to validate future CUDA code."""
+"""Transparent PyTorch reference operations used to validate the CUDA code."""
 
 from __future__ import annotations
 

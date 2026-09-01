@@ -1,123 +1,164 @@
-# CUDA Optimization of Fused Causal Softmax for Transformer Attention
+# CUDA Optimization of Fused Causal Softmax
 
-An educational CUDA/ML-systems case study that evolves one fused causal
-scaled-softmax kernel from serial row processing to warp-shuffle reductions.
-The repository keeps one primary implementation in
-`csrc/fused_causal_softmax.cu`; Git history, commit-tagged measurements, and a
-full experiment archive preserve the evolution.
+[![LaTeX paper](https://github.com/Arwin-K/cuda-attention-softmax/actions/workflows/latex.yml/badge.svg)](https://github.com/Arwin-K/cuda-attention-softmax/actions/workflows/latex.yml)
 
-## Measured outcome
+An educational GPU-systems research project examining how CUDA work
+decomposition, reductions, warp communication, and launch configuration affect
+causal scaled softmax and end-to-end transformer attention.
 
-A complete Colab run is preserved under
+The repository contains one evolving CUDA implementation:
+[`csrc/fused_causal_softmax.cu`](csrc/fused_causal_softmax.cu). Earlier kernel
+designs are preserved in Git history and compared using commit-tagged
+measurements rather than duplicate source files.
+
+## Research question
+
+> How do GPU work decomposition, parallel reductions, warp-level communication,
+> and launch configuration affect fused causal scaled-softmax performance, and
+> how much do kernel-level improvements translate into complete transformer
+> attention performance?
+
+The operator fuses scaling, causal masking, stable maximum subtraction,
+exponentiation, reduction, and normalization for FP32 score tensors shaped
+`[rows, sequence_length]`. It implements the forward pass only.
+
+## Measured result
+
+One complete experiment is preserved in
 [`results/runs/2026-08-23_tesla-t4_ca87722`](results/runs/2026-08-23_tesla-t4_ca87722).
-It records a clean `ca87722a` checkout on one NVIDIA Tesla T4, PyTorch
-2.11.0+cu128, CUDA toolkit 12.8, FP32 inputs, 25 warmups, and 100 timed samples
-per implementation and shape.
+It records a clean `ca87722a` checkout on an NVIDIA Tesla T4 using PyTorch
+2.11.0+cu128 and CUDA 12.8, with 25 warmups and 100 CUDA-event samples per
+implementation and shape.
 
-- All 88 structured softmax comparisons passed at fixed `rtol=1e-5` and
-  `atol=1e-6`; maximum absolute error was `3.5763e-7`.
-- The warp kernel was 3.22--8.92x faster than the historical row-serial kernel
-  and 1.07--1.91x faster than the shared-tree block kernel.
+- All 88 structured softmax comparisons passed at `rtol=1e-5`, `atol=1e-6`;
+  maximum absolute error was `3.5763e-7`.
+- The warp-reduction kernel was 3.22--8.92x faster than the historical
+  row-serial kernel and 1.07--1.91x faster than the shared-tree block kernel.
 - Custom softmax was 1.40--3.94x faster than equivalent PyTorch eager work.
-- Explicit attention using custom softmax was 1.54--2.31x faster than explicit
-  eager attention, but PyTorch SDPA beat the explicit custom path at every
-  tested shape.
-- Launch tuning selected 128 threads by the aggregate rule, although 256
-  threads won the two longest individual shapes.
+- Explicit attention using the custom softmax was 1.54--2.31x faster than
+  explicit eager attention, while PyTorch SDPA was faster at every tested
+  shape.
 
-These are results from one GPU session, not universal CUDA claims. See the
-[paper](docs/mini_paper.md), [limitations](docs/limitations.md), and
-[raw artifacts](results/runs/2026-08-23_tesla-t4_ca87722/artifacts).
+These measurements describe one controlled T4 session, not universal CUDA
+performance. See the [rendered research paper](docs/mini_paper.pdf),
+[results](docs/results.md), and [limitations](docs/limitations.md) for the full
+experimental context.
 
-## What the kernel teaches
+## Quick start: CPU reference and analysis
 
-The implementation makes stable maximum subtraction, flattened causal row
-indexing, thread-strided access, warp-shuffle reductions, compact per-warp
-shared state, synchronization, and final normalization inspectable. Its main
-application lesson is just as important: a faster softmax does not remove the
-`QK^T` and `probabilities @ V` matrix multiplications.
-
-## Development platforms
-
-Apple Silicon macOS is the local learning, documentation, CPU-reference, test,
-and results-analysis environment. Importing `cuda_attention` does not require
-PyTorch or CUDA, and the project never treats Apple's MPS backend as CUDA.
-
-CUDA compilation, CUDA correctness tests, GPU benchmarks, and NVIDIA profiling
-belong on Linux with an NVIDIA GPU and the CUDA toolkit. They are optional
-capabilities rather than package-import requirements. Inspect the current host
-without compiling anything:
+Python 3.10 or newer is required. CUDA is not required for package import,
+reference correctness tests, result auditing, or plotting.
 
 ```bash
-python3 scripts/check_environment.py
-```
-
-Run the complete CPU-safe validation suite from a source checkout:
-
-```bash
+git clone https://github.com/Arwin-K/cuda-attention-softmax.git
+cd cuda-attention-softmax
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e ".[dev]"
+python scripts/check_environment.py
 ./scripts/run_tests.sh
 ```
 
-Calling the custom operator without a compiled extension raises
-`CudaExtensionUnavailableError`; it does not compile automatically or redirect
-CUDA work to MPS. The trusted CPU functions remain available from
-`cuda_attention.reference` and `cuda_attention.attention`.
+A minimal CPU reference example:
 
-On the NVIDIA Linux host, verify prerequisites and request the opt-in build:
+```python
+import torch
+
+from cuda_attention.reference import causal_scaled_softmax
+
+scores = torch.randn(8, 8, dtype=torch.float32)
+probabilities = causal_scaled_softmax(scores, scale=0.125)
+
+assert probabilities.shape == scores.shape
+torch.testing.assert_close(probabilities.sum(dim=-1), torch.ones(8))
+```
+
+The complete CPU-only reproducibility check also validates the output-free
+Colab notebook and the checked-in experiment schema:
 
 ```bash
-python3 scripts/check_environment.py --require-cuda
+./scripts/verify_cpu_reproducibility.sh
+```
+
+## Build and test the CUDA extension
+
+CUDA execution requires Linux, an NVIDIA GPU, a compatible driver, and the CUDA
+toolkit. The build is deliberately opt-in and never runs automatically on
+macOS. Apple's MPS backend is not treated as CUDA.
+
+```bash
+nvidia-smi
+python scripts/check_environment.py --require-cuda
 ./scripts/build_extension.sh
+python -m pytest -q tests/test_cuda_operator.py tests/test_attention.py
 ```
 
-On macOS the build script reports `SKIP` and exits without invoking a compiler.
+If the extension is unavailable, calling the custom operator raises
+`CudaExtensionUnavailableError`; CPU reference functions remain usable.
 
-After CUDA correctness passes, launch tuning and framework timing can use:
+## Reproduce the GPU experiment
+
+The output-free
+[`04_colab_research_experiments.ipynb`](notebooks/04_colab_research_experiments.ipynb)
+is the recommended end-to-end workflow.
+
+[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Arwin-K/cuda-attention-softmax/blob/main/notebooks/04_colab_research_experiments.ipynb)
+
+It verifies the environment and source revision, builds the extension, runs
+correctness checks, benchmarks historical/current kernels and framework
+baselines, profiles the operator, and packages raw evidence. Follow the
+[experiment guide](docs/colab_experiments.md) and use a fresh output directory
+for every hardware/software environment.
+
+For shorter manual runs after CUDA correctness passes:
 
 ```bash
-python3 benchmarks/benchmark_launch_configs.py --block-size 128 --output results/raw/launch_128.csv
-python3 benchmarks/benchmark_launch_configs.py --block-size 256 --output results/raw/launch_256.csv
-python3 benchmarks/benchmark_launch_configs.py --block-size 512 --output results/raw/launch_512.csv
-python3 benchmarks/benchmark_softmax.py --implementation all --output results/raw/framework_comparison.csv
+python benchmarks/benchmark_launch_configs.py --block-size 128 --output results/raw/launch_128.csv
+python benchmarks/benchmark_softmax.py --implementation all --output results/raw/softmax.csv
+python benchmarks/benchmark_attention.py --implementation all --output results/raw/attention.csv
+python profiling/profile_pytorch.py --output-dir results/raw/pytorch_profiler
+sh profiling/run_ncu.sh results/raw/nsight
 ```
 
-These commands must run in one controlled NVIDIA environment. The checked-in
-Colab notebook is the recommended complete workflow; never substitute CPU/MPS
-timings or fabricate missing values.
+Never compare rows collected under different GPU/software conditions as a
+single controlled experiment. Benchmark commands record Git, device, and
+software metadata with every result.
 
-## Google Colab experiment notebook
+## Repository layout
 
-[![Open the research notebook in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Arwin-K/cuda-attention-softmax/blob/main/notebooks/04_colab_research_experiments.ipynb)
+```text
+cuda_attention/   Python reference, operator boundary, attention, and utilities
+csrc/             C++ binding and the single CUDA implementation
+tests/            CPU, static-contract, and optional CUDA correctness tests
+benchmarks/       Softmax, launch, framework, and attention benchmarks
+profiling/        PyTorch Profiler and Nsight Compute entry points
+notebooks/        Reproducible end-to-end NVIDIA experiment
+results/runs/     Raw measured evidence with environment and Git provenance
+docs/             Paper, methods, results, limitations, and reproduction guide
+scripts/          Environment, build, validation, audit, and figure helpers
+```
 
-The [Colab experiment guide](docs/colab_experiments.md) explains the exact run,
-recovery, evidence-validation, and ZIP handoff workflow. The notebook connects
-to this repository, builds through `scripts/build_extension.sh`, uses existing
-CUDA tests and benchmark entry points, and adds notebook-local orchestration for
-attention, profiling, figures, tables, and research-paper artifacts. The
-reusable notebook is output-free; the exact executed notebook is preserved with
-the measured run.
+## Research record
 
-## Research outputs
+- [Research paper PDF preview](docs/mini_paper.pdf)
+- [LaTeX source](docs/mini_paper.tex), [bibliography](docs/references.bib), and [Markdown companion](docs/mini_paper.md)
+- [Methodology](docs/methodology.md)
+- [Measured results](docs/results.md)
+- [Kernel evolution](docs/kernel_evolution.md)
+- [Reproducibility guide](docs/reproducibility.md)
+- [Experimental limitations](docs/limitations.md)
+- [Raw and generated artifacts](results/runs/2026-08-23_tesla-t4_ca87722/artifacts)
+- [Citation metadata](CITATION.cff)
 
-- [Markdown paper](docs/mini_paper.md) and
-  [LaTeX source](docs/mini_paper.tex)
-- [Educational optimization story](docs/blog_post.md)
-- [Design journal](docs/design_journal.md),
-  [experiment log](docs/experiment_log.md), and
-  [learning journal](docs/learning_journal.md)
-- [Interview and defense notes](docs/interview_notes.md)
-- [112-commit public journal](WEBSITE_JOURNAL.md)
-- [Platform-labeled reproducibility commands](docs/reproducibility.md)
+## Scope
 
-## Layout
+The custom operator supports contiguous FP32 CUDA inputs, causal masking, and
+forward execution. It does not implement autograd/backward, dropout, arbitrary
+masks, mixed precision, or a custom matrix multiplication. The explicit custom
+attention path still uses PyTorch for `QK^T` and `probabilities @ V`; its results
+must therefore be distinguished from an isolated softmax microbenchmark.
 
-- `cuda_attention/`: Python package, environment detection, and future
-  CPU-friendly reference paths.
-- `csrc/`: the C++/CUDA extension boundary and single evolving CUDA source file.
-- `tests/`: correctness tests, written before performance claims.
-- `benchmarks/`, `profiling/`, `results/`, and `figures/`: reproducible
-  measurement inputs and outputs.
-- `docs/` and `notebooks/`: the research record and learning material.
+## License
 
-See `PROJECT_PLAN.md` for the ordered research plan and `AGENTS.md` for the
-engineering, platform, and research-integrity constraints.
+This project is released under the [MIT License](LICENSE).

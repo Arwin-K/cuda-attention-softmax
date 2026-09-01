@@ -1,10 +1,12 @@
 # CUDA Optimization of Fused Causal Softmax for Transformer Attention
 
-**Author:** Arwin Karir<br>
-**Affiliation:** TODO(student): add institution, program, and contact information.
+**Author:** Arwin Karir
 
-This Markdown manuscript mirrors `mini_paper.tex`. Every number below comes
-from the preserved run at `results/runs/2026-08-23_tesla-t4_ca87722/`.
+This is a browser-readable companion summary. The authoritative formatted
+manuscript is the [PDF preview](mini_paper.pdf), generated from
+[`mini_paper.tex`](mini_paper.tex) and [`references.bib`](references.bib).
+Every number below comes from the preserved run at
+`results/runs/2026-08-23_tesla-t4_ca87722/`.
 
 ## 1. Abstract
 
@@ -59,13 +61,12 @@ narrower than, IO-aware full-attention algorithms such as FlashAttention.
 
 ## 5. Hypotheses
 
-The preregistered hypotheses predicted that intra-row block parallelism would
+The hypotheses predicted that intra-row block parallelism would
 outperform a row-serial mapping at larger shapes; warp reductions would improve
 on full shared-memory trees; the best block size would depend on sequence
 length; framework ordering could vary with shape; and softmax speedup would
-usually exceed explicit-attention speedup. Original falsification criteria are
-preserved in `research_question.md`; status labels are evaluated only from the
-imported evidence.
+usually exceed explicit-attention speedup. Their status was evaluated only
+after importing the measured evidence.
 
 ## 6. Methodology
 

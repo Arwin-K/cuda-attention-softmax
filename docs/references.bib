@@ -1,54 +1,245 @@
-@inproceedings{vaswani2017attention,
-  author    = {Ashish Vaswani and Noam Shazeer and Niki Parmar and Jakob Uszkoreit and Llion Jones and Aidan N. Gomez and Lukasz Kaiser and Illia Polosukhin},
+@inproceedings{vaswani2017,
+  author    = {Ashish Vaswani and Noam Shazeer and Niki Parmar and Jakob Uszkoreit and Llion Jones and Aidan N. Gomez and {\L}ukasz Kaiser and Illia Polosukhin},
   title     = {Attention Is All You Need},
-  booktitle = {Advances in Neural Information Processing Systems},
-  volume    = {30},
+  booktitle = {Advances in Neural Information Processing Systems 30},
   year      = {2017},
-  url       = {https://arxiv.org/abs/1706.03762}
+  url       = {https://papers.nips.cc/paper_files/paper/2017/hash/3f5ee243547dee91fbd053c1c4a845aa-Abstract.html}
 }
 
-@article{dao2022flashattention,
-  author  = {Tri Dao and Daniel Y. Fu and Stefano Ermon and Atri Rudra and Christopher R{\'e}},
-  title   = {{FlashAttention}: Fast and Memory-Efficient Exact Attention with {IO}-Awareness},
-  journal = {Advances in Neural Information Processing Systems},
-  volume  = {35},
-  year    = {2022},
-  url     = {https://arxiv.org/abs/2205.14135}
+@inproceedings{pytorch2019,
+  author    = {Adam Paszke and Sam Gross and Francisco Massa and Adam Lerer and James Bradbury and Gregory Chanan and Trevor Killeen and Zeming Lin and Natalia Gimelshein and Luca Antiga and Alban Desmaison and Andreas K{\"o}pf and Edward Yang and Zachary DeVito and Martin Raison and Alykhan Tejani and Sasank Chilamkurthy and Benoit Steiner and Lu Fang and Junjie Bai and Soumith Chintala},
+  title     = {{PyTorch}: An Imperative Style, High-Performance Deep Learning Library},
+  booktitle = {Advances in Neural Information Processing Systems 32},
+  pages     = {8024--8035},
+  year      = {2019},
+  url       = {https://papers.nips.cc/paper/9015-pytorch-an-imperative-style-high-performance-deep-learning-library}
 }
 
-@inproceedings{amdahl1967validity,
+@inproceedings{flashattention2022,
+  author    = {Tri Dao and Daniel Y. Fu and Stefano Ermon and Atri Rudra and Christopher R{\'e}},
+  title     = {{FlashAttention}: Fast and Memory-Efficient Exact Attention with {IO}-Awareness},
+  booktitle = {Advances in Neural Information Processing Systems 35},
+  year      = {2022},
+  doi       = {10.52202/068431-1189},
+  url       = {https://proceedings.neurips.cc/paper_files/paper/2022/hash/67d57c32e20fd0a7a302cb81d36e40d5-Abstract-Conference.html}
+}
+
+@inproceedings{flashattention2,
+  author    = {Tri Dao},
+  title     = {{FlashAttention-2}: Faster Attention with Better Parallelism and Work Partitioning},
+  booktitle = {The Twelfth International Conference on Learning Representations},
+  year      = {2024},
+  url       = {https://openreview.net/forum?id=mZn2Xyh9Ec}
+}
+
+@article{milakov2018,
+  author  = {Maxim Milakov and Natalia Gimelshein},
+  title   = {Online Normalizer Calculation for Softmax},
+  journal = {arXiv preprint arXiv:1805.02867},
+  year    = {2018},
+  doi     = {10.48550/arXiv.1805.02867},
+  url     = {https://arxiv.org/abs/1805.02867}
+}
+
+@article{blanchard2019,
+  author  = {Pierre Blanchard and Desmond J. Higham and Nicholas J. Higham},
+  title   = {Accurate Computation of the Log-Sum-Exp and Softmax Functions},
+  journal = {arXiv preprint arXiv:1909.03469},
+  year    = {2019},
+  doi     = {10.48550/arXiv.1909.03469},
+  url     = {https://arxiv.org/abs/1909.03469}
+}
+
+@inproceedings{amdahl1967,
   author    = {Gene M. Amdahl},
   title     = {Validity of the Single Processor Approach to Achieving Large Scale Computing Capabilities},
-  booktitle = {AFIPS Spring Joint Computer Conference},
+  booktitle = {Proceedings of the April 18--20, 1967, Spring Joint Computer Conference},
   pages     = {483--485},
   year      = {1967},
-  doi       = {10.1145/1465482.1465560}
+  doi       = {10.1145/1465482.1465560},
+  url       = {https://dl.acm.org/doi/10.1145/1465482.1465560}
 }
 
-@manual{nvidia2026cuda,
-  author = {{NVIDIA Corporation}},
-  title  = {{CUDA} Programming Guide},
-  year   = {2026},
-  url    = {https://docs.nvidia.com/cuda/cuda-programming-guide/}
+@online{cuda_programming_guide,
+  author  = {{NVIDIA Corporation}},
+  title   = {{CUDA} Programming Guide},
+  year    = {2026},
+  url     = {https://docs.nvidia.com/cuda/cuda-programming-guide/index.html},
+  urldate = {2026-08-17}
 }
 
-@manual{nvidia2025nsight,
-  author = {{NVIDIA Corporation}},
-  title  = {{Nsight Compute} Profiling Guide},
-  year   = {2025},
-  url    = {https://docs.nvidia.com/nsight-compute/ProfilingGuide/}
+@online{cuda_best_practices,
+  author  = {{NVIDIA Corporation}},
+  title   = {{CUDA} Best Practices Guide},
+  year    = {2026},
+  url     = {https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html},
+  urldate = {2026-08-17}
 }
 
-@manual{pytorch2026sdpa,
-  author = {{PyTorch Contributors}},
-  title  = {scaled\_dot\_product\_attention},
-  year   = {2026},
-  url    = {https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html}
+@online{cuda_fp_math,
+  author  = {{NVIDIA Corporation}},
+  title   = {Floating-Point Computation --- {CUDA} Programming Guide},
+  year    = {2026},
+  url     = {https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/mathematical-functions.html},
+  urldate = {2026-08-17}
 }
 
-@manual{pytorch2026profiler,
-  author = {{PyTorch Contributors}},
-  title  = {{PyTorch Profiler}},
-  year   = {2026},
-  url    = {https://docs.pytorch.org/docs/stable/profiler.html}
+@online{cuda_warp_shuffle,
+  author  = {{NVIDIA Corporation}},
+  title   = {Warp Shuffle Functions --- {CUDA} Programming Guide},
+  year    = {2026},
+  url     = {https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/cpp-language-extensions.html},
+  urldate = {2026-08-17}
+}
+
+@online{cuda_sync_rules,
+  author  = {{NVIDIA Corporation}},
+  title   = {Synchronization Functions --- {CUDA C++} Programming Guide},
+  year    = {2021},
+  url     = {https://docs.nvidia.com/cuda/archive/11.4.0/cuda-c-programming-guide/},
+  urldate = {2026-08-17}
+}
+
+@online{cuda_occupancy,
+  author  = {{NVIDIA Corporation}},
+  title   = {Occupancy --- {CUDA} Runtime API},
+  year    = {2026},
+  url     = {https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__OCCUPANCY.html},
+  urldate = {2026-08-17}
+}
+
+@online{cuda_async,
+  author  = {{NVIDIA Corporation}},
+  title   = {Asynchronous Execution --- {CUDA} Programming Guide},
+  year    = {2026},
+  url     = {https://docs.nvidia.com/cuda/cuda-programming-guide/02-basics/asynchronous-execution.html},
+  urldate = {2026-08-17}
+}
+
+@online{cuda_events,
+  author  = {{NVIDIA Corporation}},
+  title   = {Event Management --- {CUDA} Runtime API},
+  year    = {2026},
+  url     = {https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__EVENT.html},
+  urldate = {2026-08-17}
+}
+
+@online{cuda_error_handling,
+  author  = {{NVIDIA Corporation}},
+  title   = {Error Handling --- {CUDA} Runtime API},
+  year    = {2026},
+  url     = {https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__ERROR.html},
+  urldate = {2026-08-17}
+}
+
+@online{pytorch_cpp_extension,
+  author  = {{PyTorch Contributors}},
+  title   = {torch.utils.cpp\_extension},
+  year    = {2026},
+  url     = {https://docs.pytorch.org/docs/stable/cpp_extension.html},
+  urldate = {2026-08-17}
+}
+
+@online{pytorch_custom_ops,
+  author  = {{PyTorch Contributors}},
+  title   = {Custom {C++} and {CUDA} Operators},
+  year    = {2026},
+  url     = {https://docs.pytorch.org/tutorials/advanced/cpp_custom_ops.html},
+  urldate = {2026-08-17}
+}
+
+@online{pytorch_cuda_streams,
+  author  = {{PyTorch Contributors}},
+  title   = {{CUDA} Streams --- {PyTorch C++} API},
+  year    = {2026},
+  url     = {https://docs.pytorch.org/cppdocs/api/cuda/streams.html},
+  urldate = {2026-08-17}
+}
+
+@online{pytorch_cuda_support,
+  author  = {{PyTorch Contributors}},
+  title   = {{CUDA} Support --- {PyTorch C++} API},
+  year    = {2026},
+  url     = {https://docs.pytorch.org/cppdocs/api/cuda/index.html},
+  urldate = {2026-08-17}
+}
+
+@online{pytorch_sdpa,
+  author  = {{PyTorch Contributors}},
+  title   = {torch.nn.functional.scaled\_dot\_product\_attention},
+  year    = {2026},
+  url     = {https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html},
+  urldate = {2026-08-17}
+}
+
+@online{pytorch_compile,
+  author  = {{PyTorch Contributors}},
+  title   = {torch.compile},
+  year    = {2026},
+  url     = {https://docs.pytorch.org/docs/stable/generated/torch.compile.html},
+  urldate = {2026-08-17}
+}
+
+@online{pytorch_compile_tutorial,
+  author  = {William Wen},
+  title   = {Introduction to torch.compile},
+  year    = {2026},
+  url     = {https://docs.pytorch.org/tutorials/intermediate/torch_compile_tutorial.html},
+  urldate = {2026-08-17}
+}
+
+@online{pytorch_profiler,
+  author  = {{PyTorch Contributors}},
+  title   = {{PyTorch} Profiler},
+  year    = {2026},
+  url     = {https://docs.pytorch.org/tutorials/recipes/recipes/profiler_recipe.html},
+  urldate = {2026-08-17}
+}
+
+@online{pytorch_numerical,
+  author  = {{PyTorch Contributors}},
+  title   = {Numerical Accuracy},
+  year    = {2026},
+  url     = {https://docs.pytorch.org/docs/stable/notes/numerical_accuracy.html},
+  urldate = {2026-08-17}
+}
+
+@online{pytorch_reproducibility,
+  author  = {{PyTorch Contributors}},
+  title   = {Reproducibility},
+  year    = {2026},
+  url     = {https://docs.pytorch.org/docs/stable/notes/randomness.html},
+  urldate = {2026-08-17}
+}
+
+@online{pytorch_testing,
+  author  = {{PyTorch Contributors}},
+  title   = {torch.testing},
+  year    = {2026},
+  url     = {https://docs.pytorch.org/docs/stable/testing.html},
+  urldate = {2026-08-17}
+}
+
+@online{pytorch_cuda_event,
+  author  = {{PyTorch Contributors}},
+  title   = {torch.cuda.Event},
+  year    = {2026},
+  url     = {https://docs.pytorch.org/docs/stable/generated/torch.cuda.Event.html},
+  urldate = {2026-08-17}
+}
+
+@online{pytorch_cuda_synchronize,
+  author  = {{PyTorch Contributors}},
+  title   = {torch.cuda.synchronize},
+  year    = {2026},
+  url     = {https://docs.pytorch.org/docs/stable/generated/torch.cuda.synchronize.html},
+  urldate = {2026-08-17}
+}
+
+@online{nsight_compute,
+  author  = {{NVIDIA Corporation}},
+  title   = {{NVIDIA Nsight Compute} Profiling Guide},
+  year    = {2026},
+  url     = {https://docs.nvidia.com/nsight-compute/ProfilingGuide/index.html},
+  urldate = {2026-08-17}
 }

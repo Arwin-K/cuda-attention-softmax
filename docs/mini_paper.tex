@@ -1,159 +1,645 @@
-\documentclass[twocolumn,10pt]{article}
+% Journal of Computational Science and Applications (JCSA)-style manuscript.
+% This repository version is a preprint, not a claim of journal publication.
+\documentclass[twoside,twocolumn,10pt]{article}
 
-% Standalone two-column source. Copy venue-specific class/style files from the
-% licensed JCSA template beside this file if the venue requires its exact class.
-\usepackage[margin=0.75in]{geometry}
-\usepackage{amsmath}
-\usepackage{booktabs}
+\usepackage{fancyhdr}
+\usepackage{geometry}
+\usepackage{abstract}
 \usepackage{graphicx}
+\usepackage[font=footnotesize,labelfont=bf,justification=raggedright]{caption}
+\usepackage{titlesec}
+\usepackage{ragged2e}
+\usepackage{amssymb}
+\usepackage{amsmath}
+\usepackage{newtxtext}
+\usepackage{newtxmath}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{balance}
+\usepackage{microtype}
+\usepackage{xurl}
 \usepackage[hidelinks]{hyperref}
-\usepackage[backend=biber,style=ieee]{biblatex}
+\usepackage[backend=bibtex,style=ieee,sorting=none]{biblatex}
+
 \addbibresource{references.bib}
 \graphicspath{{../results/runs/2026-08-23_tesla-t4_ca87722/artifacts/figures/}}
 
-\title{CUDA Optimization of Fused Causal Softmax for Transformer Attention}
-\author{Arwin Karir\\\small TODO(student): institution, program, and email}
+\geometry{
+  a4paper,
+  left=0.8in,
+  right=0.8in,
+  top=1in,
+  bottom=1in
+}
+
+\setcounter{page}{1}
+\setlength{\columnsep}{15pt}
+\setlength{\parindent}{1em}
+\setlength{\parskip}{0.25em}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}}
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\repo}{\url{https://github.com/Arwin-K/cuda-attention-softmax}}
+
+\captionsetup[table]{labelsep=period,justification=raggedright}
+\captionsetup[figure]{labelsep=period,justification=raggedright}
+\titleformat{\section}{\large\bfseries\raggedright}{\thesection.}{0.6em}{\MakeUppercase}
+\titleformat{\subsection}{\normalfont\bfseries}{\thesubsection.}{0.5em}{}
+\titleformat{\subsubsection}{\normalfont\bfseries\itshape}{\thesubsubsection.}{0.5em}{}
+\renewcommand{\abstractname}{\hspace{1.3em}\textbf{Abstract}}
+\renewcommand{\abstractnamefont}{\normalfont\fontsize{14}{17}\bfseries}
+\renewcommand{\absnamepos}{flushleft}
+\renewcommand{\abstracttextfont}{\normalfont\fontsize{10}{12}\selectfont}
+\defbibheading{bibliography}[\refname]{\section*{REFERENCES}}
+\AtBeginBibliography{\footnotesize\raggedright\setlength{\bibitemsep}{0.35em}}
+
+\hyphenpenalty=5000
+\exhyphenpenalty=5000
+\sloppy
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[LE,RO]{\small CUDA Optimization of Fused Causal Softmax}
+\fancyhead[LO,RE]{\small Karir (2026)}
+\fancyfoot[C]{\thepage}
+
+\fancypagestyle{firstpage}{
+  \fancyhf{}
+  \fancyhead[LO]{\small Research Preprint, September 2026}
+  \fancyhead[RO]{\small JCSA-style format}
+  \fancyfoot[L]{\footnotesize Corresponding author: Arwin Karir\\Code and evidence: \repo}
+  \fancyfoot[R]{\footnotesize \copyright\ 2026 Arwin Karir\\Released with the repository under the MIT License}
+  \renewcommand{\headrulewidth}{0.4pt}
+  \renewcommand{\footrulewidth}{0.4pt}
+}
+
+\title{\fontsize{16}{19}\selectfont\textbf{CUDA Optimization of Fused Causal Softmax for Transformer Attention}}
+\author{\fontsize{12}{14}\selectfont\textbf{Arwin Karir}\\[-0.1em]
+  \small Educational GPU Systems Research Project}
 \date{}
 
 \begin{document}
+
+\twocolumn[
+\begin{@twocolumnfalse}
+\vspace{-0.5cm}
+\raggedright
+{\fontsize{11}{13}\selectfont Research Article}
+\vspace{-0.8cm}
 \maketitle
+\thispagestyle{firstpage}
+\vspace{-0.8cm}
 
 \begin{abstract}
-We study how CUDA work decomposition, reductions, warp communication, and
-launch configuration affect fused FP32 causal scaled softmax and explicit
-transformer attention. On one NVIDIA Tesla T4, all 88 structured softmax cases
-passed. Across sequence lengths 128--2048, the final warp kernel was
-3.22--8.92$\times$ faster than the row-serial kernel, 1.07--1.91$\times$ faster
-than the shared-tree kernel, and 1.40--3.94$\times$ faster than equivalent
-PyTorch eager softmax. Explicit custom attention improved by
-1.54--2.31$\times$, but PyTorch scaled-dot-product attention remained faster at
-all shapes. The results illustrate both the benefit of intra-row parallelism
-and the end-to-end limit of optimizing one pipeline stage.
+\justifying
+\textbf{Background:} Causal scaled softmax is a reduction-heavy stage between
+the two matrix multiplications of transformer attention.
+\textbf{Objective:} This study asks how CUDA work decomposition, reduction
+strategy, warp communication, and launch configuration affect this operator,
+and how much isolated-kernel improvement transfers to complete attention.
+\textbf{Methods:} One evolving FP32 CUDA implementation progressed from one
+thread per row to one block per row with shared-memory trees and then compact
+warp-shuffle reductions. Correctness was compared with PyTorch, while CUDA
+events measured 100 samples after 25 warmups on an NVIDIA Tesla T4 for sequence
+lengths 128--2048.
+\textbf{Results:} All 88 structured softmax cases passed at
+$\mathrm{rtol}=10^{-5}$ and $\mathrm{atol}=10^{-6}$, with maximum absolute error
+$3.5763\times10^{-7}$. The warp kernel was 3.22--8.92$\times$ faster than the
+row-serial implementation, 1.07--1.91$\times$ faster than the shared-tree
+implementation, and 1.40--3.94$\times$ faster than equivalent PyTorch eager
+softmax. Explicit attention improved by 1.54--2.31$\times$, but PyTorch
+scaled-dot-product attention remained faster at every tested shape.
+\textbf{Conclusion:} Work mapping and warp communication materially improved
+the isolated kernel, while unchanged matrix multiplications and broader
+attention fusion limited application-level gains.
+
+\vspace{0.2em}
+\noindent\textbf{Keywords:} CUDA; GPU optimization; stable softmax; causal
+attention; transformer attention; kernel fusion; parallel reduction.
 \end{abstract}
+\vspace{0.7cm}
+\end{@twocolumnfalse}
+]
 
 \section{Introduction}
-Transformer attention~\cite{vaswani2017attention} applies softmax between two
-matrix multiplications. Softmax requires row-wide maximum and sum reductions,
-making it a compact case study in CUDA communication. This project evolves one
-source file through Git history so that every design change is reviewable.
 
-\section{Background}
-For logits $x$, stable softmax computes
+Transformers organize sequence modeling around attention, which exposes
+parallel work across tokens while learning data-dependent relationships
+\cite{vaswani2017}. Scaled dot-product attention is
 \begin{equation}
- p_i=\frac{\exp(x_i-m)}{\sum_j\exp(x_j-m)},\qquad m=\max_j x_j.
+\operatorname{Attention}(Q,K,V)=
+\operatorname{softmax}\!\left(\frac{QK^{T}}{\sqrt{d}}+M\right)V,
+\label{eq:attention}
 \end{equation}
-Maximum subtraction avoids exponential overflow without changing the result.
-CUDA warps exchange register values using shuffle operations, while shared
-memory communicates across warps~\cite{nvidia2026cuda}. The target is narrower
-than IO-aware full-attention fusion such as FlashAttention~\cite{dao2022flashattention}.
+where $d$ is the head dimension and $M$ excludes invalid positions. In causal
+self-attention, a query at position $i$ may attend only to keys at positions
+$j\le i$. PyTorch exposes this operation through scaled-dot-product attention
+(SDPA) and can dispatch to optimized backends depending on the inputs and
+runtime \cite{pytorch_sdpa}.
 
-\section{Research Question}
-How do GPU work decomposition, reductions, warp communication, and launch
-configuration affect fused causal softmax, and how much do kernel gains
-translate into complete transformer attention?
+Equation~\ref{eq:attention} contains two matrix multiplications around a
+reduction-heavy normalization. Softmax requires a maximum reduction for
+numerical stability, exponentiation, a denominator reduction, and final
+normalization. A framework composition also performs scaling and causal
+masking as separate tensor work. This structure makes causal softmax a compact
+case study in GPU work decomposition, coalesced memory access, synchronization,
+shared memory, register-local partials, and warp communication.
 
-\section{Hypotheses}
-We predicted that block-per-row work would outperform row-serial work at larger
-shapes, warp reductions would outperform shared-memory trees, launch winners
-would vary by shape, framework ordering could vary, and softmax speedup would
-usually exceed attention speedup.
+This work studies one primary CUDA source file through Git history rather than
+maintaining unrelated ``naive'' and ``optimized'' implementations. The research
+question is:
+
+\begin{quote}
+How do GPU work decomposition, parallel reductions, warp-level communication,
+and launch configuration affect fused causal scaled-softmax performance, and
+how much do those kernel-level optimizations translate into end-to-end
+transformer attention performance?
+\end{quote}
+
+The contributions are: (1) an inspectable fused causal scaled-softmax operator;
+(2) commit-linked comparisons of row-serial, shared-tree, and warp-reduction
+designs; (3) controlled launch and framework comparisons; (4) integration into
+explicit attention with a production SDPA baseline; and (5) a reproducible
+evidence archive containing raw samples, environment metadata, figures,
+profiler exports, and the executed experiment notebook.
+
+\section{Background and Related Work}
+
+\subsection{Stable Causal Softmax}
+
+For logits $x_1,\ldots,x_n$, numerically stable softmax subtracts the row
+maximum $m$:
+\begin{equation}
+p_i=\frac{\exp(x_i-m)}{\sum_j\exp(x_j-m)},\qquad m=\max_j x_j.
+\label{eq:stable}
+\end{equation}
+Multiplying numerator and denominator by $\exp(-m)$ shows that the probability
+is mathematically unchanged. Numerically, the largest exponential argument is
+zero and all others are non-positive, preventing large positive logits from
+overflowing the exponential. Stable log-sum-exp and softmax evaluation has
+been studied directly \cite{blanchard2019}, and online normalization work
+demonstrates how reorganization can reduce memory access \cite{milakov2018}.
+
+Floating-point addition is not associative, so different parallel reduction
+orders need not match bit-for-bit. CUDA and PyTorch document the resulting
+rounding and reproducibility constraints \cite{cuda_fp_math,cuda_best_practices,
+pytorch_numerical,pytorch_reproducibility}. Accordingly, this study fixes
+error tolerances before performance evaluation rather than requiring exact
+equality or weakening tolerances after observing results.
+
+\subsection{CUDA Reductions and Warp Communication}
+
+CUDA groups threads into blocks and blocks into a grid. Threads in a block can
+cooperate through shared memory and block-wide barriers; hardware executes
+threads in warps, conventionally 32 lanes on the tested architecture
+\cite{cuda_programming_guide}. A block reduction can combine one partial per
+thread through a shared-memory tree. Warp shuffle operations instead exchange
+register values within a warp, avoiding a shared-memory write--barrier--read
+sequence at each intra-warp reduction step \cite{cuda_warp_shuffle}. A compact
+two-level design can reduce within each warp, store one result per warp in
+shared memory, and use the first warp for the final block result.
+
+Performance does not follow from occupancy or thread count alone. Block size,
+register use, shared memory, coordination, and row length interact, so launch
+configuration must be measured rather than inferred \cite{cuda_occupancy,
+cuda_best_practices}.
+
+\subsection{Fusion and Attention Systems}
+
+Kernel fusion can reduce intermediate storage and launch overhead by retaining
+related work within one kernel. FlashAttention showed that IO-aware tiling can
+substantially improve exact full attention by reducing high-bandwidth-memory
+traffic \cite{flashattention2022}; FlashAttention-2 further improved work
+partitioning and parallelism \cite{flashattention2}. The present operator is
+deliberately narrower: it fuses the scaled causal softmax stage but leaves
+$QK^T$ and $PV$ to PyTorch. This boundary makes the difference between a
+microkernel result and a full-attention result explicit.
 
 \section{Methodology}
-The kernel fuses scaling, causal masking, stable exponentiation, reduction, and
-normalization. Historical row-serial, shared-tree, and warp implementations are
-recovered from Git commits. CUDA events measured 100 samples after 25 warmups.
-Softmax used FP32, eight batch-head rows per sequence position; attention used
-batch 1, eight heads, and head dimension 64. Sequence lengths were 128, 255,
-512, 768, 1024, 1536, and 2048. Correctness used fixed tolerances of
-$10^{-5}$ relative and $10^{-6}$ absolute.
 
-\section{CUDA Implementation}
-The first mapping assigns a row to one thread. The block mapping distributes
-columns using thread-strided access and combines thread-local partials through
-shared-memory trees. The final mapping uses warp shuffles, stores one value per
-warp in a compact shared array, and lets the first warp finish each block-wide
-reduction. The causal predicate and stable maximum subtraction stay in-kernel.
+\subsection{Operation Contract}
+
+For $Q,K,V\in\mathbb{R}^{B\times H\times S\times D}$, the score tensor is
+flattened from $[B,H,S,S]$ to $[R,S]$, where $R=BHS$. For row $r$, the query
+position is
+\begin{equation}
+q_r=r\bmod S.
+\end{equation}
+Only columns $j\le q_r$ are allowed. Given a finite positive scale $\alpha$,
+the fused operator computes
+\begin{align}
+m_r &= \max_{j\le q_r}(\alpha s_{r,j}),\\
+z_r &= \sum_{k\le q_r}\exp(\alpha s_{r,k}-m_r),\\
+p_{r,j} &=
+\begin{cases}
+\exp(\alpha s_{r,j}-m_r)/z_r,&j\le q_r,\\
+0,&j>q_r.
+\end{cases}
+\label{eq:fused}
+\end{align}
+The output preserves shape, dtype, and device. The implementation accepts
+contiguous two-dimensional FP32 CUDA tensors and implements forward execution
+only.
+
+\subsection{Hypotheses}
+
+Five hypotheses were evaluated after evidence collection:
+
+\begin{enumerate}
+\item row-serial work scales poorly as row length increases;
+\item one block per row improves sufficiently long rows despite coordination;
+\item warp reductions improve on full shared-memory trees;
+\item the preferred block size varies with sequence length; and
+\item isolated-softmax speedup usually exceeds complete-attention speedup.
+\end{enumerate}
+
+\subsection{Correctness Protocol}
+
+The custom output was compared with an independent PyTorch composition at
+$\mathrm{rtol}=10^{-5}$ and $\mathrm{atol}=10^{-6}$. Sequence lengths were
+31, 32, 33, 63, 64, 127, 128, 255, 511, 768, and 1023. Eight input families
+covered normal random values; random values multiplied by 10, 100, and 1000;
+zeros; equal values; one dominant positive value; and one dominant negative
+value. Tests checked numerical closeness, exact causal zeros, approximate row
+sums of one, finiteness, shape, dtype, and device. Complete attention was also
+compared with explicit PyTorch attention and SDPA.
+
+\subsection{Benchmark Protocol}
+
+The isolated-softmax experiment used FP32, $R=8S$, scale $1/\sqrt{64}$, and
+$S\in\{128,255,512,768,1024,1536,2048\}$. Attention used batch 1, eight
+heads, and head dimension 64. Inputs, masks, and allocations were outside the
+timed interval. Each case used 25 untimed warmups followed by 100 CUDA-event
+samples. The median was the primary latency statistic, with the 25th and 75th
+percentiles retained. CUDA synchronization ensured that device completion was
+included. The initial \code{torch.compile} call was excluded from steady-state
+latency and recorded as a separate compile warmup \cite{cuda_events,
+pytorch_cuda_event,pytorch_cuda_synchronize,pytorch_compile}.
+
+Every result row records its Git revision, implementation, shape, dtype,
+warmups, iterations, device, compute capability, PyTorch version, CUDA version,
+and timestamp. Raw samples are preserved rather than replaced by summaries.
+
+\section{CUDA Implementation Evolution}
+
+\subsection{Row-Serial Baseline}
+
+The first complete design assigned one softmax row to one CUDA thread. That
+thread scanned allowed columns for the maximum, scanned again for the stable
+exponential sum, and normalized the row. The mapping was simple and provided a
+correct baseline, but exposed no parallelism inside a row.
+
+\subsection{Block-Parallel Shared Trees}
+
+The second design assigned one block to one row. Thread $t$ visited columns
+$t+k\,\code{blockDim.x}$, giving neighboring threads neighboring initial
+addresses while supporting arbitrary row lengths. Each thread accumulated
+register-local maximum and denominator partials. Full shared-memory trees then
+combined those partials, with block barriers protecting producer--consumer
+boundaries. A second strided pass normalized output columns in parallel.
+
+\subsection{Compact Warp Reductions}
+
+The final design used \code{\_\_shfl\_down\_sync} for maximum and sum
+reductions within each warp. Each warp leader wrote one value to a compact
+shared array; after one block barrier, the first warp completed the cross-warp
+reduction. For a 128-thread block, four warp partials require 16 bytes of
+dynamic shared memory. Scaling, the causal predicate, stable maximum
+subtraction, exponentiation, both reductions, and normalization remain fused in
+one kernel.
+
+Historical algorithms were recovered from commits \code{8f07d762} (row
+serial), \code{f9420de0} (shared tree), and \code{a3736910} (warp reduction).
+The historical rebuild applied a recorded header-only include needed by CUDA
+12.8; no algorithm, workload, or tolerance was changed.
 
 \section{Experimental Setup}
-The measured clean commit is \texttt{ca87722a}. The environment was a Tesla T4
-(compute capability 7.5), PyTorch 2.11.0+cu128, CUDA toolkit 12.8, and Python
-3.13.15. All results are from one Google Colab session.
+
+Measurements were collected in one Google Colab session. Table~\ref{tab:env}
+summarizes the captured environment. The NVIDIA driver advertised CUDA 13.0
+compatibility, while the installed toolkit and PyTorch build used CUDA 12.8.
+Current framework and attention benchmarks correspond to clean commit
+\code{ca87722a00ebf585cd788c67949e7c0b32dca788}.
+
+\begin{table}[t]
+\centering
+\caption{Measured execution environment.}
+\label{tab:env}
+\begin{tabular}{L{2.0cm}L{4.8cm}}
+\toprule
+Component & Recorded value \\
+\midrule
+GPU & NVIDIA Tesla T4, compute capability 7.5, 15.6 GB \\
+Host & Google Colab; Linux 6.6.122, x86-64 \\
+Python & 3.13.15 \\
+PyTorch & 2.11.0+cu128 \\
+Toolkit & NVCC 12.8.93 \\
+Driver & 580.82.07; CUDA compatibility 13.0 \\
+C++ compiler & GCC 11.4.0 \\
+Timing & 25 warmups; 100 CUDA-event samples \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \section{Results}
-All 88 structured softmax cases passed; maximum absolute error and maximum row
-sum error were both $3.5763\times10^{-7}$. Figure~\ref{fig:historical} shows
-3.22--8.92$\times$ speedup over row serial and 1.07--1.91$\times$ over the
-shared tree. The custom kernel was 1.40--3.94$\times$ faster than PyTorch eager
-and faster than steady-state \texttt{torch.compile} for six of seven shapes.
-At length 2048, \texttt{torch.compile} was approximately 2.1\% faster.
+
+\subsection{Correctness}
+
+The CUDA test stage reported 70 passes. The structured softmax matrix contained
+88 comparisons (11 lengths times 8 input families), all of which passed. The
+maximum absolute error was $3.5762787\times10^{-7}$, maximum relative error was
+$4.6973432\times10^{-7}$, and maximum row-sum error was
+$3.5762787\times10^{-7}$. Every masked future probability was exactly zero,
+and no unexpected NaN or infinity appeared. Table~\ref{tab:correctness}
+summarizes the accepted evidence.
+
+All seven complete-attention comparisons passed. Maximum absolute output error
+was $2.9802322\times10^{-7}$ for custom explicit attention versus explicit
+PyTorch and $7.1525574\times10^{-7}$ for SDPA versus the same reference.
+
+\begin{table}[t]
+\centering
+\caption{Correctness evidence summary at fixed FP32 tolerances.}
+\label{tab:correctness}
+\begin{tabular}{L{3.4cm}C{1.45cm}C{1.45cm}}
+\toprule
+Check & Softmax & Attention \\
+\midrule
+Cases passed & 88/88 & 7/7 \\
+Maximum absolute error & $3.5763\!\times\!10^{-7}$ & $2.9802\!\times\!10^{-7}$ \\
+Maximum row-sum error & $3.5763\!\times\!10^{-7}$ & --- \\
+Masked future values & all zero & causal outputs passed \\
+Unexpected NaN/Inf & none & none \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Historical Kernel Evolution}
+
+Figure~\ref{fig:historical} shows the matched historical comparison. The warp
+kernel was 3.22--8.92$\times$ faster than row serial and 1.07--1.91$\times$
+faster than the shared-tree design across all tested lengths. The larger
+row-serial gap combines work-decomposition and reduction improvements; the
+shared-tree comparison more closely isolates the communication change after
+block-per-row work was already present.
 
 \begin{figure}[t]
-  \centering
-  \includegraphics[width=\columnwidth]{fig_historical_speedup.pdf}
-  \caption{Historical kernel speedup from matched raw CUDA-event samples.}
-  \label{fig:historical}
+\centering
+\includegraphics[width=\columnwidth]{fig_historical_speedup.pdf}
+\caption{Historical kernel speedup from matched raw CUDA-event samples.
+Row serial (\code{8f07d762}) is the reference for the plotted ratios.}
+\label{fig:historical}
 \end{figure}
 
-The 128-thread launch won five shapes, 256 threads won two long shapes, and 512
-threads won none. The experiment's relative-latency rule selected 128 threads.
+\subsection{Launch Configuration}
 
-\section{Transformer Attention Experiment}
-The custom path explicitly computes $QK^T$, custom softmax, then $PV$. It was
-1.54--2.31$\times$ faster than explicit eager attention. Kernel speedup exceeded
-attention speedup at six of seven lengths. PyTorch SDPA~\cite{pytorch2026sdpa}
-was 1.25--2.53$\times$ faster than the explicit custom path at every shape.
+The 128-thread block had the lowest median at lengths 128, 255, 512, 768, and
+1024. A 256-thread block won at 1536 and 2048; 512 threads won no tested shape.
+The predefined aggregate rule normalized latency by the fastest configuration
+at each length and selected the block size with the lowest median relative
+latency. It selected 128 threads with score 1.000, compared with 1.107 for 256
+and 2.100 for 512. Figure~\ref{fig:launch} demonstrates that the per-shape
+winner is not universal.
 
 \begin{figure}[t]
-  \centering
-  \includegraphics[width=\columnwidth]{fig_kernel_vs_attention_speedup.pdf}
-  \caption{Softmax-only versus explicit-attention speedup.}
-  \label{fig:translation}
+\centering
+\includegraphics[width=\columnwidth]{fig_launch_configuration.pdf}
+\caption{Launch-configuration median latency on the Tesla T4. Only block size
+changes within this comparison.}
+\label{fig:launch}
 \end{figure}
 
-\section{Profiling Analysis}
-\textbf{Measured:} At length 512, PyTorch Profiler~\cite{pytorch2026profiler}
-reported 110.207 $\mu$s for the fused kernel. Nsight Compute
-~\cite{nvidia2025nsight} reported 106.976--107.584 $\mu$s, 24 registers per
-thread, 16 bytes dynamic shared memory, 48.33--48.79\% peak DRAM throughput,
-and 56.72--57.00\% peak SM throughput across four profiled launches.
+\subsection{Framework Softmax Comparison}
 
-\textbf{Interpretation:} The compact shared footprint agrees with the intended
-warp design, but these percentages alone do not establish a unique bottleneck.
-Profiler captures are not substituted for steady-state benchmark medians.
+Table~\ref{tab:softmax} and Figure~\ref{fig:softmax-latency} compare equivalent
+scale--mask--softmax work. The custom operator beat eager PyTorch at all seven
+lengths by 1.40--3.94$\times$. It beat steady-state \code{torch.compile} at six
+lengths; at $S=2048$, compiled PyTorch was approximately 2.1\% faster.
 
-\textbf{Next experiment:} Profile matched historical kernels and repeat on a
-second architecture.
+\begin{table*}[t]
+\centering
+\caption{Median fused causal softmax latency ($\mu$s) and custom speedup over
+equivalent eager PyTorch. Each median summarizes 100 samples.}
+\label{tab:softmax}
+\begin{tabular}{rrrrrrrr}
+\toprule
+$S$ & 128 & 255 & 512 & 768 & 1024 & 1536 & 2048 \\
+\midrule
+Custom CUDA & 38.752 & 58.544 & 131.040 & 239.440 & 359.568 & 723.952 & 1414.480 \\
+PyTorch eager & 77.600 & 81.920 & 337.920 & 735.264 & 1278.592 & 2855.840 & 5125.488 \\
+\code{torch.compile} & 225.664 & 143.456 & 197.392 & 344.352 & 465.424 & 1182.416 & 1385.760 \\
+Custom/eager & 2.00$\times$ & 1.40$\times$ & 2.58$\times$ & 3.07$\times$ & 3.56$\times$ & 3.94$\times$ & 3.62$\times$ \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{fig_softmax_latency.pdf}
+\caption{Median softmax latency for custom CUDA and framework baselines.}
+\label{fig:softmax-latency}
+\end{figure}
+
+\subsection{Complete Attention}
+
+The explicit custom path computes $QK^T$, invokes the custom softmax, and then
+computes $PV$. It was 1.54--2.31$\times$ faster than explicit eager attention.
+Kernel speedup exceeded attention speedup at six of seven lengths, consistent
+with the surrounding matrix multiplications limiting the benefit of optimizing
+only softmax. Production SDPA remained 1.25--2.53$\times$ faster than the
+explicit custom path at every length. This is a mathematically comparable
+output baseline, but not an implementation-equivalent fusion boundary: SDPA can
+fuse a larger portion of attention.
+
+\begin{table*}[t]
+\centering
+\caption{Median complete-attention latency ($\mu$s) and explicit custom
+speedup over explicit eager attention.}
+\label{tab:attention}
+\begin{tabular}{rrrrrrrr}
+\toprule
+$S$ & 128 & 255 & 512 & 768 & 1024 & 1536 & 2048 \\
+\midrule
+Custom explicit & 129.008 & 204.288 & 323.584 & 587.312 & 1014.016 & 2438.960 & 4198.768 \\
+Explicit eager & 198.544 & 352.128 & 747.888 & 1071.088 & 1820.672 & 4115.824 & 7090.240 \\
+PyTorch SDPA & 84.000 & 163.600 & 245.808 & 384.864 & 543.744 & 1032.400 & 1660.576 \\
+Custom/eager & 1.54$\times$ & 1.72$\times$ & 2.31$\times$ & 1.82$\times$ & 1.80$\times$ & 1.69$\times$ & 1.69$\times$ \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{fig_kernel_vs_attention_speedup.pdf}
+\caption{Isolated-softmax and explicit-attention speedup over their respective
+eager PyTorch baselines.}
+\label{fig:translation}
+\end{figure}
+
+\subsection{Profiling}
+
+\textbf{Measured.} At $S=512$, PyTorch Profiler attributed 110.207 $\mu$s of
+CUDA time to the fused kernel. Named device totals were 505.565 $\mu$s for
+custom explicit attention, 1095.195 $\mu$s for explicit eager attention, and
+408.222 $\mu$s for SDPA. Nsight Compute 2025.1.1 captured four target launches
+and reported 128 threads per block, 24 registers per thread, zero static shared
+memory, and 16 bytes of dynamic shared memory. Kernel durations were
+106.976--107.584 $\mu$s, with 48.33--48.79\% peak DRAM throughput and
+56.72--57.00\% peak SM throughput \cite{pytorch_profiler,nsight_compute}.
+
+\textbf{Interpretation.} The dynamic shared-memory footprint agrees with four
+warp partials for a 128-thread block. The throughput percentages do not prove a
+single memory or compute bottleneck. Profiler captures use different conditions
+from repeated benchmark medians and are not substituted for them.
+
+\begin{table}[t]
+\centering
+\caption{PyTorch Profiler device time at $S=512$. Path totals and the fused
+kernel row describe different scopes and should not be added.}
+\label{tab:profiler}
+\begin{tabular}{L{4.4cm}r}
+\toprule
+Profiled scope & Device time ($\mu$s) \\
+\midrule
+Custom explicit-attention total & 505.565 \\
+Explicit eager-attention total & 1095.195 \\
+PyTorch SDPA total & 408.222 \\
+Fused causal-softmax kernel & 110.207 \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \section{Discussion}
-Work decomposition produced the largest gain; warp communication then improved
-the already parallel block design. Launch winners varied with shape. Attention
-results follow the qualitative limit described by Amdahl's law
-~\cite{amdahl1967validity}: unchanged matrix multiplications bound application
-speedup. Measured and modeled attention values remain separate.
+
+\subsection{Hypothesis Evaluation}
+
+Table~\ref{tab:hypotheses} summarizes the evidence-bounded hypothesis outcome.
+The row-serial growth trend was only partially supported because latency trends
+do not alone prove the causal mechanism. Block-per-row work was supported at
+the tested long shapes. Warp reduction and shape-dependent launch choice were
+supported on the T4. The kernel-to-attention prediction was partially supported
+because the kernel speedup exceeded attention speedup at six, not all seven,
+matched lengths.
+
+\begin{table}[t]
+\centering
+\caption{Hypothesis status from the measured T4 experiment.}
+\label{tab:hypotheses}
+\begin{tabular}{C{0.45cm}L{2.25cm}L{3.6cm}}
+\toprule
+ID & Status & Evidence boundary \\
+\midrule
+H1 & Partially supported & Row-serial latency grew 58.98$\times$ versus 24.61$\times$ for block/shared tree. \\
+H2 & Supported & Block-per-row improved the tested long shapes by 3.42--6.77$\times$. \\
+H3 & Supported & Warp was faster than shared tree at all seven lengths. \\
+H4 & Supported & 128 and 256 threads each won at least one shape. \\
+H5 & Partially supported & Kernel speedup exceeded attention speedup for 6/7 lengths. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Microkernel Versus Application Performance}
+
+The historical comparison shows that work decomposition produced the largest
+gain: assigning a block rather than a thread to a row exposed intra-row
+parallelism. Warp communication then produced a smaller but consistently
+positive improvement over a block design that was already parallel.
+
+Application improvement was smaller because the custom kernel changes only one
+stage. If fraction $f$ of baseline attention time is accelerated by factor $s$,
+Amdahl's Law gives
+\begin{equation}
+S_{\mathrm{total}}=\frac{1}{(1-f)+f/s}.
+\label{eq:amdahl}
+\end{equation}
+The measured relationship broadly follows this limit, although the simple
+model does not reproduce every short-shape latency because launch overhead,
+backend selection, and interactions among operations also matter
+\cite{amdahl1967}.
+
+SDPA's consistent advantage is a central result. The custom softmax improves an
+explicit attention composition, but a production backend can optimize and fuse
+across a broader boundary. A fast isolated component is therefore useful
+evidence, not proof of a superior end-to-end attention implementation.
 
 \section{Limitations}
-This study covers FP32 forward causal softmax, one head dimension, one GPU, and
-one session. It excludes backward execution, mixed precision, dropout,
-arbitrary masks, replication across sessions, and cross-architecture results.
-Historical builds required a documented header-only CUDA 12.8 compatibility
-include. Percentiles describe samples from this run, not environment-level
-confidence intervals.
 
-\section{Future Work}
-Repeat on newer architectures and independent sessions; add FP16/BF16 and
-backward analysis; profile matched historical kernels; vary head dimensions;
-and compare specialized library operators under equivalent work.
+All quantitative performance findings come from one Tesla T4 in one Colab
+session. They do not establish run-to-run variability or transfer to Ampere,
+Ada, Hopper, or other architectures. Managed infrastructure does not fully
+control clock state, contention, or future software images. Quartiles describe
+within-session samples; they are not confidence intervals across machines or
+sessions.
 
-\section{Conclusion}
-CUDA mapping and communication choices substantially improved the measured
-softmax kernel and explicit attention, but a production fused SDPA baseline
-remained faster. Kernel optimization is valuable but must be judged inside the
-complete application path.
+The operator implements contiguous FP32 forward causal scaled softmax. It does
+not provide backward/autograd support, dropout, arbitrary or padding masks,
+variable valid lengths, or mixed precision. The flattened causal contract
+assumes scores derived from $[B,H,S,S]$. Historical kernels required a recorded
+header include for CUDA 12.8, so the rebuilds are algorithmically matched but
+not byte-identical to their original source snapshots.
 
-\section*{Artifact Availability}
-Raw samples, environment metadata, figures, profiler exports, and the executed
-notebook are preserved under
-\texttt{results/runs/2026-08-23\_tesla-t4\_ca87722/}.
+Framework comparisons were designed to perform equivalent scale, mask, and
+softmax work, but framework internals can evolve. Compilation startup was
+excluded from steady-state \code{torch.compile} latency and should be evaluated
+separately for short-lived workloads. SDPA is an output-equivalent production
+baseline, not an equal-fusion-boundary microkernel baseline.
 
+Nsight profiled only one sequence length and four launches. Peak DRAM and SM
+throughput percentages do not uniquely identify a bottleneck. Matched profiler
+metrics for historical kernels and independent sessions remain future work.
+
+\section{Conclusion and Future Work}
+
+On the measured Tesla T4 workload, changing from row-serial to block-per-row
+work delivered the largest kernel improvement, compact warp communication
+improved further on full shared-memory trees, and block-size preference varied
+with shape. The custom operator substantially outperformed equivalent eager
+softmax and accelerated explicit attention, but did not outperform production
+SDPA. The central systems result is that GPU mapping and communication choices
+matter locally, while end-to-end value depends on the fraction and fusion
+boundary of the larger application.
+
+Future work should repeat the complete experiment across independent sessions
+and on a newer architecture; profile shared-tree and warp kernels under matched
+conditions; evaluate shape-aware launch dispatch; add FP16/BF16 accumulation
+analysis and fixed error criteria; add backward/autograd support; vary batch,
+head count, head dimension, and masking; and compare specialized library
+operators under explicitly equivalent work.
+
+\section{Declarations and Artifact Availability}
+
+\textbf{Author contribution (CRediT):} Arwin Karir: Conceptualization,
+Methodology, Software, Validation, Formal Analysis, Investigation, Data
+Curation, Visualization, Writing---Original Draft, and Writing---Review and
+Editing.
+
+\textbf{Conflict of interest:} No conflict of interest is recorded for this
+independent educational research project.
+
+\textbf{Funding:} No external funding is recorded for this project. The
+measured experiment used a Google Colab Tesla T4 runtime.
+
+\textbf{Data and code availability:} Source, tests, notebook, raw CUDA-event
+samples, summaries, profiler exports, environment metadata, and generated
+figures are available in the
+\href{https://github.com/Arwin-K/cuda-attention-softmax}{public GitHub repository}.
+The preserved evidence is in run
+\code{2026-08-23\_tesla-t4\_ca87722}; its manifest records the full source
+revision \code{ca87722a}.
+
+\textbf{AI-assistance disclosure:} OpenAI Codex was used to assist with
+manuscript restructuring, LaTeX formatting, copyediting, and repository build
+automation. It is not an author. The human author remains responsible for
+verifying the source code, citations, measurements, interpretations, and final
+submitted manuscript.
+
+\textbf{Ethics statement:} This computer-systems study did not involve human
+participants, personal data, animals, or biological specimens.
+
+\textbf{Acknowledgments:} The project relies on the open-source PyTorch
+ecosystem and NVIDIA CUDA development and profiling tools.
+
+\balance
 \printbibliography
+
 \end{document}

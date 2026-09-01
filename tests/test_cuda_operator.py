@@ -17,8 +17,8 @@ from cuda_attention.reference import causal_allowed_mask, causal_scaled_softmax
 
 RTOL = 1e-5
 ATOL = 1e-6
-# This union is the explicit regression contract from AGENTS.md. Keeping it
-# visible in the CUDA gate prevents later optimization work from silently
+# This union is the explicit regression contract. Keeping it visible in the
+# CUDA gate prevents later optimization work from silently
 # dropping an awkward length merely because another parametrized group changed.
 REQUIRED_SEQUENCE_LENGTHS = (31, 32, 33, 63, 64, 127, 128, 255, 511, 768, 1023)
 CORE_SEQUENCE_LENGTHS = (32, 64, 128)

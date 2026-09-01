@@ -1,4 +1,4 @@
-"""CPU reference tests around future CUDA warp/block boundaries.
+"""CPU reference tests around CUDA warp/block boundaries.
 
 Testing values immediately below, at, and above powers of two catches indexing
 or reduction assumptions that convenient widths can hide.

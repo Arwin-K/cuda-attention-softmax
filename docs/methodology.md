@@ -35,8 +35,9 @@ than only with helpers that share their implementation:
 - explicit attention output is compared with separately composed PyTorch
   `QK^T`, mask, softmax, and `PV` operations.
 
-The custom CUDA operator will later be compared with these CPU/PyTorch
-semantics. Passing CPU tests is not evidence that CUDA code compiles or runs.
+The custom CUDA operator is compared with these CPU/PyTorch semantics before
+its timing results are accepted. Passing CPU tests is not evidence that CUDA
+code compiles or runs.
 
 ## Correctness dimensions
 
@@ -70,7 +71,7 @@ exists so later GPU code cannot silently narrow the valid shape contract.
 
 Test data uses explicit seeds. Reusable factories use local PyTorch generators,
 so unrelated global random draws do not alter generated score or Q/K/V tensors.
-The primary future softmax experiment uses FP32, `batch_heads=8`, and
+The primary softmax experiment uses FP32, `batch_heads=8`, and
 `rows=batch_heads*sequence_length` unless an experiment explicitly states a
 different controlled configuration.
 
@@ -105,13 +106,6 @@ duration to microseconds. Inputs are prepared outside this interval, and
 untimed warmups precede every sample set. This method is available only with an
 NVIDIA CUDA runtime; it never substitutes CPU or MPS timings.
 
-## Evidence after Commit 019
-
-On 2026-08-14, the CPU suite reported 47 passing tests in 1.02 seconds and both
-educational notebook code paths executed successfully. The environment report
-identified Darwin arm64, Python 3.11.15, PyTorch 2.13.0, and no CUDA device or
-PyTorch CUDA build. Test-run duration is validation metadata, not a performance
-benchmark.
 ## Compilation startup versus steady-state latency
 
 The `torch.compile` baseline uses three ordered phases for each shape:

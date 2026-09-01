@@ -18,6 +18,29 @@ if str(PROJECT_ROOT) not in sys.path:
 from cuda_attention.benchmark import RAW_BENCHMARK_FIELDS
 
 
+PUBLISHED_RAW_BENCHMARK_FIELDS = (
+    "git_commit",
+    "implementation",
+    "implementation_description",
+    "sequence_length",
+    "rows",
+    "columns",
+    "dtype",
+    "scale",
+    "warmups",
+    "iterations",
+    "sample_index",
+    "latency_us",
+    "launch_block_size",
+    "compile_warmups",
+    "gpu_name",
+    "compute_capability",
+    "pytorch_version",
+    "cuda_version",
+    "timestamp",
+)
+
+
 CONTROL_FIELDS = (
     "sequence_length",
     "rows",
@@ -63,17 +86,30 @@ SUMMARY_GROUP_FIELDS = tuple(
 
 
 def load_raw_benchmark_csv(path: Path) -> list[dict[str, str]]:
-    """Load a nonempty raw artifact only when its schema is complete."""
+    """Load current or published raw samples into the current schema."""
 
     if not path.is_file():
         raise FileNotFoundError(f"raw benchmark CSV does not exist: {path}")
     with path.open(newline="", encoding="utf-8") as input_file:
         reader = csv.DictReader(input_file)
-        if tuple(reader.fieldnames or ()) != RAW_BENCHMARK_FIELDS:
+        fields = tuple(reader.fieldnames or ())
+        if fields not in {RAW_BENCHMARK_FIELDS, PUBLISHED_RAW_BENCHMARK_FIELDS}:
             raise ValueError(f"unexpected raw benchmark schema in {path}")
         records = list(reader)
     if not records:
         raise ValueError(f"raw benchmark CSV contains no samples: {path}")
+    if fields == PUBLISHED_RAW_BENCHMARK_FIELDS:
+        records = [
+            {
+                field: (
+                    record["latency_us"]
+                    if field == "sample_us"
+                    else record[field]
+                )
+                for field in RAW_BENCHMARK_FIELDS
+            }
+            for record in records
+        ]
     return records
 
 

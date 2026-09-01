@@ -1,7 +1,7 @@
 # Imported experiment source
 
-This directory preserves the complete experiment handoff supplied for Day 7.
-It is evidence from an NVIDIA run, not output produced on the local Mac.
+This directory preserves the complete experiment archive supplied by the
+NVIDIA run. It is measured evidence, not output produced by CPU-only checks.
 
 - Experiment archive: `cuda_softmax_research_artifacts (1).zip`
 - Archive SHA-256: `2a00bd500313521797b9121b52e1b662638663618e34eb8c0cc82b79233ad1bb`
@@ -17,7 +17,7 @@ notebook in `notebooks/` remains output-free so that notebook validation and a
 fresh Colab run are deterministic.
 
 Quantitative claims must be derived from the raw CSVs or profiler exports under
-`artifacts/`, not from notebook display text alone. Later audit commits add
-machine-readable schema and figure-to-source checksums. See
+`artifacts/`, not from notebook display text alone. Machine-readable audits add
+schema and figure-to-source checksums. See
 `../schema_audit.json` and `../figure_provenance.json` from inside the artifact
 directory, or the two files beside `artifacts/` from the run root.

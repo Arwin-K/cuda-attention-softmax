@@ -434,14 +434,20 @@ elif SOURCE_MODE == "ZIP":
     zip_path.write_bytes(uploaded[zip_names[0]])
     with zipfile.ZipFile(zip_path) as archive:
         archive.extractall(extraction_root)
-    candidates = [path for path in extraction_root.rglob("AGENTS.md")]
+    candidates = [
+        path
+        for path in extraction_root.rglob("pyproject.toml")
+        if (path.parent / "csrc/fused_causal_softmax.cu").is_file()
+    ]
     if len(candidates) != 1:
         raise RuntimeError("Could not identify one repository root in the ZIP")
     shutil.move(str(candidates[0].parent), str(work_dir))
 else:
     raise ValueError("SOURCE_MODE must be GITHUB or ZIP")
 
-if not (work_dir / "AGENTS.md").is_file():
+if not (work_dir / "pyproject.toml").is_file() or not (
+    work_dir / "csrc/fused_causal_softmax.cu"
+).is_file():
     raise RuntimeError("The configured source is not the expected repository")
 
 os.chdir(work_dir)
@@ -1845,8 +1851,10 @@ if RUN_PYTORCH_PROFILER:
             "## MEASURED\n\n"
             "Profiler table, event CSV, and trace were exported for the configured "
             f"S={PROFILE_SEQUENCE_LENGTH} workload. Read the artifacts before adding facts.\n\n"
-            "## INTERPRETATION\n\nTODO(student): Add a hypothesis, not a profiler fact.\n\n"
-            "## NEXT EXPERIMENT\n\nTODO(student): State a controlled follow-up.\n",
+            "## INTERPRETATION\n\n"
+            "Interpret only after reviewing the exported measurements.\n\n"
+            "## NEXT EXPERIMENT\n\n"
+            "Repeat under a controlled change that can test the interpretation.\n",
         )
         STATE["pytorch_profiler"] = "COMPLETE"
     except Exception as error:
@@ -2756,21 +2764,20 @@ files.download("/content/cuda_softmax_research_artifacts.zip")
             ),
             markdown(
                 r"""
-# WHAT TO SEND TO CHATGPT TO FINISH THE PAPER
+# HOW TO REVIEW AND REPORT RESULTS
 
-Upload `cuda_softmax_research_artifacts.zip`. Also provide the current repository
-source/Git history and, if they are not already available, `main.tex` and
-`references.bib`.
+Review `cuda_softmax_research_artifacts.zip` together with the current
+repository source, Git history, paper source, and bibliography.
 
 The ZIP should contain environment and Git reports, build logs, correctness
 records, raw and summary softmax data, historical and launch data when run,
 attention data, profiler artifacts, supported figures, paper tables, the
 validation report, manifest, and hypothesis evaluation.
 
-Ask ChatGPT to replace only claims and placeholders directly supported by these
-artifacts. Missing figures, unavailable Nsight counters, failed historical
-builds, or inconclusive hypotheses must remain explicit limitations rather than
-being repaired with invented values.
+Write only claims directly supported by these artifacts. Missing figures,
+unavailable Nsight counters, failed historical builds, or inconclusive
+hypotheses must remain explicit limitations rather than being replaced with
+invented values.
 
 ## MEASURED
 

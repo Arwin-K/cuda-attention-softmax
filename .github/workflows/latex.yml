@@ -1,0 +1,43 @@
+name: LaTeX paper
+
+on:
+  push:
+    paths:
+      - "docs/mini_paper.tex"
+      - "docs/references.bib"
+      - "results/runs/2026-08-23_tesla-t4_ca87722/artifacts/figures/**"
+      - ".github/workflows/latex.yml"
+  pull_request:
+    paths:
+      - "docs/mini_paper.tex"
+      - "docs/references.bib"
+      - "results/runs/2026-08-23_tesla-t4_ca87722/artifacts/figures/**"
+      - ".github/workflows/latex.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Compile manuscript
+        uses: xu-cheng/latex-action@v4
+        with:
+          root_file: mini_paper.tex
+          working_directory: docs
+          compiler: latexmk
+          args: -pdf -bibtex -file-line-error -halt-on-error -interaction=nonstopmode
+
+      - name: Upload PDF preview
+        uses: actions/upload-artifact@v7
+        with:
+          name: cuda-softmax-research-paper
+          path: docs/mini_paper.pdf
+          if-no-files-found: error

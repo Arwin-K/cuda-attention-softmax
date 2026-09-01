@@ -1,13 +1,34 @@
 [build-system]
-requires = ["setuptools>=68", "torch>=2.0"]
+requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "cuda-attention-softmax"
-version = "0.0.0"
-description = "Educational research project for fused causal softmax"
+version = "0.1.0"
+description = "Research implementation of fused causal scaled softmax in CUDA"
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [{ name = "Arwin Karir" }]
 requires-python = ">=3.10"
 dependencies = ["torch>=2.0"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Education",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: C++",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+[project.optional-dependencies]
+dev = [
+    "matplotlib>=3.8",
+    "pytest>=7",
+]
+
+[project.urls]
+Repository = "https://github.com/Arwin-K/cuda-attention-softmax"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -45,8 +45,8 @@ def _validate_qkv(query: Tensor, key: Tensor, value: Tensor) -> None:
 def explicit_causal_attention(query: Tensor, key: Tensor, value: Tensor) -> AttentionResult:
     """Compute ``QK^T -> causal scaled softmax -> PV`` explicitly.
 
-    Keeping the steps separate makes the future replacement boundary clear:
-    the custom CUDA operator will replace only the scaling/masking/softmax
+    Keeping the steps separate makes the replacement boundary clear: the
+    custom CUDA operator replaces only the scaling/masking/softmax
     stage, while PyTorch continues to perform both matrix multiplications.
     """
 

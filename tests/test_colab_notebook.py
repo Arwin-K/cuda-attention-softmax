@@ -59,13 +59,13 @@ def test_every_python_code_cell_parses_without_colab_magics() -> None:
             ast.parse(str(cell["source"]), filename=f"notebook-cell-{index}")
 
 
-def test_notebook_contains_complete_numbered_workflow_and_handoff() -> None:
+def test_notebook_contains_complete_numbered_workflow_and_review_guidance() -> None:
     text = notebook_text(load_notebook())
 
     required_headings = [
         "# HOW TO USE THIS NOTEBOOK",
         *[f"# {number}." for number in range(1, 19)],
-        "# WHAT TO SEND TO CHATGPT TO FINISH THE PAPER",
+        "# HOW TO REVIEW AND REPORT RESULTS",
     ]
     for heading in required_headings:
         assert heading in text

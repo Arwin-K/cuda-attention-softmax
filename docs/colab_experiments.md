@@ -12,17 +12,13 @@ no executed outputs or example measurements.
 
 ## Before opening Colab
 
-The Colab notebook is now merged into `main`. Update the local checkout before
-opening the README badge:
+Update the local checkout before opening the README badge:
 
 ```bash
 git switch main
 git pull --ff-only origin main
 git status
 ```
-
-These are user-authorized supplemental commits. They do not renumber or replace
-the planned Commit 001–112 research roadmap.
 
 ## Exact Colab procedure
 
