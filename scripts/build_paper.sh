@@ -9,9 +9,9 @@ paper_dir="${project_root}/docs"
 cd "${paper_dir}"
 
 if command -v latexmk >/dev/null 2>&1; then
-  latexmk -pdf -bibtex -file-line-error -halt-on-error -interaction=nonstopmode mini_paper.tex
+  latexmk -pdf -bibtex -file-line-error -halt-on-error -interaction=nonstopmode paper.tex
 elif command -v tectonic >/dev/null 2>&1; then
-  tectonic --keep-intermediates --keep-logs mini_paper.tex
+  tectonic --keep-intermediates --keep-logs paper.tex
 else
   printf '%s\n' \
     'No supported LaTeX compiler was found.' \
@@ -19,4 +19,4 @@ else
   exit 2
 fi
 
-printf 'Paper built: %s\n' "${paper_dir}/mini_paper.pdf"
+printf 'Local paper build complete: %s\n' "${paper_dir}/paper.pdf"

@@ -150,9 +150,9 @@ Install a TeX distribution that provides `latexmk` and BibTeX, then run:
 ./scripts/build_paper.sh
 ```
 
-Tectonic is also supported as a local fallback. The output is
-`docs/mini_paper.pdf`, which GitHub renders as an in-browser preview. The
-`LaTeX paper` GitHub Actions workflow independently compiles the manuscript and
-uploads the PDF as a workflow artifact after relevant pushes or pull requests.
-Quantitative edits should be traceable to the raw CSV or profiler export that
-supports them.
+Tectonic is also supported as a local fallback. The command creates the ignored
+local file `docs/paper.pdf`; compiled paper PDFs are not versioned or uploaded.
+GitHub renders [`docs/paper.md`](paper.md) as the public research paper. The
+`Research paper` GitHub Actions workflow independently checks that
+`docs/paper.tex` compiles after relevant pushes or pull requests. Quantitative
+edits should be traceable to the raw CSV or profiler export that supports them.

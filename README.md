@@ -1,10 +1,18 @@
-# CUDA Optimization of Fused Causal Softmax
+# CUDA Fused Causal Softmax
 
-[![LaTeX paper](https://github.com/Arwin-K/cuda-attention-softmax/actions/workflows/latex.yml/badge.svg)](https://github.com/Arwin-K/cuda-attention-softmax/actions/workflows/latex.yml)
+[![Tests](https://github.com/Arwin-K/cuda-attention-softmax/actions/workflows/ci.yml/badge.svg)](https://github.com/Arwin-K/cuda-attention-softmax/actions/workflows/ci.yml)
+[![Research paper](https://github.com/Arwin-K/cuda-attention-softmax/actions/workflows/latex.yml/badge.svg)](https://github.com/Arwin-K/cuda-attention-softmax/actions/workflows/latex.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-An educational GPU-systems research project examining how CUDA work
-decomposition, reductions, warp communication, and launch configuration affect
-causal scaled softmax and end-to-end transformer attention.
+A reproducible GPU-systems study of fused causal scaled softmax for transformer
+attention. The project connects CUDA work decomposition, warp-level reduction,
+launch tuning, numerical validation, and attention-level performance through a
+versioned implementation and provenance-bearing experiment archive.
+
+**Paper:** [Read the research paper on GitHub](docs/paper.md) ·
+**Methods:** [Experimental methodology](docs/methodology.md) ·
+**Evidence:** [Preserved Tesla T4 run](results/runs/2026-08-23_tesla-t4_ca87722) ·
+**Reproduce:** [Reproducibility guide](docs/reproducibility.md)
 
 The repository contains one evolving CUDA implementation:
 [`csrc/fused_causal_softmax.cu`](csrc/fused_causal_softmax.cu). Earlier kernel
@@ -40,7 +48,7 @@ implementation and shape.
   shape.
 
 These measurements describe one controlled T4 session, not universal CUDA
-performance. See the [rendered research paper](docs/mini_paper.pdf),
+performance. See the [research paper](docs/paper.md),
 [results](docs/results.md), and [limitations](docs/limitations.md) for the full
 experimental context.
 
@@ -141,8 +149,8 @@ scripts/          Environment, build, validation, audit, and figure helpers
 
 ## Research record
 
-- [Research paper PDF preview](docs/mini_paper.pdf)
-- [LaTeX source](docs/mini_paper.tex), [bibliography](docs/references.bib), and [Markdown companion](docs/mini_paper.md)
+- [GitHub-native research paper](docs/paper.md)
+- [LaTeX source](docs/paper.tex) and [bibliography](docs/references.bib)
 - [Methodology](docs/methodology.md)
 - [Measured results](docs/results.md)
 - [Kernel evolution](docs/kernel_evolution.md)
@@ -151,6 +159,10 @@ scripts/          Environment, build, validation, audit, and figure helpers
 - [Raw and generated artifacts](results/runs/2026-08-23_tesla-t4_ca87722/artifacts)
 - [Citation metadata](CITATION.cff)
 
+The compiled paper PDF is intentionally not versioned. The paper workflow
+checks that `docs/paper.tex` compiles, while GitHub renders `docs/paper.md`
+directly for readers.
+
 ## Scope
 
 The custom operator supports contiguous FP32 CUDA inputs, causal masking, and
@@ -158,6 +170,12 @@ forward execution. It does not implement autograd/backward, dropout, arbitrary
 masks, mixed precision, or a custom matrix multiplication. The explicit custom
 attention path still uses PyTorch for `QK^T` and `probabilities @ V`; its results
 must therefore be distinguished from an isolated softmax microbenchmark.
+
+## Contributing
+
+Contributions are welcome when they preserve the distinction between measured
+evidence and interpretation. See [CONTRIBUTING.md](CONTRIBUTING.md) for the test,
+benchmark-provenance, documentation, and pull-request expectations.
 
 ## License
 

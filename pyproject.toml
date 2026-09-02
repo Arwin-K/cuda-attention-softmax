@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "cuda-attention-softmax"
 version = "0.1.0"
-description = "Research implementation of fused causal scaled softmax in CUDA"
+description = "Reproducible CUDA study of fused causal scaled softmax for transformer attention"
 readme = "README.md"
 license = { file = "LICENSE" }
 authors = [{ name = "Arwin Karir" }]

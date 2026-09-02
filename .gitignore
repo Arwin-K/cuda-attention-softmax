@@ -27,7 +27,8 @@ results/summary/
 .DS_Store
 .ipynb_checkpoints/
 
-# LaTeX intermediates. The reviewed PDF preview remains tracked.
+# LaTeX intermediates and local paper build. GitHub renders docs/paper.md.
+docs/paper.pdf
 *.aux
 *.bbl
 *.blg
