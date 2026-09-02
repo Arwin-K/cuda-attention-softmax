@@ -40,6 +40,7 @@
 \newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}}
 \newcommand{\code}[1]{\texttt{#1}}
 \newcommand{\repo}{\url{https://github.com/Arwin-K/cuda-attention-softmax}}
+\newcounter{algorithm}
 
 \captionsetup[table]{labelsep=period,justification=raggedright}
 \captionsetup[figure]{labelsep=period,justification=raggedright}
@@ -294,6 +295,79 @@ p_{r,j} &=
 The output preserves shape, dtype, and device. The implementation accepts
 contiguous two-dimensional FP32 CUDA tensors and implements forward execution
 only.
+
+The C++ boundary rejects CPU, noncontiguous, non-FP32, non-matrix, or empty
+inputs; nonpositive or nonfinite scales; and unsupported launch sizes. A CUDA
+device guard selects the input device, allocation inherits the input options,
+and launch occurs on PyTorch's current CUDA stream. Immediate launch errors are
+reported through the extension boundary. These checks separate the public
+framework contract from the device algorithm.
+
+\subsection{System Architecture}
+
+The execution path is shown in Figure~\ref{fig:architecture}. Python supplies
+scores, scale, and launch policy. C++ validates and dispatches; the CUDA kernel
+stages scaled values, applies the causal predicate, performs maximum and sum
+reductions, and normalizes. Explicit attention retains the matrix
+multiplications before and after this boundary.
+
+\begin{figure*}[t]
+\centering
+\setlength{\fboxsep}{6pt}
+\fbox{\parbox{0.94\textwidth}{\centering
+\textbf{Explicit attention:}
+$QK^T$ $\longrightarrow$
+\fbox{Python call $\rightarrow$ C++ validation/dispatch $\rightarrow$
+CUDA fused row kernel $\rightarrow$ probabilities}
+$\longrightarrow$ $PV$\\[0.35em]
+\small PyTorch's current CUDA stream orders allocation, extension dispatch,
+kernel execution, and downstream consumption.}}
+\caption{Software boundary of the fused operator. Only scale, causal masking,
+and stable softmax are fused; score and value matrix multiplications remain
+materialized in the explicit-attention paths.}
+\label{fig:architecture}
+\end{figure*}
+
+\subsection{Final Kernel Procedure}
+
+Algorithm~\ref{alg:fused} states the final block-per-row procedure without
+committing to CUDA syntax. Thread $t$ visits $t,t+B,t+2B,\ldots$, where $B$ is
+the block size. Inactive lanes contribute $-\infty$ to maximum reduction and
+zero to sum reduction, which preserves the full-warp shuffle mask.
+
+\begin{figure}[t]
+\centering
+\begin{minipage}{0.97\columnwidth}
+\footnotesize
+\refstepcounter{algorithm}\textbf{Algorithm \thealgorithm: Fused causal
+scaled softmax}\label{alg:fused}
+\begin{enumerate}
+\setlength{\itemsep}{0pt}
+\setlength{\parsep}{0pt}
+\item Assign block $r$ to row $r$; set $q=r\bmod S$.
+\item Each thread stages allowed $\alpha X_{rj}$ in output scratch, writes zero
+for $j>q$, and accumulates a local maximum.
+\item Reduce maxima within warps; publish one value per warp; let the first
+warp reduce those partials to obtain $m_r$.
+\item Each thread overwrites allowed scratch values with
+$\exp(\alpha X_{rj}-m_r)$ and accumulates a local sum.
+\item Repeat the two-level warp reduction to obtain denominator $z_r$.
+\item Each thread overwrites its allowed values with $Y_{rj}/z_r$.
+\end{enumerate}
+\end{minipage}
+\caption*{Pseudocode for the final kernel. The output allocation is reused as
+scratch for scaled values and stable exponentials.}
+\end{figure}
+
+Output reuse removes a separate temporary allocation but imposes three
+barrier-protected invariants: all staged values must precede consumption of the
+row maximum; the cross-warp array cannot be reused until the maximum has been
+read; and all exponentials must precede consumption of the denominator. For
+$B=128$, four FP32 warp partials require 16 bytes of dynamic shared memory;
+$B=256$ and $B=512$ require 32 and 64 bytes, respectively. Per row, the method
+performs three strided passes and $O(S)$ arithmetic with $O(\log 32)$
+intra-warp steps plus one compact cross-warp reduction. These counts describe
+work and storage, not measured latency.
 
 \subsection{Hypotheses}
 
