@@ -672,7 +672,7 @@ supported. These effect sizes remain descriptive of one session.
 \label{fig:softmax-latency}
 \end{figure}
 
-\subsection{Complete Attention}
+\subsection{Complete Attention (RQ5)}
 
 The explicit custom path computes $QK^T$, invokes the custom softmax, and then
 computes $PV$. It was 1.54--2.31$\times$ faster than explicit eager attention.
@@ -685,20 +685,34 @@ fuse a larger portion of attention.
 
 \begin{table*}[t]
 \centering
-\caption{Median complete-attention latency ($\mu$s) and explicit custom
-speedup over explicit eager attention.}
+\caption{Complete-attention median latency and conditional effect size. The
+two explicit paths materialize score and probability matrices; SDPA may select
+a broader fused backend.}
 \label{tab:attention}
-\begin{tabular}{rrrrrrrr}
+\footnotesize
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{rrrrrrr}
 \toprule
-$S$ & 128 & 255 & 512 & 768 & 1024 & 1536 & 2048 \\
+$S$ & Custom explicit & Eager explicit & SDPA & Eager/custom & Custom/SDPA & $A_{12}^{<}$ \\
 \midrule
-Custom explicit & 129.008 & 204.288 & 323.584 & 587.312 & 1014.016 & 2438.960 & 4198.768 \\
-Explicit eager & 198.544 & 352.128 & 747.888 & 1071.088 & 1820.672 & 4115.824 & 7090.240 \\
-PyTorch SDPA & 84.000 & 163.600 & 245.808 & 384.864 & 543.744 & 1032.400 & 1660.576 \\
-Custom/eager & 1.54$\times$ & 1.72$\times$ & 2.31$\times$ & 1.82$\times$ & 1.80$\times$ & 1.69$\times$ & 1.69$\times$ \\
+128  & 129.008  & 198.544  & 84.000   & 1.54$\times$ & 1.54$\times$ & 0.9931 \\
+255  & 204.288  & 352.128  & 163.600  & 1.72$\times$ & 1.25$\times$ & 0.9983 \\
+512  & 323.584  & 747.888  & 245.808  & 2.31$\times$ & 1.32$\times$ & 1.0000 \\
+768  & 587.312  & 1071.088 & 384.864  & 1.82$\times$ & 1.53$\times$ & 1.0000 \\
+1024 & 1014.016 & 1820.672 & 543.744  & 1.80$\times$ & 1.86$\times$ & 1.0000 \\
+1536 & 2438.960 & 4115.824 & 1032.400 & 1.69$\times$ & 2.36$\times$ & 1.0000 \\
+2048 & 4198.768 & 7090.240 & 1660.576 & 1.69$\times$ & 2.53$\times$ & 1.0000 \\
+\midrule
+Geometric mean & --- & --- & --- & 1.78$\times$ & 1.71$\times$ & --- \\
 \bottomrule
 \end{tabular}
 \end{table*}
+
+Conditional $A_{12}^{<}$ for custom versus eager explicit attention ranged
+from 0.9931 to 1.0000. Conversely, the probability of an observed SDPA timing
+below custom was 1.0000 at six lengths and 0.9998 at $S=512$. These values
+describe near-complete separation inside the captured session and do not
+convert one session into a replicated population study.
 
 \begin{figure}[t]
 \centering
@@ -707,6 +721,45 @@ Custom/eager & 1.54$\times$ & 1.72$\times$ & 2.31$\times$ & 1.82$\times$ & 1.80$
 eager PyTorch baselines.}
 \label{fig:translation}
 \end{figure}
+
+\subsubsection{Amdahl-Model Diagnostic}
+
+If fraction $f$ of baseline attention time is accelerated by isolated factor
+$s$, the simple model predicts
+\begin{equation}
+S_{\mathrm{total}}=\frac{1}{(1-f)+f/s}.
+\label{eq:amdahl}
+\end{equation}
+Table~\ref{tab:amdahl} compares Equation~\ref{eq:amdahl} with measurement. The
+model underpredicts the three shortest shapes, approximately matches $S=768$,
+and overpredicts the three longest. Mean absolute error is 0.419$\times$, root
+mean square error is 0.499$\times$, and mean absolute percentage error is
+22.7\%. The residual pattern indicates nonadditive dispatch, allocation,
+materialization, or backend interactions; the model is diagnostic rather than
+fitted \cite{amdahl1967}.
+
+\begin{table*}[t]
+\centering
+\caption{Simple Amdahl prediction versus measured explicit-attention speedup.
+The component fractions are measured values, and residual is measured minus
+predicted speedup.}
+\label{tab:amdahl}
+\footnotesize
+\setlength{\tabcolsep}{7pt}
+\begin{tabular}{rrrrrr}
+\toprule
+$S$ & Eager-softmax fraction $f$ & Isolated speedup $s$ & Prediction & Measured & Residual \\
+\midrule
+128  & 0.3908 & 2.0025 & 1.2433 & 1.5390 & $+0.2957$ \\
+255  & 0.2326 & 1.3993 & 1.0711 & 1.7237 & $+0.6526$ \\
+512  & 0.4518 & 2.5788 & 1.3824 & 2.3113 & $+0.9289$ \\
+768  & 0.6865 & 3.0708 & 1.8619 & 1.8237 & $-0.0382$ \\
+1024 & 0.7023 & 3.5559 & 2.0193 & 1.7955 & $-0.2238$ \\
+1536 & 0.6939 & 3.9448 & 2.0746 & 1.6875 & $-0.3870$ \\
+2048 & 0.7229 & 3.6236 & 2.0982 & 1.6886 & $-0.4095$ \\
+\bottomrule
+\end{tabular}
+\end{table*}
 
 \subsection{Profiling}
 
@@ -778,16 +831,9 @@ parallelism. Warp communication then produced a smaller but consistently
 positive improvement over a block design that was already parallel.
 
 Application improvement was smaller because the custom kernel changes only one
-stage. If fraction $f$ of baseline attention time is accelerated by factor $s$,
-Amdahl's Law gives
-\begin{equation}
-S_{\mathrm{total}}=\frac{1}{(1-f)+f/s}.
-\label{eq:amdahl}
-\end{equation}
-The measured relationship broadly follows this limit, although the simple
-model does not reproduce every short-shape latency because launch overhead,
-backend selection, and interactions among operations also matter
-\cite{amdahl1967}.
+stage. The diagnostic in Table~\ref{tab:amdahl} also shows that isolated
+component time does not compose exactly: launch overhead, backend selection,
+allocation, and materialization differ between isolated and integrated paths.
 
 SDPA's consistent advantage is a central result. The custom softmax improves an
 explicit attention composition, but a production backend can optimize and fuse
