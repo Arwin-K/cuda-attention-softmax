@@ -73,7 +73,8 @@
   \renewcommand{\footrulewidth}{0.4pt}
 }
 
-\title{\fontsize{16}{19}\selectfont\textbf{CUDA Optimization of Fused Causal Softmax for Transformer Attention}}
+\title{\fontsize{16}{19}\selectfont\textbf{CUDA Optimization of Fused Causal Softmax for Transformer Attention}\\[0.25em]
+\fontsize{12}{15}\selectfont Work Decomposition, Warp-Level Reduction, Empirical Ablation, and Attention-Level Performance}
 \author{\fontsize{12}{14}\selectfont\textbf{Arwin Karir}\\[-0.1em]
   \small Educational GPU Systems Research Project}
 \date{}
@@ -92,16 +93,22 @@
 
 \begin{abstract}
 \justifying
-\textbf{Background:} Causal scaled softmax is a reduction-heavy stage between
-the two matrix multiplications of transformer attention.
-\textbf{Objective:} This study asks how CUDA work decomposition, reduction
-strategy, warp communication, and launch configuration affect this operator,
-and how much isolated-kernel improvement transfers to complete attention.
-\textbf{Methods:} One evolving FP32 CUDA implementation progressed from one
-thread per row to one block per row with shared-memory trees and then compact
-warp-shuffle reductions. Correctness was compared with PyTorch, while CUDA
-events measured 100 samples after 25 warmups on an NVIDIA Tesla T4 for sequence
-lengths 128--2048.
+\textbf{Context:} Causal scaled softmax combines scaling, future-position
+masking, stable exponentiation, row-wise maximum and denominator reductions,
+synchronization, and global-memory traffic. This makes it a compact subject for
+studying how CUDA design choices translate into kernel and application
+performance.
+\textbf{Objective:} This study evaluates how work decomposition, reduction
+communication, and launch configuration affect a fused forward-pass FP32
+causal scaled-softmax operator, and how much isolated-kernel improvement
+survives in explicit transformer attention.
+\textbf{Method:} One evolving implementation progressed from one thread per
+row to one block per row with full shared-memory trees and then compact
+warp-shuffle reductions. Seven sequence lengths, three launch sizes, three
+isolated-softmax paths, and three attention paths were measured. Each
+configuration received 25 warmups and 100 CUDA-event observations in one
+NVIDIA Tesla T4 session; these observations describe within-session variation,
+not independent replications.
 \textbf{Results:} All 88 structured softmax cases passed at
 $\mathrm{rtol}=10^{-5}$ and $\mathrm{atol}=10^{-6}$, with maximum absolute error
 $3.5763\times10^{-7}$. The warp kernel was 3.22--8.92$\times$ faster than the
@@ -109,9 +116,11 @@ row-serial implementation, 1.07--1.91$\times$ faster than the shared-tree
 implementation, and 1.40--3.94$\times$ faster than equivalent PyTorch eager
 softmax. Explicit attention improved by 1.54--2.31$\times$, but PyTorch
 scaled-dot-product attention remained faster at every tested shape.
-\textbf{Conclusion:} Work mapping and warp communication materially improved
-the isolated kernel, while unchanged matrix multiplications and broader
-attention fusion limited application-level gains.
+\textbf{Conclusion:} Cooperative work mapping and compact warp communication
+materially improved the isolated operator and an explicit composition in the
+measured session. Unchanged matrix multiplications and attention-wide fusion
+limited application-level gains, so the evidence does not establish production
+superiority or cross-device generality.
 
 \vspace{0.2em}
 \noindent\textbf{Keywords:} CUDA; GPU optimization; stable softmax; causal
