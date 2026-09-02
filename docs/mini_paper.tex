@@ -408,6 +408,25 @@ Every result row records its Git revision, implementation, shape, dtype,
 warmups, iterations, device, compute capability, PyTorch version, CUDA version,
 and timestamp. Raw samples are preserved rather than replaced by summaries.
 
+The session is the experimental unit for claims beyond the captured run, so
+$n_{\mathrm{session}}=1$. The 100 observations per configuration estimate
+conditional within-session variation and are not 100 independent experimental
+replications. Reported dispersion is
+\begin{equation}
+\mathrm{IQR}=Q_3-Q_1,\qquad
+\mathrm{rIQR}=\mathrm{IQR}/\mathrm{median}.
+\end{equation}
+Per-shape speedup is the baseline median divided by the candidate median;
+aggregate speedups use the geometric mean of the seven ratios. The conditional
+rank statistic
+\begin{equation}
+A_{12}^{<}=P(T_A<T_B)+\tfrac{1}{2}P(T_A=T_B)
+\end{equation}
+is estimated from all observed pairs. It describes separation within this
+session; it is not accompanied by a population-level $p$-value. Log--log slopes
+and the Amdahl calculation are diagnostic trends, not complexity proofs or
+fitted predictive models.
+
 \section{CUDA Implementation Evolution}
 
 \subsection{Row-Serial Baseline}
@@ -449,25 +468,37 @@ compatibility, while the installed toolkit and PyTorch build used CUDA 12.8.
 Current framework and attention benchmarks correspond to clean commit
 \code{ca87722a00ebf585cd788c67949e7c0b32dca788}.
 
-\begin{table}[t]
+\begin{table*}[t]
 \centering
-\caption{Measured execution environment.}
+\caption{Measured execution environment and controlled workload. CUDA-event
+observations are repeated measurements inside one session, not independent
+replications.}
 \label{tab:env}
-\begin{tabular}{L{2.0cm}L{4.8cm}}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{L{3.0cm}L{4.0cm}L{8.4cm}}
 \toprule
-Component & Recorded value \\
+Category & Configuration & Recorded value \\
 \midrule
-GPU & NVIDIA Tesla T4, compute capability 7.5, 15.6 GB \\
-Host & Google Colab; Linux 6.6.122, x86-64 \\
-Python & 3.13.15 \\
-PyTorch & 2.11.0+cu128 \\
-Toolkit & NVCC 12.8.93 \\
-Driver & 580.82.07; CUDA compatibility 13.0 \\
-C++ compiler & GCC 11.4.0 \\
-Timing & 25 warmups; 100 CUDA-event samples \\
+Hardware & GPU & NVIDIA Tesla T4; compute capability 7.5; 15.6 GB
+\cite{tesla_t4} \\
+Host & Runtime & Google Colab; Linux 6.6.122; x86-64 \\
+Software & Toolchain & Python 3.13.15; PyTorch 2.11.0+cu128; NVCC 12.8.93;
+GCC 11.4.0 \\
+Software & Driver & 580.82.07; advertised CUDA compatibility 13.0 \\
+Softmax geometry & Matrix and scale & $R=8S$ rows by $S$ columns;
+$\alpha=1/\sqrt{64}$ \\
+Attention geometry & Dimensions & batch 1; 8 heads; head dimension 64 \\
+Workload & Sequence lengths & 128, 255, 512, 768, 1024, 1536, 2048; FP32 \\
+Launch sweep & Threads per block & 128, 256, 512 \\
+Timing & Protocol & 25 warmups; 100 one-iteration CUDA-event observations \\
+Correctness & Criteria & $\mathrm{rtol}=10^{-5}$;
+$\mathrm{atol}=10^{-6}$; seed 1234 \\
+Provenance & Measured revision &
+\code{ca87722a00ebf585cd788c67949e7c0b32dca788} \\
 \bottomrule
 \end{tabular}
-\end{table}
+\end{table*}
 
 \section{Results}
 
