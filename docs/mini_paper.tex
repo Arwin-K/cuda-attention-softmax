@@ -338,7 +338,7 @@ zero to sum reduction, which preserves the full-warp shuffle mask.
 \begin{figure}[t]
 \centering
 \begin{minipage}{0.97\columnwidth}
-\footnotesize
+\small
 \refstepcounter{algorithm}\textbf{Algorithm \thealgorithm: Fused causal
 scaled softmax}\label{alg:fused}
 \begin{enumerate}
@@ -474,7 +474,7 @@ Current framework and attention benchmarks correspond to clean commit
 observations are repeated measurements inside one session, not independent
 replications.}
 \label{tab:env}
-\footnotesize
+\small
 \setlength{\tabcolsep}{4pt}
 \begin{tabular}{L{3.0cm}L{4.0cm}L{8.4cm}}
 \toprule
@@ -495,7 +495,7 @@ Timing & Protocol & 25 warmups; 100 one-iteration CUDA-event observations \\
 Correctness & Criteria & $\mathrm{rtol}=10^{-5}$;
 $\mathrm{atol}=10^{-6}$; seed 1234 \\
 Provenance & Measured revision &
-\code{ca87722a00ebf585cd788c67949e7c0b32dca788} \\
+ca87722a00ebf585cd788c67949e7c0b32dca788 \\
 \bottomrule
 \end{tabular}
 \end{table*}
@@ -639,11 +639,11 @@ cell ``median (IQR)'' is in microseconds; $A_{12}^{<}$ is the probability that
 a sampled custom observation is below a sampled eager observation within the
 captured session.}
 \label{tab:softmax}
-\footnotesize
+\small
 \setlength{\tabcolsep}{4.5pt}
 \begin{tabular}{rcccrr}
 \toprule
-$S$ & Custom CUDA & PyTorch eager & \code{torch.compile} & Eager/custom & $A_{12}^{<}$ \\
+$S$ & Custom CUDA & PyTorch eager & torch.compile & Eager/custom & $A_{12}^{<}$ \\
 \midrule
 128  & 38.752 (8.416)   & 77.600 (11.672)  & 225.664 (30.040)  & 2.00$\times$ & 0.9724 \\
 255  & 58.544 (2.496)   & 81.920 (10.392)  & 143.456 (32.792)  & 1.40$\times$ & 1.0000 \\
@@ -689,7 +689,7 @@ fuse a larger portion of attention.
 two explicit paths materialize score and probability matrices; SDPA may select
 a broader fused backend.}
 \label{tab:attention}
-\footnotesize
+\small
 \setlength{\tabcolsep}{5pt}
 \begin{tabular}{rrrrrrr}
 \toprule
@@ -744,7 +744,7 @@ fitted \cite{amdahl1967}.
 The component fractions are measured values, and residual is measured minus
 predicted speedup.}
 \label{tab:amdahl}
-\footnotesize
+\small
 \setlength{\tabcolsep}{7pt}
 \begin{tabular}{rrrrrr}
 \toprule
@@ -794,15 +794,13 @@ Fused causal-softmax kernel & 110.207 \\
 \end{tabular}
 \end{table}
 
-\subsection{Consolidated Research-Question Answers}
-
 \begin{table*}[t]
 \centering
 \caption{Evidence-bounded answers to the research questions.}
 \label{tab:rq-summary}
-\footnotesize
+\small
 \setlength{\tabcolsep}{5pt}
-\begin{tabular}{L{2.8cm}L{6.2cm}L{7.0cm}}
+\begin{tabular}{L{2.7cm}L{6.1cm}L{6.8cm}}
 \toprule
 Question & Principal evidence & Bounded answer \\
 \midrule
@@ -825,6 +823,7 @@ partially; attention-wide fusion remains superior \\
 \end{tabular}
 \end{table*}
 
+\clearpage
 \section{Discussion}
 
 \subsection{Hypothesis Evaluation}
@@ -837,9 +836,10 @@ supported on the T4. The kernel-to-attention prediction was partially supported
 because the kernel speedup exceeded attention speedup at six, not all seven,
 matched lengths.
 
-\begin{table}[t]
+\begin{center}
+\begin{minipage}{\columnwidth}
 \centering
-\caption{Hypothesis status from the measured T4 experiment.}
+\captionof{table}{Hypothesis status from the measured T4 experiment.}
 \label{tab:hypotheses}
 \begin{tabular}{C{0.45cm}L{2.25cm}L{3.6cm}}
 \toprule
@@ -852,7 +852,8 @@ H4 & Supported & 128 and 256 threads each won at least one shape. \\
 H5 & Partially supported & Kernel speedup exceeded attention speedup for 6/7 lengths. \\
 \bottomrule
 \end{tabular}
-\end{table}
+\end{minipage}
+\end{center}
 
 \subsection{Microkernel Versus Application Performance}
 
