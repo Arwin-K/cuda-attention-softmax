@@ -794,6 +794,37 @@ Fused causal-softmax kernel & 110.207 \\
 \end{tabular}
 \end{table}
 
+\subsection{Consolidated Research-Question Answers}
+
+\begin{table*}[t]
+\centering
+\caption{Evidence-bounded answers to the research questions.}
+\label{tab:rq-summary}
+\footnotesize
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{L{2.8cm}L{6.2cm}L{7.0cm}}
+\toprule
+Question & Principal evidence & Bounded answer \\
+\midrule
+RQ1: correctness & 88/88 softmax and 7/7 attention cases passed; maximum
+absolute error $3.5763\times10^{-7}$; exact masked zeros & Correct for the
+tested FP32 forward domain within the declared tolerance \\
+RQ2: ablation & 6.34$\times$ geometric mean over row serial; 1.32$\times$
+over shared tree & Work decomposition dominates; compact warp communication
+adds a smaller consistent gain \\
+RQ3: launch & 128 threads win 5/7 points; 256 wins 2/7; fixed-128 oracle
+penalty 4.2\% & Launch is shape dependent; 128 is the best measured fixed T4
+policy \\
+RQ4: framework softmax & 2.73$\times$ geometric mean over eager; compiled
+PyTorch wins slightly at $S=2048$ & Custom beats equivalent eager work, not
+every PyTorch implementation \\
+RQ5: attention & 1.78$\times$ geometric mean over explicit eager; custom is
+1.71$\times$ slower than SDPA geometrically & Kernel gains translate
+partially; attention-wide fusion remains superior \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
 \section{Discussion}
 
 \subsection{Hypothesis Evaluation}
@@ -840,31 +871,82 @@ explicit attention composition, but a production backend can optimize and fuse
 across a broader boundary. A fast isolated component is therefore useful
 evidence, not proof of a superior end-to-end attention implementation.
 
-\section{Limitations}
+\section{Threats to Validity and Publication Readiness}
 
-All quantitative performance findings come from one Tesla T4 in one Colab
-session. They do not establish run-to-run variability or transfer to Ampere,
-Ada, Hopper, or other architectures. Managed infrastructure does not fully
-control clock state, contention, or future software images. Quartiles describe
-within-session samples; they are not confidence intervals across machines or
-sessions.
+\subsection{Internal Validity}
 
-The operator implements contiguous FP32 forward causal scaled softmax. It does
-not provide backward/autograd support, dropout, arbitrary or padding masks,
-variable valid lengths, or mixed precision. The flattened causal contract
-assumes scores derived from $[B,H,S,S]$. Historical kernels required a recorded
-header include for CUDA 12.8, so the rebuilds are algorithmically matched but
-not byte-identical to their original source snapshots.
+\textbf{Implementation defects.} Independent PyTorch compositions and edge
+cases reduce shared-bug risk but do not prove correctness. Independent
+reimplementation or formal kernel verification would strengthen confidence.
 
-Framework comparisons were designed to perform equivalent scale, mask, and
-softmax work, but framework internals can evolve. Compilation startup was
-excluded from steady-state \code{torch.compile} latency and should be evaluated
-separately for short-lived workloads. SDPA is an output-equivalent production
-baseline, not an equal-fusion-boundary microkernel baseline.
+\textbf{Historical reconstruction.} The CUDA 12.8 header compatibility change
+is algorithmically inert but means historical build inputs are not
+byte-identical. Compiler changes may affect latency independently of the source
+algorithm.
 
-Nsight profiled only one sequence length and four launches. Peak DRAM and SM
-throughput percentages do not uniquely identify a bottleneck. Matched profiler
-metrics for historical kernels and independent sessions remain future work.
+\textbf{Measurement state.} One managed Colab session cannot fully control
+clocks, thermals, allocator state, caching, contention, or implementation
+order. Warmup reduces startup effects but cannot remove session drift.
+Profiling adds replay and instrumentation, so profiler totals are intentionally
+kept separate from benchmark medians.
+
+\subsection{External Validity}
+
+All quantitative results come from one Tesla T4. They do not establish
+transfer to Ampere, Ada, Hopper, Blackwell, AMD GPUs, or CPUs. PyTorch
+2.11.0+cu128 and CUDA 12.8 define the measured software environment; compiled
+graphs and SDPA backend selection may change in later releases.
+
+Only batch 1, eight heads, head dimension 64, FP32, causal masking, and seven
+sequence lengths were timed. The operator has no backward/autograd support,
+dropout, padding or arbitrary masks, variable valid lengths, or mixed
+precision. Conclusions do not extend to training or those workload dimensions.
+
+\subsection{Construct Validity}
+
+CUDA events measure device work ordered between events, not full request
+wall-clock latency, energy, peak memory, compilation cost, binary size,
+portability, or maintenance effort. Eager, compiled, custom, and SDPA paths
+implement comparable outputs but expose different fusion boundaries; each
+comparison answers a different engineering question.
+
+The row-serial comparison bundles work ownership, memory access, reduction,
+and normalization changes. Shared tree versus warp reduction is the narrower
+communication ablation. Fixed-tolerance agreement is empirical rather than
+formal, and the absent Triton, CUB, mixed-precision, and backward baselines
+limit claims of library-level competitiveness.
+
+\subsection{Conclusion Validity}
+
+The central threat is pseudoreplication. The 100 timings are not 100
+independent sessions, so $A_{12}^{<}$ and quartiles describe only the captured
+conditional distributions. No population-level significance test or
+confidence interval is reported. Geometric means can conceal reversals such as
+the compiled result at $S=2048$, so per-shape tables remain primary. Log--log
+slopes use seven points, and the Amdahl diagnostic uses component timings that
+need not compose additively.
+
+A confirmatory design should run at least five, preferably ten or more,
+independently initialized sessions per GPU, randomize implementation order,
+and analyze paired session medians. A preregistered analysis could then report
+Wilcoxon signed-rank results, paired location and rank effect sizes, bootstrap
+confidence intervals, and Holm correction across primary comparisons. Those
+analyses are requirements for future replication, not claims about this run.
+
+\subsection{Publication-Readiness Assessment}
+
+The manuscript and artifact structure support a rigorous project report or
+preliminary systems study: explicit RQs, commit-linked evolution, independent
+correctness composition, raw timing samples, provenance, profiler exports, and
+direct validity limits. They do not guarantee journal acceptance or establish
+production superiority.
+
+Before a journal submission, the highest-priority additions are independent
+randomized sessions; at least one Ampere-or-newer GPU; session-level inference;
+matched Triton, CUB, or specialized-library baselines; mixed precision and
+backward support if training relevance is claimed; matched profiler captures;
+and an immutable artifact release independently reproduced under artifact
+evaluation guidance \cite{acm_artifacts}.
 
 \section{Conclusion and Future Work}
 
