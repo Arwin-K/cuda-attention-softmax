@@ -533,14 +533,39 @@ Unexpected NaN/Inf & none & none \\
 \end{tabular}
 \end{table}
 
-\subsection{Historical Kernel Evolution}
+\subsection{Historical Kernel Evolution (RQ2)}
 
-Figure~\ref{fig:historical} shows the matched historical comparison. The warp
+Table~\ref{tab:historical} and Figure~\ref{fig:historical} show the matched
+historical comparison. The warp
 kernel was 3.22--8.92$\times$ faster than row serial and 1.07--1.91$\times$
 faster than the shared-tree design across all tested lengths. The larger
 row-serial gap combines work-decomposition and reduction improvements; the
 shared-tree comparison more closely isolates the communication change after
 block-per-row work was already present.
+
+\begin{table*}[t]
+\centering
+\caption{Historical-kernel ablation on the Tesla T4. Latencies are medians in
+microseconds; ratios greater than one favor the warp-reduction kernel.}
+\label{tab:historical}
+\small
+\setlength{\tabcolsep}{8pt}
+\begin{tabular}{rrrrrr}
+\toprule
+$S$ & Row serial & Shared tree & Warp reduction & Row/warp & Shared/warp \\
+\midrule
+128  & 149.664  & 52.992   & 46.416   & 3.22$\times$ & 1.14$\times$ \\
+255  & 371.120  & 80.016   & 63.552   & 5.84$\times$ & 1.26$\times$ \\
+512  & 977.248  & 214.832  & 129.024  & 7.57$\times$ & 1.67$\times$ \\
+768  & 2101.248 & 315.632  & 235.552  & 8.92$\times$ & 1.34$\times$ \\
+1024 & 2032.896 & 594.016  & 311.728  & 6.52$\times$ & 1.91$\times$ \\
+1536 & 4595.920 & 733.184  & 668.560  & 6.87$\times$ & 1.10$\times$ \\
+2048 & 8827.104 & 1303.936 & 1220.928 & 7.23$\times$ & 1.07$\times$ \\
+\midrule
+Geometric mean & --- & --- & --- & 6.34$\times$ & 1.32$\times$ \\
+\bottomrule
+\end{tabular}
+\end{table*}
 
 \begin{figure}[t]
 \centering
@@ -550,7 +575,7 @@ Row serial (\code{8f07d762}) is the reference for the plotted ratios.}
 \label{fig:historical}
 \end{figure}
 
-\subsection{Launch Configuration}
+\subsection{Launch Configuration (RQ3)}
 
 The 128-thread block had the lowest median at lengths 128, 255, 512, 768, and
 1024. A 256-thread block won at 1536 and 2048; 512 threads won no tested shape.
@@ -559,6 +584,34 @@ at each length and selected the block size with the lowest median relative
 latency. It selected 128 threads with score 1.000, compared with 1.107 for 256
 and 2.100 for 512. Figure~\ref{fig:launch} demonstrates that the per-shape
 winner is not universal.
+
+Using a geometric-mean penalty against a per-shape oracle, fixed launches of
+128, 256, and 512 threads score 1.042, 1.202, and 1.900, respectively. Thus,
+128 threads are the best measured fixed policy, but a threshold policy using
+256 threads for $S\ge1536$ reproduces the oracle only for these seven T4
+points; it is not asserted as a portable rule.
+
+\begin{table*}[t]
+\centering
+\caption{Launch-configuration median latency in microseconds. Bold values are
+the lowest observed medians at each sequence length.}
+\label{tab:launch}
+\small
+\setlength{\tabcolsep}{11pt}
+\begin{tabular}{rrrrl}
+\toprule
+$S$ & 128 threads & 256 threads & 512 threads & Best launch \\
+\midrule
+128  & \textbf{24.528}  & 38.816   & 51.504   & 128 \\
+255  & \textbf{38.912}  & 59.584   & 110.432  & 128 \\
+512  & \textbf{112.256} & 112.912  & 250.464  & 128 \\
+768  & \textbf{166.048} & 223.216  & 372.992  & 128 \\
+1024 & \textbf{280.656} & 310.768  & 436.576  & 128 \\
+1536 & 710.656 & \textbf{653.824}  & 1091.760 & 256 \\
+2048 & 1449.984 & \textbf{1179.760} & 1361.744 & 256 \\
+\bottomrule
+\end{tabular}
+\end{table*}
 
 \begin{figure}[t]
 \centering
