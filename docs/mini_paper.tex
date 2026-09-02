@@ -155,15 +155,22 @@ case study in GPU work decomposition, coalesced memory access, synchronization,
 shared memory, register-local partials, and warp communication.
 
 This work studies one primary CUDA source file through Git history rather than
-maintaining unrelated ``naive'' and ``optimized'' implementations. The research
-question is:
+maintaining unrelated ``naive'' and ``optimized'' implementations. Five
+research questions (RQs) separate numerical behavior, kernel mechanisms,
+launch policy, framework comparison, and application translation:
 
-\begin{quote}
-How do GPU work decomposition, parallel reductions, warp-level communication,
-and launch configuration affect fused causal scaled-softmax performance, and
-how much do those kernel-level optimizations translate into end-to-end
-transformer attention performance?
-\end{quote}
+\begin{enumerate}
+\item[\textbf{RQ1}] Does the operator preserve the intended causal
+scaled-softmax contract for the structured FP32 test domain?
+\item[\textbf{RQ2}] How much do cooperative work decomposition and compact
+warp communication contribute to latency reduction?
+\item[\textbf{RQ3}] Is one threads-per-block choice optimal across the tested
+sequence lengths?
+\item[\textbf{RQ4}] How does the fused operator compare with equivalent eager
+and compiled framework softmax paths?
+\item[\textbf{RQ5}] How much isolated-softmax improvement survives in explicit
+attention, and how does that path compare with production SDPA?
+\end{enumerate}
 
 The contributions are: (1) an inspectable fused causal scaled-softmax operator;
 (2) commit-linked comparisons of row-serial, shared-tree, and warp-reduction
@@ -171,6 +178,12 @@ designs; (3) controlled launch and framework comparisons; (4) integration into
 explicit attention with a production SDPA baseline; and (5) a reproducible
 evidence archive containing raw samples, environment metadata, figures,
 profiler exports, and the executed experiment notebook.
+
+The claims are deliberately bounded. All timings were collected in one session
+on one Tesla T4. Repeated CUDA-event observations reveal conditional timing
+spread but do not constitute independent machines or sessions. The paper
+therefore reports descriptive medians, quartiles, ratios, and rank separation,
+while reserving confirmatory inference for a replicated design.
 
 \section{Background and Related Work}
 
@@ -208,6 +221,13 @@ sequence at each intra-warp reduction step \cite{cuda_warp_shuffle}. A compact
 two-level design can reduce within each warp, store one result per warp in
 shared memory, and use the first warp for the final block result.
 
+Parallel reduction is a well-established CUDA optimization subject. Harris
+develops the canonical sequence of mapping, addressing, and warp-tail
+transformations, while CUB packages architecture-tuned block collectives
+\cite{harris2007,cub_block_reduce}. The hand-written reduction here is intended
+to expose those engineering choices. It is not evidence that a bespoke kernel
+would outperform a matched CUB implementation.
+
 Performance does not follow from occupancy or thread count alone. Block size,
 register use, shared memory, coordination, and row length interact, so launch
 configuration must be measured rather than inferred \cite{cuda_occupancy,
@@ -223,6 +243,31 @@ partitioning and parallelism \cite{flashattention2}. The present operator is
 deliberately narrower: it fuses the scaled causal softmax stage but leaves
 $QK^T$ and $PV$ to PyTorch. This boundary makes the difference between a
 microkernel result and a full-attention result explicit.
+
+Memory-efficient attention can avoid retaining the full quadratic matrix even
+when arithmetic remains quadratic \cite{rabe2021}. Likewise, cuDNN and Triton
+illustrate two different routes to maintainable optimized kernels:
+architecture-tuned reusable libraries and tile-level compiler abstractions
+\cite{cudnn2014,triton2019}. These systems motivate stronger future baselines;
+their absence is treated as a construct-validity limitation.
+
+\subsection{Framework Compilation and Empirical Rigor}
+
+PyTorch eager execution, graph compilation, and specialized attention backends
+control different fusion boundaries. PyTorch~2 uses bytecode capture and a
+compiler stack to optimize graphs while retaining Python flexibility
+\cite{pytorch2_2024}. A comparison against eager execution measures replacement
+of a multi-operator composition; a comparison against steady-state
+\code{torch.compile} asks whether compilation can remove similar overhead; and
+SDPA evaluates a broader production-oriented boundary.
+
+Systems benchmarking is sensitive to layout, clocks, runtime state, and
+measurement order. Seemingly innocuous environmental changes can reverse
+conclusions, motivating raw-data retention, randomized independent sessions,
+and explicit experimental units \cite{mytkowicz2009,stabilizer2013}. The
+Roofline model supplies useful memory-versus-compute context
+\cite{roofline2009}, but the available profiler fields are insufficient for a
+quantitative Roofline placement. No bottleneck classification is claimed.
 
 \section{Methodology}
 
