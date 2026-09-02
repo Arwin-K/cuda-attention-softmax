@@ -621,29 +621,49 @@ changes within this comparison.}
 \label{fig:launch}
 \end{figure}
 
-\subsection{Framework Softmax Comparison}
+\subsection{Framework Softmax Comparison (RQ4)}
 
 Table~\ref{tab:softmax} and Figure~\ref{fig:softmax-latency} compare equivalent
 scale--mask--softmax work. The custom operator beat eager PyTorch at all seven
 lengths by 1.40--3.94$\times$. It beat steady-state \code{torch.compile} at six
 lengths; at $S=2048$, compiled PyTorch was approximately 2.1\% faster.
+The geometric-mean custom-over-eager speedup was 2.73$\times$. Fitted log--log
+latency slopes were 1.294 for custom, 1.622 for eager, and 0.761 for compiled
+PyTorch over these seven points; fixed overhead and limited range prevent
+interpreting them as asymptotic exponents.
 
 \begin{table*}[t]
 \centering
-\caption{Median fused causal softmax latency ($\mu$s) and custom speedup over
-equivalent eager PyTorch. Each median summarizes 100 samples.}
+\caption{Isolated causal-softmax latency and conditional effect size. Each
+cell ``median (IQR)'' is in microseconds; $A_{12}^{<}$ is the probability that
+a sampled custom observation is below a sampled eager observation within the
+captured session.}
 \label{tab:softmax}
-\begin{tabular}{rrrrrrrr}
+\footnotesize
+\setlength{\tabcolsep}{4.5pt}
+\begin{tabular}{rcccrr}
 \toprule
-$S$ & 128 & 255 & 512 & 768 & 1024 & 1536 & 2048 \\
+$S$ & Custom CUDA & PyTorch eager & \code{torch.compile} & Eager/custom & $A_{12}^{<}$ \\
 \midrule
-Custom CUDA & 38.752 & 58.544 & 131.040 & 239.440 & 359.568 & 723.952 & 1414.480 \\
-PyTorch eager & 77.600 & 81.920 & 337.920 & 735.264 & 1278.592 & 2855.840 & 5125.488 \\
-\code{torch.compile} & 225.664 & 143.456 & 197.392 & 344.352 & 465.424 & 1182.416 & 1385.760 \\
-Custom/eager & 2.00$\times$ & 1.40$\times$ & 2.58$\times$ & 3.07$\times$ & 3.56$\times$ & 3.94$\times$ & 3.62$\times$ \\
+128  & 38.752 (8.416)   & 77.600 (11.672)  & 225.664 (30.040)  & 2.00$\times$ & 0.9724 \\
+255  & 58.544 (2.496)   & 81.920 (10.392)  & 143.456 (32.792)  & 1.40$\times$ & 1.0000 \\
+512  & 131.040 (12.888) & 337.920 (4.016)  & 197.392 (37.000)  & 2.58$\times$ & 1.0000 \\
+768  & 239.440 (12.984) & 735.264 (4.984)  & 344.352 (22.896)  & 3.07$\times$ & 1.0000 \\
+1024 & 359.568 (6.304)  & 1278.592 (7.256) & 465.424 (29.304)  & 3.56$\times$ & 1.0000 \\
+1536 & 723.952 (104.120)& 2855.840 (20.072)& 1182.416 (21.016) & 3.94$\times$ & 1.0000 \\
+2048 & 1414.480 (34.168)& 5125.488 (116.352)& 1385.760 (279.384)& 3.62$\times$ & 1.0000 \\
+\midrule
+Geometric mean & --- & --- & --- & 2.73$\times$ & --- \\
 \bottomrule
 \end{tabular}
 \end{table*}
+
+The observed custom/eager rank separation was 0.9724 at $S=128$ and complete
+at the reported precision for all other lengths. Relative IQR ranged from
+1.75--21.72\% for custom, 0.57--15.04\% for eager, and 1.78--22.86\% for the
+compiled path. At $S=2048$, the compiled median was lower and its conditional
+$A_{12}^{<}$ against custom was 0.4385, so universal custom superiority is not
+supported. These effect sizes remain descriptive of one session.
 
 \begin{figure}[t]
 \centering
