@@ -84,6 +84,14 @@ python scripts/audit_kernel_history.py
 These commands use the preserved CSVs and can run on CPU:
 
 ```bash
+./scripts/reproduce_published_results.sh
+```
+
+That command creates a fresh temporary directory, verifies the checked-in
+audits, and regenerates the comparison CSV, figures, and Markdown tables. For
+individual stages or custom output paths, run:
+
+```bash
 python benchmarks/compare_speedups.py \
   --softmax-raw results/runs/2026-08-23_tesla-t4_ca87722/artifacts/benchmarks/raw/softmax_raw.csv \
   --attention-raw results/runs/2026-08-23_tesla-t4_ca87722/artifacts/attention/attention_raw.csv \

@@ -83,6 +83,23 @@ header-only CUDA 12.8 compatibility adjustment to historical checkouts; it did
 not change their algorithms. Current framework and attention benchmarks use
 the measured clean commit `ca87722a`.
 
+```mermaid
+flowchart TD
+    S[One score row] --> M[Scale and apply causal predicate]
+    M --> X[Thread local maxima]
+    X --> W[Warp shuffle reductions]
+    W --> B[One partial maximum per warp in shared memory]
+    B --> E[Subtract maximum and exponentiate]
+    E --> U[Warp and block denominator reductions]
+    U --> O[Write normalized probabilities]
+```
+
+This diagram describes the final warp-reduction kernel. The historical
+shared-tree stage used a block-wide shared-memory tree for its reductions;
+the row-serial stage assigned each row to one thread. The
+[kernel evolution guide](kernel_evolution.md) maps these stages to their Git
+revisions and measured ablation.
+
 CUDA events measured 100 iterations after 25 warmups. The primary softmax
 workload used FP32, `batch_heads=8`, and `rows=8*S`; attention used batch 1,
 eight heads, and head dimension 64. Medians and interquartile values were

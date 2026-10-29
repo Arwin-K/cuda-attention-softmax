@@ -9,6 +9,7 @@ launch tuning, numerical validation, and attention-level performance through a
 versioned implementation and provenance-bearing experiment archive.
 
 **Paper:** [Read the research paper on GitHub](docs/paper.md) ·
+**Research guide:** [Navigate methods and evidence](docs/README.md) ·
 **Methods:** [Experimental methodology](docs/methodology.md) ·
 **Evidence:** [Preserved Tesla T4 run](results/runs/2026-08-23_tesla-t4_ca87722) ·
 **Reproduce:** [Reproducibility guide](docs/reproducibility.md)
@@ -28,6 +29,15 @@ measurements rather than duplicate source files.
 The operator fuses scaling, causal masking, stable maximum subtraction,
 exponentiation, reduction, and normalization for FP32 score tensors shaped
 `[rows, sequence_length]`. It implements the forward pass only.
+
+```mermaid
+flowchart LR
+    A[FP32 scores] --> B[Scale and causal mask]
+    B --> C[Stable maximum reduction]
+    C --> D[Exponentiate and sum]
+    D --> E[Normalize]
+    E --> F[Attention probabilities]
+```
 
 ## Measured result
 
@@ -86,6 +96,13 @@ Colab notebook and the checked-in experiment schema:
 
 ```bash
 ./scripts/verify_cpu_reproducibility.sh
+```
+
+To audit the preserved run and regenerate its comparison CSV, figures, and
+GitHub-readable tables into a fresh temporary directory:
+
+```bash
+./scripts/reproduce_published_results.sh
 ```
 
 ## Build and test the CUDA extension
@@ -149,6 +166,7 @@ scripts/          Environment, build, validation, audit, and figure helpers
 ## Research record
 
 - [GitHub-native research paper](docs/paper.md)
+- [Research guide and claim-to-evidence map](docs/README.md)
 - [Methodology](docs/methodology.md)
 - [Measured results](docs/results.md)
 - [Kernel evolution](docs/kernel_evolution.md)

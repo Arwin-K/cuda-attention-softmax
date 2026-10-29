@@ -29,3 +29,6 @@ jobs:
 
       - name: Run CPU-only reproducibility checks
         run: ./scripts/verify_cpu_reproducibility.sh
+
+      - name: Regenerate published analysis
+        run: ./scripts/reproduce_published_results.sh
