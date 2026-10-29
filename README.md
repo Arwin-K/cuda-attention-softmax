@@ -1,7 +1,6 @@
 # CUDA Fused Causal Softmax
 
 [![Tests](https://github.com/Arwin-K/cuda-attention-softmax/actions/workflows/ci.yml/badge.svg)](https://github.com/Arwin-K/cuda-attention-softmax/actions/workflows/ci.yml)
-[![Research paper](https://github.com/Arwin-K/cuda-attention-softmax/actions/workflows/latex.yml/badge.svg)](https://github.com/Arwin-K/cuda-attention-softmax/actions/workflows/latex.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 A reproducible GPU-systems study of fused causal scaled softmax for transformer
@@ -150,7 +149,6 @@ scripts/          Environment, build, validation, audit, and figure helpers
 ## Research record
 
 - [GitHub-native research paper](docs/paper.md)
-- [LaTeX source](docs/paper.tex) and [bibliography](docs/references.bib)
 - [Methodology](docs/methodology.md)
 - [Measured results](docs/results.md)
 - [Kernel evolution](docs/kernel_evolution.md)
@@ -159,9 +157,7 @@ scripts/          Environment, build, validation, audit, and figure helpers
 - [Raw and generated artifacts](results/runs/2026-08-23_tesla-t4_ca87722/artifacts)
 - [Citation metadata](CITATION.cff)
 
-The compiled paper PDF is intentionally not versioned. The paper workflow
-checks that `docs/paper.tex` compiles, while GitHub renders `docs/paper.md`
-directly for readers.
+GitHub renders `docs/paper.md` directly for readers.
 
 ## Scope
 

@@ -2,10 +2,8 @@
 
 **Author:** Arwin Karir
 
-This is the repository's primary, browser-readable research paper. Its
-typesetting source is available as [`paper.tex`](paper.tex), with bibliography
-records in [`references.bib`](references.bib). No compiled paper PDF is stored
-in the repository. Every number below comes from the preserved run at
+This is the repository's primary, browser-readable research paper. Every
+number below comes from the preserved run at
 `results/runs/2026-08-23_tesla-t4_ca87722/`.
 
 ## 1. Abstract
@@ -315,8 +313,7 @@ outside the optimized component.
 
 ## References
 
-The complete structured bibliography is stored in
-[`references.bib`](references.bib). Principal sources include:
+Sources cited in this paper include:
 
 1. Vaswani et al., [“Attention Is All You Need”](https://papers.nips.cc/paper_files/paper/2017/hash/3f5ee243547dee91fbd053c1c4a845aa-Abstract.html), 2017.
 2. NVIDIA, [CUDA Programming Guide](https://docs.nvidia.com/cuda/cuda-programming-guide/index.html).

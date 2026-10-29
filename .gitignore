@@ -27,15 +27,3 @@ results/summary/
 .DS_Store
 .ipynb_checkpoints/
 
-# LaTeX intermediates and local paper build. GitHub renders docs/paper.md.
-docs/paper.pdf
-*.aux
-*.bbl
-*.blg
-*-blx.bib
-*.fdb_latexmk
-*.fls
-*.log
-*.out
-*.run.xml
-*.xdv

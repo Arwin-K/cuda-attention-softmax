@@ -11,9 +11,8 @@ performance claim traceable to preserved evidence.
 3. Run `./scripts/run_tests.sh` for code changes.
 4. Run `./scripts/verify_cpu_reproducibility.sh` for experiment, notebook, or
    artifact-schema changes.
-5. Run `./scripts/build_paper.sh` for changes to `docs/paper.tex` or its
-   bibliography. The generated `docs/paper.pdf` is local and must not be
-   committed.
+5. Check links, diagrams, and evidence citations when changing the Markdown
+   paper or research guides.
 
 ## Research-evidence requirements
 
