@@ -34,7 +34,7 @@ from benchmarks.compare_speedups import (
     compare_kernel_and_attention_speedups,
     summarize_attention_records,
 )
-from benchmarks.generate_tables import generate_results_tables, render_latex_table
+from benchmarks.generate_tables import generate_results_tables, render_markdown_table
 from benchmarks.summarize_results import (
     SUMMARY_FIELDS,
     load_raw_benchmark_csv,
@@ -860,18 +860,17 @@ def test_kernel_attention_figure_reads_comparison_csv(tmp_path) -> None:
     plot.assert_called_once_with(plot.call_args.args[0], output)
 
 
-def test_latex_table_escapes_labels_and_rejects_empty_rows() -> None:
-    document = render_latex_table(
-        headers=("Path", "Median_us"),
-        rows=(("custom_cuda", "2.000"),),
-        caption="Measured & derived",
-        label="tab:fixture_results",
+def test_markdown_table_escapes_pipes_and_rejects_empty_rows() -> None:
+    document = render_markdown_table(
+        headers=("Path", "Median us"),
+        rows=(("custom|cuda", "2.000"),),
+        title="Measured results",
     )
 
-    assert r"custom\_cuda" in document
-    assert r"Measured \& derived" in document
+    assert r"custom\|cuda" in document
+    assert "# Measured results" in document
     with pytest.raises(ValueError, match="empty"):
-        render_latex_table(headers=("A",), rows=(), caption="x", label="x")
+        render_markdown_table(headers=("A",), rows=(), title="x")
 
 
 def test_results_tables_are_generated_from_complete_fixture_csvs(tmp_path) -> None:
@@ -956,9 +955,9 @@ def test_results_tables_are_generated_from_complete_fixture_csvs(tmp_path) -> No
     )
 
     assert tuple(path.name for path in outputs) == (
-        "softmax_results.tex",
-        "attention_results.tex",
-        "kernel_attention_speedup.tex",
+        "softmax_results.md",
+        "attention_results.md",
+        "kernel_attention_speedup.md",
     )
     assert all(path.is_file() for path in outputs)
     assert "2.000" in outputs[0].read_text(encoding="utf-8")

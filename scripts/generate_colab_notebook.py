@@ -57,7 +57,7 @@ numbers.
 10. Generate figures and tables only from the saved CSV files.
 11. Read the validation report and artifact inventory.
 12. Optionally back up to Drive, create the ZIP, and download it.
-13. Send the ZIP back with the paper source so claims can be filled from evidence.
+13. Keep the ZIP with its manifest so claims can be checked against evidence.
 
 If Colab disconnects, reconnect to a GPU, rerun setup/build, restore `artifacts/`
 from Drive if used, set `ARTIFACT_POLICY = "REUSE"`, and continue with the first
@@ -2199,29 +2199,16 @@ and the hypothesis-status narrative.
             ),
             code(
                 r'''
-def latex_escape(value: Any) -> str:
-    text = str(value)
-    replacements = {
-        "\\": r"\textbackslash{}", "&": r"\&", "%": r"\%",
-        "$": r"\$", "#": r"\#", "_": r"\_", "{": r"\{", "}": r"\}",
-    }
-    for source, replacement in replacements.items():
-        text = text.replace(source, replacement)
-    return text
-
-def write_latex_table(path: Path, rows: Sequence[Mapping[str, Any]], columns: Sequence[str]) -> None:
+def write_markdown_table(path: Path, rows: Sequence[Mapping[str, Any]], columns: Sequence[str]) -> None:
     if not rows:
         return
-    alignment = "l" * len(columns)
+    def escape(value: Any) -> str:
+        return str(value).replace("|", r"\|").replace("\n", " ")
     lines = [
-        f"\\begin{{tabular}}{{{alignment}}}",
-        "\\hline",
-        " & ".join(latex_escape(column) for column in columns) + r" \\",
-        "\\hline",
+        "| " + " | ".join(escape(column) for column in columns) + " |",
+        "| " + " | ".join("---" for _ in columns) + " |",
     ]
-    for row in rows:
-        lines.append(" & ".join(latex_escape(row.get(column, "")) for column in columns) + r" \\")
-    lines.extend(["\\hline", "\\end{tabular}"])
+    lines.extend("| " + " | ".join(escape(row.get(column, "")) for column in columns) + " |" for row in rows)
     write_text(path, "\n".join(lines) + "\n")
 
 correctness_table_columns = [
@@ -2238,8 +2225,8 @@ if correctness_rows:
         ARTIFACTS / "tables/correctness_table.csv",
         correctness_table, correctness_table_columns,
     )
-    write_latex_table(
-        ARTIFACTS / "tables/correctness_table.tex",
+    write_markdown_table(
+        ARTIFACTS / "tables/correctness_table.md",
         correctness_table, correctness_table_columns,
     )
 
@@ -2256,8 +2243,8 @@ if softmax_summaries:
         ARTIFACTS / "tables/softmax_performance_table.csv",
         softmax_table, softmax_table_columns,
     )
-    write_latex_table(
-        ARTIFACTS / "tables/softmax_performance_table.tex",
+    write_markdown_table(
+        ARTIFACTS / "tables/softmax_performance_table.md",
         softmax_table, softmax_table_columns,
     )
 
@@ -2282,8 +2269,8 @@ if launch_summaries:
         ARTIFACTS / "tables/launch_configuration_table.csv",
         launch_table, launch_columns,
     )
-    write_latex_table(
-        ARTIFACTS / "tables/launch_configuration_table.tex",
+    write_markdown_table(
+        ARTIFACTS / "tables/launch_configuration_table.md",
         launch_table, launch_columns,
     )
 
@@ -2300,8 +2287,8 @@ if attention_summaries:
         ARTIFACTS / "tables/attention_table.csv",
         attention_table, attention_table_columns,
     )
-    write_latex_table(
-        ARTIFACTS / "tables/attention_table.tex",
+    write_markdown_table(
+        ARTIFACTS / "tables/attention_table.md",
         attention_table, attention_table_columns,
     )
 
@@ -2314,8 +2301,8 @@ write_csv(
     ARTIFACTS / "tables/environment_table.csv",
     environment_table, ["component", "value", "evidence_source"],
 )
-write_latex_table(
-    ARTIFACTS / "tables/environment_table.tex",
+write_markdown_table(
+    ARTIFACTS / "tables/environment_table.md",
     environment_table, ["component", "value", "evidence_source"],
 )
 
@@ -2767,7 +2754,7 @@ files.download("/content/cuda_softmax_research_artifacts.zip")
 # HOW TO REVIEW AND REPORT RESULTS
 
 Review `cuda_softmax_research_artifacts.zip` together with the current
-repository source, Git history, paper source, and bibliography.
+repository source, Git history, and the Markdown research paper.
 
 The ZIP should contain environment and Git reports, build logs, correctness
 records, raw and summary softmax data, historical and launch data when run,

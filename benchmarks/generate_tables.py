@@ -1,4 +1,4 @@
-"""Generate reproducible LaTeX result tables from measured benchmark CSVs."""
+"""Generate reproducible Markdown result tables from measured benchmark CSVs."""
 
 from __future__ import annotations
 
@@ -32,48 +32,27 @@ PROVENANCE_FIELDS = (
 )
 
 
-def _latex_escape(value: object) -> str:
-    text = str(value)
-    for source, replacement in (
-        ("\\", r"\textbackslash{}"),
-        ("&", r"\&"),
-        ("%", r"\%"),
-        ("_", r"\_"),
-        ("#", r"\#"),
-    ):
-        text = text.replace(source, replacement)
-    return text
-
-
-def render_latex_table(
+def render_markdown_table(
     *,
     headers: Sequence[str],
     rows: Sequence[Sequence[object]],
-    caption: str,
-    label: str,
+    title: str,
 ) -> str:
-    """Render a compact table whose values already came from validated CSVs."""
+    """Render a GitHub table whose values came from validated CSVs."""
 
     if not rows:
         raise ValueError("cannot render an empty results table")
     if any(len(row) != len(headers) for row in rows):
         raise ValueError("table row width does not match headers")
-    column_specification = "l" + "r" * (len(headers) - 1)
+    escape = lambda value: str(value).replace("|", r"\|").replace("\n", " ")
     lines = [
-        r"\begin{table}[htbp]",
-        r"\centering",
-        f"\\caption{{{_latex_escape(caption)}}}",
-        f"\\label{{{_latex_escape(label)}}}",
-        f"\\begin{{tabular}}{{{column_specification}}}",
-        r"\hline",
-        " & ".join(_latex_escape(header) for header in headers) + r" \\",
-        r"\hline",
+        f"# {title}",
+        "",
+        "| " + " | ".join(escape(header) for header in headers) + " |",
+        "| " + " | ".join("---" for _ in headers) + " |",
     ]
-    lines.extend(
-        " & ".join(_latex_escape(value) for value in row) + r" \\"
-        for row in rows
-    )
-    lines.extend((r"\hline", r"\end{tabular}", r"\end{table}", ""))
+    lines.extend("| " + " | ".join(escape(value) for value in row) + " |" for row in rows)
+    lines.append("")
     return "\n".join(lines)
 
 
@@ -135,7 +114,7 @@ def generate_results_tables(
     output_directory: Path,
     required_lengths: Sequence[int] = BENCHMARK_SEQUENCE_LENGTHS,
 ) -> tuple[Path, Path, Path]:
-    """Validate complete evidence and write three independently includable tables."""
+    """Validate complete evidence and write three GitHub-readable tables."""
 
     softmax = load_summary_csv(softmax_summary_path)
     attention = summarize_attention_records(
@@ -173,9 +152,9 @@ def generate_results_tables(
     )
 
     outputs = (
-        output_directory / "softmax_results.tex",
-        output_directory / "attention_results.tex",
-        output_directory / "kernel_attention_speedup.tex",
+        output_directory / "softmax_results.md",
+        output_directory / "attention_results.md",
+        output_directory / "kernel_attention_speedup.md",
     )
     existing = [path for path in outputs if path.exists()]
     if existing:
@@ -213,23 +192,20 @@ def generate_results_tables(
         for record in sorted(comparison, key=lambda row: int(row["sequence_length"]))
     ]
     documents = (
-        render_latex_table(
+        render_markdown_table(
             headers=("Path", "S", "Median us", "P25 us", "P75 us", "Elements/s"),
             rows=softmax_rows,
-            caption="Fused causal softmax benchmark results.",
-            label="tab:softmax-results",
+            title="Fused causal softmax benchmark results",
         ),
-        render_latex_table(
+        render_markdown_table(
             headers=("Path", "S", "Median us", "P25 us", "P75 us"),
             rows=attention_rows,
-            caption="Complete causal attention benchmark results.",
-            label="tab:attention-results",
+            title="Complete causal attention benchmark results",
         ),
-        render_latex_table(
+        render_markdown_table(
             headers=("S", "Kernel speedup", "Attention speedup", "Translation ratio"),
             rows=comparison_rows,
-            caption="Isolated-kernel and complete-attention speedup.",
-            label="tab:speedup-translation",
+            title="Isolated kernel and complete attention speedup",
         ),
     )
     for path, document in zip(outputs, documents, strict=True):

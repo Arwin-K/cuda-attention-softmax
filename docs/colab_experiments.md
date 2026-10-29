@@ -45,7 +45,7 @@ git status
 12. Download `cuda_softmax_research_artifacts.zip` and keep a second copy. The
     optional Drive stage is useful because `/content` disappears with the
     runtime.
-13. Upload the ZIP with the paper source for evidence-backed writing.
+13. Keep the ZIP with its manifest for evidence-backed writing.
 
 ## Recovering after disconnection
 
